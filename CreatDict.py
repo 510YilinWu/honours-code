@@ -36,7 +36,6 @@ Variables:
     Segments (dict): A dictionary containing the structure for segments data.
     Trajectories (dict): A dictionary containing the structure for trajectories data.
 """
-import json
 
 def create_rotation_structure():
     return {

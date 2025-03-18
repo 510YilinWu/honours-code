@@ -499,8 +499,9 @@ def save_extracted_data(extractedData, file_path):
     """
     subject_name = extractedData['Model Outputs']['subject']
     file_name = file_path.split('/')[-1].split('.')[0]
-    output_file_path = f'/Users/yilinwu/Desktop/honours data/Extracted data/{subject_name}-{file_name}.py'
 
+    output_folder_path = '/Users/yilinwu/Desktop/honours data/Extracted data/YW20250318'
+    output_file_path = f'{output_folder_path}/{subject_name}-{file_name}.py'
     with open(output_file_path, 'w') as file:
         file.write("extractedData = ")
         pprint.pprint(extractedData, stream=file)
@@ -512,15 +513,13 @@ def main(file_path):
     update_properties_dict(file_path)  # Initialize the properties dictionary
     extractedData = initialize_extracted_data(properties_dict)  # Initialize the extracted data format
     populate_all_data(extractedData, properties_dict, file_path)  # Extract data
-    save_extracted_data(extractedData, file_path)  # Call the function to save the extracted data
+    output_file_path = save_extracted_data(extractedData, file_path)  # Call the function to save the extracted data
+    return output_file_path
+
 
 if __name__ == "__main__":
     if len(sys.argv) != 2:
         print("Usage: python GetCSV.py <file_path> ")
         sys.exit(1)
-    
     file_path = sys.argv[1]
-    main(file_path)
-
-
-
+    output_file_path = main(file_path)

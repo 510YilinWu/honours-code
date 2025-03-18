@@ -1,6 +1,6 @@
 import os
 
-def get_file_paths(folder_path):
+def main(folder_path):
     """
     Extracts file paths from the specified folder and returns them as a list.
 

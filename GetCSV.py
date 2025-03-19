@@ -72,6 +72,8 @@ import csv
 import pandas as pd
 import pprint
 import sys
+import os
+
 
 def GetComponentsIndex(file_path):
     """
@@ -501,6 +503,7 @@ def save_extracted_data(extractedData, file_path):
     file_name = file_path.split('/')[-1].split('.')[0]
 
     output_folder_path = '/Users/yilinwu/Desktop/honours data/Extracted data/YW20250318'
+    os.makedirs(output_folder_path, exist_ok=True)  # Ensure the folder exists
     output_file_path = f'{output_folder_path}/{subject_name}-{file_name}.py'
     with open(output_file_path, 'w') as file:
         file.write("extractedData = ")

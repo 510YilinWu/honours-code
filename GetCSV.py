@@ -486,7 +486,7 @@ def populate_all_data(extractedData, properties_dict, file_path):
         if component in properties_dict["ComponentsIndex"]:
             func(extractedData, properties_dict, file_path)
             existing_components.append(component)
-    print("Existing components:", existing_components)
+    # print("Existing components:", existing_components)
 
 def save_extracted_data(extractedData, file_path):
     """
@@ -506,20 +506,18 @@ def save_extracted_data(extractedData, file_path):
         file.write("extractedData = ")
         pprint.pprint(extractedData, stream=file)
 
-    print(f"Extracted data has been saved to {output_file_path}")
+    # print(f"Extracted data has been saved to {output_file_path}")
     return output_file_path
 
 def main(file_path):
     update_properties_dict(file_path)  # Initialize the properties dictionary
     extractedData = initialize_extracted_data(properties_dict)  # Initialize the extracted data format
     populate_all_data(extractedData, properties_dict, file_path)  # Extract data
-    output_file_path = save_extracted_data(extractedData, file_path)  # Call the function to save the extracted data
-    return output_file_path
-
+    save_extracted_data(extractedData, file_path)  # Call the function to save the extracted data
 
 if __name__ == "__main__":
     if len(sys.argv) != 2:
         print("Usage: python GetCSV.py <file_path> ")
         sys.exit(1)
     file_path = sys.argv[1]
-    output_file_path = main(file_path)
+    main(file_path)

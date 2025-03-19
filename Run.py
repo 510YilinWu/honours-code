@@ -1,23 +1,37 @@
-import pprint
-import os
-
 # Import the module
-import GetFilePath
-import GetCSV  
 import extractedDataStructure
 import LoadExtractedData
 import Get_output_file_paths
+import GetFilePath
 
-folder_path = '/Users/yilinwu/Desktop/honours data/YW20250318'
-file_paths = GetFilePath.get_file_paths(folder_path)
-print(len(file_paths))
+# get a list of file paths from the extracted data folder
+R_folder_path = '/Users/yilinwu/Desktop/honours data/YW20250318'
+R_file_paths = GetFilePath.main(R_folder_path)
 
-output_file_paths = Get_output_file_paths.main(file_paths)
-print(len(output_file_paths))
+# save extracted data to .py files in folder 'Extracted data'
+Get_output_file_paths.main(R_file_paths)
+print("data saved")
 
-# Define the extracted python file path and search terms
-extractedData=LoadExtractedData.main(output_file_paths[0])# Run the main function from LoadExtractedData
-extractedDataStructure.main(extractedData)
+# get a list of file paths from the extracted data folder
+E_folder_path = '/Users/yilinwu/Desktop/honours data/Extracted data/YW20250318'
+E_file_paths = GetFilePath.main(E_folder_path)
+
+# Loop through E_file_paths and save the data into D based on the given input que
+D = {}
+
+for E_file_path in E_file_paths:
+    # Define the extracted python file path and search terms
+    extractedData = LoadExtractedData.main(E_file_path)  # Run the main function from LoadExtractedData
+    # Extract the last part of the file path and split it to get the subject code and trial type
+    file_name = E_file_path.split('/')[-1].replace('.py', '')  # Remove the '.py' extension
+    
+    # Create the dictionary using file_name as the key
+    D[file_name] = {
+        "extractedData": extractedData,
+        "E_file_path": E_file_path,
+    }
+
+# extractedDataStructure.main(extractedData)
 
 # # Print the extractedData dictionary without 'variables' values
 # extractedDataStructure.main(extractedData)

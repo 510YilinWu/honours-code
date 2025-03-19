@@ -385,8 +385,10 @@ def populate_model_outputs(extractedData, properties_dict, file_path):
         data = list(reader)  # Read all data into a list
         for variable in extractedData['Model Outputs']['variables']:
             for header in extracted_header:
-                if f"Yilin:{variable}" in header:
-                    col_indices = [i for i, item in enumerate(header) if item == f"Yilin:{variable}"]
+                # if f"Yilin:{variable}" in header:
+                #     col_indices = [i for i, item in enumerate(header) if item == f"Yilin:{variable}"]
+                if any(f":{variable}" in item for item in header):
+                    col_indices = [i for i, item in enumerate(header) if f":{variable}" in item]
                     for col_index in col_indices:
                         if data[extractedData['Model Outputs']['Frame']['frame_indices']-1][col_index] == 'X':
                             extractedData['Model Outputs']['variables'][variable]['position']['X'] = [row[col_index] for row in data[first_frame-1:max_frame_index]]
@@ -410,8 +412,10 @@ def populate_joints(extractedData, properties_dict, file_path):
         data = list(reader)
         for variable in extractedData['Joints']['variables']:
             for header in extracted_header:
-                if f"Yilin:{variable}" in header:
-                    col_indices = [i for i, item in enumerate(header) if item == f"Yilin:{variable}"]
+                # if f"Yilin:{variable}" in header:
+                #     col_indices = [i for i, item in enumerate(header) if item == f"Yilin:{variable}"]
+                if any(f":{variable}" in item for item in header):
+                    col_indices = [i for i, item in enumerate(header) if f":{variable}" in item]                    
                     for col_index in col_indices:
                         if data[extractedData['Joints']['Frame']['frame_indices']-1][col_index] == 'RX':
                             extractedData['Joints']['variables'][variable]['Rotation']['position']['RX'] = [row[col_index] for row in data[first_frame-1:max_frame_index]]
@@ -435,8 +439,10 @@ def populate_segments(extractedData, properties_dict, file_path):
         data = list(reader)
         for variable in extractedData['Segments']['variables']:
             for header in extracted_header:
-                if f"Yilin:{variable}" in header:
-                    col_indices = [i for i, item in enumerate(header) if item == f"Yilin:{variable}"]
+                # if f"Yilin:{variable}" in header:
+                #     col_indices = [i for i, item in enumerate(header) if item == f"Yilin:{variable}"]
+                if any(f":{variable}" in item for item in header):
+                    col_indices = [i for i, item in enumerate(header) if f":{variable}" in item]
                     for col_index in col_indices:
                         if data[extractedData['Segments']['Frame']['frame_indices']-1][col_index] == 'RX':
                             extractedData['Segments']['variables'][variable]['Rotation']['position']['RX'] = [row[col_index] for row in data[first_frame-1:max_frame_index]]
@@ -460,8 +466,10 @@ def populate_trajectories(extractedData, properties_dict, file_path):
         data = list(reader)
         for variable in extractedData['Trajectories']['variables']:
             for header in extracted_header:
-                if f"Yilin:{variable}" in header:
-                    col_indices = [i for i, item in enumerate(header) if item == f"Yilin:{variable}"]
+                # if f"Yilin:{variable}" in header:
+                #     col_indices = [i for i, item in enumerate(header) if item == f"Yilin:{variable}"]
+                if any(f":{variable}" in item for item in header):
+                    col_indices = [i for i, item in enumerate(header) if f":{variable}" in item]
                     for col_index in col_indices:
                         if data[extractedData['Trajectories']['Frame']['frame_indices']-1][col_index] == 'X':
                             extractedData['Trajectories']['variables'][variable]['position']['X'] = [row[col_index] for row in data[first_frame-1:max_frame_index]]
@@ -517,10 +525,11 @@ def main(file_path):
     extractedData = initialize_extracted_data(properties_dict)  # Initialize the extracted data format
     populate_all_data(extractedData, properties_dict, file_path)  # Extract data
     save_extracted_data(extractedData, file_path)  # Call the function to save the extracted data
+    return extractedData
 
 if __name__ == "__main__":
     if len(sys.argv) != 2:
         print("Usage: python GetCSV.py <file_path> ")
         sys.exit(1)
     file_path = sys.argv[1]
-    main(file_path)
+    extractedData=main(file_path)

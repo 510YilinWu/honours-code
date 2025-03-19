@@ -1,5 +1,5 @@
 # Import the module
-import extractedDataStructure
+# import extractedDataStructure
 import LoadExtractedData
 import Get_output_file_paths
 import GetFilePath
@@ -7,10 +7,10 @@ import GetFilePath
 # get a list of file paths from the extracted data folder
 R_folder_path = '/Users/yilinwu/Desktop/honours data/YW20250318'
 R_file_paths = GetFilePath.main(R_folder_path)
-print(len(R_file_paths))
 
 # save extracted data to .py files in folder 'Extracted data'
 Get_output_file_paths.main(R_file_paths)
+
 print("data saved")
 
 # get a list of file paths from the extracted data folder
@@ -38,8 +38,20 @@ for file_path in E_file_paths:
         "output_file_path": file_path
     }
 
+import os
+# Define the folder path to save the dictionary
+D_folder_path = '/Users/yilinwu/Desktop/honours data/Extracted D'
 
-extractedDataStructure.main(extractedData)
+# Create the folder if it doesn't exist
+os.makedirs(D_folder_path, exist_ok=True)
+
+# Save the dictionary D as a Python file
+D_py_file_path = os.path.join(D_folder_path, 'D.py')
+with open(D_py_file_path, 'w') as py_file:
+    py_file.write(f"D = {repr(D)}")
+print(f"Dictionary D saved to {D_py_file_path}")
+
+
 
 # # # Print the extractedData dictionary without 'variables' values
 # # extractedDataStructure.main(extractedData)

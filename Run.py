@@ -51,7 +51,5 @@ with open(D_py_file_path, 'w') as py_file:
     py_file.write(f"D = {repr(D)}")
 print(f"Dictionary D saved to {D_py_file_path}")
 
-
-
 # # # Print the extractedData dictionary without 'variables' values
 # # extractedDataStructure.main(extractedData)

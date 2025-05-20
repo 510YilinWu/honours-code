@@ -406,9 +406,11 @@ def plot_marker_3d_trajectory_traj(traj_data, marker_name, start_frame, end_fram
     ax.set(title=f"3D Trajectory of {marker_name}", xlabel="X (mm)", ylabel="Y (mm)", zlabel="Z (mm)")
     ax.legend()
     if save_path:
-        path = os.path.join(save_path, f"{marker_name}_3d_traj_{start_frame}_{end_frame}.png")
-        fig.savefig(path)
-        print(f"Figure saved to {path}")
+        unique_name = f"{marker_name}_3d_traj_{start_frame}_{end_frame}_{datetime.datetime.now().strftime('%Y%m%d_%H%M%S')}.png"
+        full_path = os.path.join(save_path, unique_name)
+        fig.savefig(full_path)
+        print(f"Figure saved to {full_path}")
+
     plt.show()
 
 def plot_marker_radial_components_space(time, traj_data, marker_name, save_path):

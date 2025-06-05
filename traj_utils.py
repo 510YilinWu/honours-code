@@ -1194,9 +1194,6 @@ def plot_combined_correlations(reach_durations, reach_distances, path_distances,
     for i in range(total_reaches):
         reach_styles[f"reach {i + 1}"] = base_reach_styles[f"reach {(i % 16) + 1}"]
 
-
-
-
     # Plot Reach Duration vs Reach Distance
     for i, (duration, distance) in enumerate(zip(reach_durations, reach_distances)):
         style = reach_styles[f"reach {i + 1}"]
@@ -1272,9 +1269,6 @@ def plot_combined_correlations(reach_durations, reach_distances, path_distances,
 
     plt.show()
 
-
-
-
 def rank_and_visualize_ldlj(reach_speed_segments, LDLJ_values, save_path, file_path):
     """
     Ranks reach segments by LDLJ values and visualizes them in a bar plot.
@@ -1310,9 +1304,6 @@ def rank_and_visualize_ldlj(reach_speed_segments, LDLJ_values, save_path, file_p
         print(f"Figure saved to {full_path}")
 
     plt.show()
-
-
-
 
 '''for combined files'''
 
@@ -1358,8 +1349,8 @@ def plot_summarize_correlation_matrix(summary, save_path, file_paths):
         save_path (str, optional): Directory to save the plot.
     """
     metrics = np.array([
-        summary["reach_durations"], summary["reach_distances"], summary["path_distances"],
-        summary["v_peaks"], summary["LDLJ_values"], summary["acc_peaks"], summary["jerk_peaks"]
+        summary["LDLJ_values"], summary["reach_distances"], summary["path_distances"],
+        summary["v_peaks"], summary["acc_peaks"], summary["jerk_peaks"], summary["reach_durations"]
     ])
     correlation_matrix = np.corrcoef(metrics)
     significance_mask = np.zeros_like(correlation_matrix, dtype=bool)
@@ -1374,8 +1365,8 @@ def plot_summarize_correlation_matrix(summary, save_path, file_paths):
 
     plt.figure(figsize=(10, 8))
     sns.heatmap(correlation_matrix, annot=True, fmt=".2f", mask=significance_mask, cmap="coolwarm",
-                xticklabels=["reach_durations", "reach_distances", "Path Distance", "Peak Speed", "LDLJ", "Peak Acceleration", "Peak Jerk"],
-                yticklabels=["reach_durations", "reach_distances", "Path Distance", "Peak Speed", "LDLJ", "Peak Acceleration", "Peak Jerk"])
+                xticklabels=["LDLJ", "Reach Distance", "Path Distance", "Velocity Peaks", "Acceleration Peaks", "Jerk Peaks", "Reach Durations"],
+                yticklabels=["LDLJ", "Reach Distance", "Path Distance", "Velocity Peaks", "Acceleration Peaks", "Jerk Peaks", "Reach Durations"])
     plt.title(f"Pearson Correlation Matrix (Masked Non-Significant)\nFiles: {', '.join([os.path.basename(fp) for fp in file_paths])}")
 
     plt.tight_layout()
@@ -1386,7 +1377,54 @@ def plot_summarize_correlation_matrix(summary, save_path, file_paths):
         plt.savefig(full_path)
         print(f"Figure saved to {full_path}")
 
-        plt.show()
+    plt.show()
+
+def rank_and_visualize_ldlj_files(results, save_path):
+    """
+    Ranks reach segments by LDLJ values for each file and visualizes them as subplots.
+
+    Args:
+        results (dict): Dictionary containing results from multiple files. Each file's result should 
+                        have a 'parameters' key with LDLJ_values and reach_speed_segments.
+        save_path (str): Directory to save the visualization plot.
+    """
+    num_files = len(results)
+    fig, axs = plt.subplots(num_files, 1, figsize=(12, 6 * num_files), sharex=False)
+
+    if num_files == 1:
+        axs = [axs]  # Ensure axs is iterable for a single subplot
+
+    for ax, (file_path, file_result) in zip(axs, results.items()):
+        LDLJ_values = file_result["parameters"]["LDLJ_values"]
+
+        # Rank LDLJ values and sort reach segments accordingly
+        ranked_indices = sorted(range(len(LDLJ_values)), key=lambda i: LDLJ_values[i], reverse=True)
+        ranked_ldlj = [LDLJ_values[i] for i in ranked_indices]
+
+        # Create a bar plot for ranked LDLJ values
+        bars = ax.bar(range(1, len(ranked_ldlj) + 1), ranked_ldlj, color="blue", alpha=0.7)
+        ax.set_xlabel("Reach Number")
+        ax.set_ylabel("LDLJ Values")
+        ax.set_title(f"Ranked Reach Segments by LDLJ Values\nFile: {os.path.basename(file_path)}")
+        ax.set_xticks(range(1, len(ranked_ldlj) + 1))
+        ax.set_xticklabels([f"Reach {i + 1}" for i in ranked_indices], rotation=45)
+        ax.grid()
+
+        # Add LDLJ value on top of each bar
+        for bar, value in zip(bars, ranked_ldlj):
+            ax.text(bar.get_x() + bar.get_width() / 2, bar.get_height(), f"{value:.2f}", 
+                    ha="center", va="bottom", fontsize=10)
+
+    plt.tight_layout()
+
+    if save_path:
+        unique_name = f"ranked_ldlj_visualization_{datetime.datetime.now().strftime('%Y%m%d_%H%M%S')}.png"
+        full_path = os.path.join(save_path, unique_name)
+        plt.savefig(full_path)
+        print(f"Figure saved to {full_path}")
+
+    plt.show()
+
 
 '''Dead code, kept for reference'''
 

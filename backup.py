@@ -11,7 +11,7 @@ import pandas as pd
 from sklearn.linear_model import LinearRegression
 from sklearn.metrics import r2_score
 
-def process_files(file_paths, BoxTrajfile_path, marker_name, prominence_threshold_speed, speed_threshold, window_size, time_window_method, save_path):
+def process_files(file_paths, marker_name, prominence_threshold_speed, speed_threshold, window_size, time_window_method, save_path):
     """
     Processes multiple trajectory files to analyze motion data and calculate metrics.
     """
@@ -21,7 +21,6 @@ def process_files(file_paths, BoxTrajfile_path, marker_name, prominence_threshol
         
         # Extract trajectory data
         traj_data, Frame, time = traj_utils.CSV_To_traj_data(file_path)
-
         Traj_Space_data = traj_utils.Traj_Space_data(traj_data)
         
 
@@ -32,17 +31,7 @@ def process_files(file_paths, BoxTrajfile_path, marker_name, prominence_threshol
         speed_segments = traj_utils.find_speed_segments(marker_name, Traj_Space_data, time, speed_threshold, speed_peaks)
                 
         # Classify the speed segments into reach and return segments
-        # Note: Adjust the rfin_x_range and lfin_x_threshold based on specific requirements
-        # YW: rfin_x_range=(300, 600), lfin_x_threshold=200
-        # NP: rfin_x_range=(50, 300), lfin_x_threshold=200
-
-        # for end position of reach
-        # LFin X Range: (np.float64(-301.652802), np.float64(-37.812771))
-        # RFin X Range: (np.float64(-38.066681), np.float64(229.149918))
-        lfin_x_range, rfin_x_range = traj_utils.calculate_rangesByBoxTraj(BoxTrajfile_path)
-        reach_speed_segments, return_speed_segments = traj_utils.classify_speed_segments(speed_segments, traj_data, marker_name, time, lfin_x_range, rfin_x_range)
-
-        print(f"Number of reach segments found: {len(reach_speed_segments)}")
+        reach_speed_segments, return_speed_segments = traj_utils.classify_speed_segments(speed_segments, traj_data, marker_name, time)
 
         # Calculate reach durations and distances
         reach_durations = traj_utils.calculate_reach_durations(reach_speed_segments)
@@ -66,7 +55,7 @@ def process_files(file_paths, BoxTrajfile_path, marker_name, prominence_threshol
             raise ValueError("Invalid time window method selected. Choose 1, 2, or 3.")
         
         # Calculate LDLJ and other metrics for the selected method
-        print(f"Processing time windows (Method {time_window_method})")
+        # print(f"Processing time windows (Method {time_window_method})")
         LDLJ_values, acc_peaks, jerk_peaks = traj_utils.calculate_ldlj_for_all_reaches(Traj_Space_data, marker_name, time, test_windows)
         
         # Correlation analysis
@@ -82,14 +71,14 @@ def process_files(file_paths, BoxTrajfile_path, marker_name, prominence_threshol
         corr_dist_vpeaks, p_dist_vpeaks = pearsonr(reach_distances, v_peaks) # important
         corr_dist_ldlj, p_dist_ldlj = pearsonr(reach_distances, LDLJ_values) # important
         
-        print(f"Method {time_window_method} - Correlation (Duration vs Distance): {corr_dur_dist}, P-value: {p_dur_dist}")
-        print(f"Method {time_window_method} - Correlation (Duration vs Path Distance): {corr_dur_path}, P-value: {p_dur_path}")
-        print(f"Method {time_window_method} - Correlation (Peak Speed vs Distance): {corr_dist_vpeaks}, P-value: {p_dist_vpeaks}")
-        print(f"Method {time_window_method} - Correlation (LDLJ vs Distance): {corr_dist_ldlj}, P-value: {p_dist_ldlj}")
+        # print(f"Method {time_window_method} - Correlation (Duration vs Distance): {corr_dur_dist}, P-value: {p_dur_dist}")
+        # print(f"Method {time_window_method} - Correlation (Duration vs Path Distance): {corr_dur_path}, P-value: {p_dur_path}")
+        # print(f"Method {time_window_method} - Correlation (Peak Speed vs Distance): {corr_dist_vpeaks}, P-value: {p_dist_vpeaks}")
+        # print(f"Method {time_window_method} - Correlation (LDLJ vs Distance): {corr_dist_ldlj}, P-value: {p_dist_ldlj}")
 
 
         ''' Plotting '''
-        traj_utils.plot_marker_trajectory_components(time, traj_data, Traj_Space_data, marker_name, save_path)
+        # traj_utils.plot_marker_trajectory_components(time, traj_data, Traj_Space_data, marker_name, save_path)
         # traj_utils.plot_single_marker_space(Traj_Space_data, time, marker_name, save_path)
         # traj_utils.plot_pos_speed_one_extrema_space(time, Traj_Space_data, speed_minima, speed_peaks, marker_name, save_path)
         # traj_utils.plot_x_speed_one_extrema_space(time, Traj_Space_data, traj_data, speed_minima, speed_peaks, marker_name, save_path)
@@ -101,7 +90,7 @@ def process_files(file_paths, BoxTrajfile_path, marker_name, prominence_threshol
         # traj_utils.plot_split_segments_speed(time, Traj_Space_data, marker_name, start_to_peak_segments, peak_to_end_segments, save_path)
 
 
-        # ''' important plots '''
+        ''' important plots '''
         # traj_utils.plot_x_position_and_speed_with_segments(time, traj_data, Traj_Space_data, marker_name, reach_speed_segments, save_path, file_path) 
         # traj_utils.plot_aligned_segments(time, Traj_Space_data, reach_speed_segments, marker_name, save_path, file_path)
         # traj_utils.plot_aligned_segments_xyz(time, traj_data, reach_speed_segments, marker_name, save_path, file_path)
@@ -144,10 +133,10 @@ prominence_threshold_speed = 350
 speed_threshold = 300
 
 window_size = 0.05  # 50 ms
-time_window_method = 1  # Choose 1, 2, or 3
+time_window_method = 3  # Choose 1, 2, or 3
 
-save_path="/Users/yilinwu/Desktop/honours/Thesis/figure"
-# save_path="/Users/yilinwu/Desktop/honours/Thesis/save_fig/L_M3"
+# save_path="/Users/yilinwu/Desktop/honours/Thesis/figure"
+save_path="/Users/yilinwu/Desktop/honours/Thesis/save_fig/L_M3"
 
 # # Example usage:
 # file_paths = [
@@ -155,28 +144,16 @@ save_path="/Users/yilinwu/Desktop/honours/Thesis/figure"
 #     "/Users/yilinwu/Desktop/honours data/Filter_10Hz/Trajectories/05/13/YW_tBBT03.csv",  # right hand
 # ]
 
-# file_paths = [
-#     "/Users/yilinwu/Desktop/honours data/Filter_10Hz/Trajectories/05/13/YW_tBBT02.csv",  # left hand
-#     "/Users/yilinwu/Desktop/honours data/Filter_10Hz/Trajectories/05/13/YW_tBBT04.csv"   # left hand
-# ]
-
-# file_paths = [
-#     "/Users/yilinwu/Desktop/honours data/Filter_10Hz/Trajectories/06/11/tBBT01.csv",  # right hand
-#     "/Users/yilinwu/Desktop/honours data/Filter_10Hz/Trajectories/06/11/tBBT03.csv",  # right hand
-#     "/Users/yilinwu/Desktop/honours data/Filter_10Hz/Trajectories/06/11/tBBT05.csv",  # right hand
-#     "/Users/yilinwu/Desktop/honours data/Filter_10Hz/Trajectories/06/11/tBBT07.csv",  # right hand
-#     ]
-
-file_paths = ["/Users/yilinwu/Desktop/honours data/Yilin-Honours/Subject/Traj/06/13/tBBT15.csv"]  # right hand]
-
-BoxTrajfile_path = '/Users/yilinwu/Desktop/honours data/Yilin-Honours/Box/Traj/06/13/tBBT15.csv'
-
+file_paths = [
+    "/Users/yilinwu/Desktop/honours data/Filter_10Hz/Trajectories/05/13/YW_tBBT02.csv",  # left hand
+    "/Users/yilinwu/Desktop/honours data/Filter_10Hz/Trajectories/05/13/YW_tBBT04.csv"   # left hand
+]
 
 # # C7, T10, CLAV, STRN, LSHO, LUPA, LUPB, LUPC, LELB, LMEP, LWRA, LWRB, LFRA, LFIN, RSHO, RUPA, RUPB, RUPC, RELB, RMEP, RWRA, RWRB, RFRA, RFIN
-marker_name = "RFIN"
-# marker_name = "LFIN"  
+# marker_name = "RFIN"
+marker_name = "LFIN"  
 
-results = process_files(file_paths, BoxTrajfile_path, marker_name, prominence_threshold_speed, speed_threshold, window_size, time_window_method,save_path)
+results = process_files(file_paths, marker_name, prominence_threshold_speed, speed_threshold, window_size, time_window_method,save_path)
 
 
 
@@ -315,141 +292,138 @@ results = process_files(file_paths, BoxTrajfile_path, marker_name, prominence_th
 
 # traj_utils.rank_and_visualize_ldlj_files(results, save_path)
 
+def find_best_predictor_combination(results, save_path):
+    """
+    Finds the best combination of predictors to predict reach_durations using multiple linear regression.
+    Saves a table of tested combinations and their R² values as a figure.
+    """
 
+    # Extract data from results
+    reach_distances = np.concatenate([results[file]['parameters']['reach_distances'] for file in results])
+    path_distances = np.concatenate([results[file]['parameters']['path_distances'] for file in results])
+    v_peaks = np.concatenate([results[file]['parameters']['v_peaks'] for file in results])
+    LDLJ_values = np.concatenate([results[file]['parameters']['LDLJ_values'] for file in results])
+    acc_peaks = np.concatenate([results[file]['parameters']['acc_peaks'] for file in results])
+    jerk_peaks = np.concatenate([results[file]['parameters']['jerk_peaks'] for file in results])
+    reach_durations = np.concatenate([results[file]['parameters']['reach_durations'] for file in results])
 
-# def find_best_predictor_combination(results, save_path):
-#     """
-#     Finds the best combination of predictors to predict reach_durations using multiple linear regression.
-#     Saves a table of tested combinations and their R² values as a figure.
-#     """
+    # Create a DataFrame for easier manipulation
+    data = pd.DataFrame({
+        'reach_distances': reach_distances,
+        'path_distances': path_distances,
+        'v_peaks': v_peaks,
+        'LDLJ_values': LDLJ_values,
+        'acc_peaks': acc_peaks,
+        'jerk_peaks': jerk_peaks,
+        'reach_durations': reach_durations
+    })
 
-#     # Extract data from results
-#     reach_distances = np.concatenate([results[file]['parameters']['reach_distances'] for file in results])
-#     path_distances = np.concatenate([results[file]['parameters']['path_distances'] for file in results])
-#     v_peaks = np.concatenate([results[file]['parameters']['v_peaks'] for file in results])
-#     LDLJ_values = np.concatenate([results[file]['parameters']['LDLJ_values'] for file in results])
-#     acc_peaks = np.concatenate([results[file]['parameters']['acc_peaks'] for file in results])
-#     jerk_peaks = np.concatenate([results[file]['parameters']['jerk_peaks'] for file in results])
-#     reach_durations = np.concatenate([results[file]['parameters']['reach_durations'] for file in results])
+    # Define all predictors
+    predictors = ['reach_distances', 'path_distances', 'v_peaks', 'LDLJ_values', 'acc_peaks', 'jerk_peaks']
 
-#     # Create a DataFrame for easier manipulation
-#     data = pd.DataFrame({
-#         'reach_distances': reach_distances,
-#         'path_distances': path_distances,
-#         'v_peaks': v_peaks,
-#         'LDLJ_values': LDLJ_values,
-#         'acc_peaks': acc_peaks,
-#         'jerk_peaks': jerk_peaks,
-#         'reach_durations': reach_durations
-#     })
+    # Store best model info
+    best_adj_r2 = -np.inf
+    best_combo = None
+    best_model = None
 
-#     # Define all predictors
-#     predictors = ['reach_distances', 'path_distances', 'v_peaks', 'LDLJ_values', 'acc_peaks', 'jerk_peaks']
+    results_summary = []
 
-#     # Store best model info
-#     best_adj_r2 = -np.inf
-#     best_combo = None
-#     best_model = None
+    # Iterate through all combinations of predictors
+    for r in range(1, len(predictors) + 1):
+        for combo in itertools.combinations(predictors, r):
+            X = data[list(combo)]
+            y = data['reach_durations']
 
-#     results_summary = []
+            model = LinearRegression()
+            model.fit(X, y)
+            y_pred = model.predict(X)
 
-#     # Iterate through all combinations of predictors
-#     for r in range(1, len(predictors) + 1):
-#         for combo in itertools.combinations(predictors, r):
-#             X = data[list(combo)]
-#             y = data['reach_durations']
+            r2 = r2_score(y, y_pred)
+            n = len(y)
+            k = X.shape[1]
+            adj_r2 = 1 - (1 - r2) * (n - 1) / (n - k - 1)
 
-#             model = LinearRegression()
-#             model.fit(X, y)
-#             y_pred = model.predict(X)
+            results_summary.append({
+                'features': combo,
+                'r2': r2,
+                'adjusted_r2': adj_r2
+            })
 
-#             r2 = r2_score(y, y_pred)
-#             n = len(y)
-#             k = X.shape[1]
-#             adj_r2 = 1 - (1 - r2) * (n - 1) / (n - k - 1)
+            if adj_r2 > best_adj_r2:
+                best_adj_r2 = adj_r2
+                best_combo = combo
+                best_model = model
 
-#             results_summary.append({
-#                 'features': combo,
-#                 'r2': r2,
-#                 'adjusted_r2': adj_r2
-#             })
+    # Output best combination
+    print(f"Best Feature Combination: {best_combo}")
+    print(f"Adjusted R^2: {best_adj_r2:.4f}")
+    print(f"Model Coefficients: {dict(zip(best_combo, best_model.coef_))}")
+    print(f"Intercept: {best_model.intercept_:.4f}")
 
-#             if adj_r2 > best_adj_r2:
-#                 best_adj_r2 = adj_r2
-#                 best_combo = combo
-#                 best_model = model
+    # Optional: Convert all results to DataFrame for further inspection
+    results_df = pd.DataFrame(results_summary).sort_values(by='adjusted_r2', ascending=False)
 
-#     # Output best combination
-#     print(f"Best Feature Combination: {best_combo}")
-#     print(f"Adjusted R^2: {best_adj_r2:.4f}")
-#     print(f"Model Coefficients: {dict(zip(best_combo, best_model.coef_))}")
-#     print(f"Intercept: {best_model.intercept_:.4f}")
+    # Identify the best adjusted R^2 value
+    best_row = results_df.iloc[0]
 
-#     # Optional: Convert all results to DataFrame for further inspection
-#     results_df = pd.DataFrame(results_summary).sort_values(by='adjusted_r2', ascending=False)
+    # Prepare the table data
+    table_data = []
+    for _, row in results_df.iterrows():
+        is_best = "⬅️ Best" if row['adjusted_r2'] == best_row['adjusted_r2'] else ""
+        table_data.append([
+            ', '.join(row['features']),
+            f"{row['r2']:.4f}",
+            f"{row['adjusted_r2']:.4f}",
+            is_best
+        ])
 
-#     # Identify the best adjusted R^2 value
-#     best_row = results_df.iloc[0]
+    # Define headers
+    headers = ["Feature Combination", "R²", "Adjusted R²", "Note"]
 
-#     # Prepare the table data
-#     table_data = []
-#     for _, row in results_df.iterrows():
-#         is_best = "⬅️ Best" if row['adjusted_r2'] == best_row['adjusted_r2'] else ""
-#         table_data.append([
-#             ', '.join(row['features']),
-#             f"{row['r2']:.4f}",
-#             f"{row['adjusted_r2']:.4f}",
-#             is_best
-#         ])
+    # Create a figure for the table
+    fig, ax = plt.subplots(figsize=(12, len(table_data) * 0.5))
+    ax.axis('tight')
+    ax.axis('off')
 
-#     # Define headers
-#     headers = ["Feature Combination", "R²", "Adjusted R²", "Note"]
+    # Add the table to the figure
+    table = ax.table(cellText=table_data, colLabels=headers, loc='center', cellLoc='center')
+    table.auto_set_font_size(False)
+    table.set_fontsize(10)
+    table.auto_set_column_width(col=list(range(len(headers))))
 
-#     # Create a figure for the table
-#     fig, ax = plt.subplots(figsize=(12, len(table_data) * 0.5))
-#     ax.axis('tight')
-#     ax.axis('off')
+    # Save the figure
+    output_path = os.path.join(save_path, "tested_combinations_table.png")
+    plt.savefig(output_path, bbox_inches='tight')
+    print(f"Table figure saved to {output_path}")
 
-#     # Add the table to the figure
-#     table = ax.table(cellText=table_data, colLabels=headers, loc='center', cellLoc='center')
-#     table.auto_set_font_size(False)
-#     table.set_fontsize(10)
-#     table.auto_set_column_width(col=list(range(len(headers))))
+    plt.show()
 
-#     # Save the figure
-#     output_path = os.path.join(save_path, "tested_combinations_table.png")
-#     plt.savefig(output_path, bbox_inches='tight')
-#     print(f"Table figure saved to {output_path}")
+    return best_combo, best_adj_r2, best_model
 
-#     plt.show()
+find_best_predictor_combination(results, save_path)
 
-#     return best_combo, best_adj_r2, best_model
+'''example usage for summarizing data across files and examining correlations'''
+summary = traj_utils.summarize_data_across_files(results)
 
-# find_best_predictor_combination(results, save_path)
-
-# '''example usage for summarizing data across files and examining correlations'''
-# summary = traj_utils.summarize_data_across_files(results)
-
-# # Examine correlations across all files using the summary data
-# summary_corr_dur_dist, summary_p_dur_dist = pearsonr(summary['reach_durations'], summary['reach_distances'])
-# summary_corr_dur_path, summary_p_dur_path = pearsonr(summary['reach_durations'], summary['path_distances'])
-# summary_corr_dist_vpeaks, summary_p_dist_vpeaks = pearsonr(summary['reach_distances'], summary['v_peaks'])
-# summary_corr_dist_ldlj, summary_p_dist_ldlj = pearsonr(summary['reach_distances'], summary['LDLJ_values'])
+# Examine correlations across all files using the summary data
+summary_corr_dur_dist, summary_p_dur_dist = pearsonr(summary['reach_durations'], summary['reach_distances'])
+summary_corr_dur_path, summary_p_dur_path = pearsonr(summary['reach_durations'], summary['path_distances'])
+summary_corr_dist_vpeaks, summary_p_dist_vpeaks = pearsonr(summary['reach_distances'], summary['v_peaks'])
+summary_corr_dist_ldlj, summary_p_dist_ldlj = pearsonr(summary['reach_distances'], summary['LDLJ_values'])
 
 # print(f"Summary - Correlation (Duration vs Distance): {summary_corr_dur_dist}, P-value: {summary_p_dur_dist}")
 # print(f"Summary - Correlation (Duration vs Path Distance): {summary_corr_dur_path}, P-value: {summary_p_dur_path}")
 # print(f"Summary - Correlation (Peak Speed vs Distance): {summary_corr_dist_vpeaks}, P-value: {summary_p_dist_vpeaks}")
 # print(f"Summary - Correlation (LDLJ vs Distance): {summary_corr_dist_ldlj}, P-value: {summary_p_dist_ldlj}")
 
-# # # Plotting correlations for summary data
-# traj_utils.plot_combined_correlations(
-#     summary['reach_durations'], summary['reach_distances'], summary['path_distances'], summary['v_peaks'], summary['LDLJ_values'],
-#     summary_corr_dur_dist, summary_p_dur_dist, summary_corr_dur_path, summary_p_dur_path,
-#     summary_corr_dist_vpeaks, summary_p_dist_vpeaks, summary_corr_dist_ldlj, summary_p_dist_ldlj,
-#     save_path,file_paths
-# )
+# # Plotting correlations for summary data
+traj_utils.plot_combined_correlations(
+    summary['reach_durations'], summary['reach_distances'], summary['path_distances'], summary['v_peaks'], summary['LDLJ_values'],
+    summary_corr_dur_dist, summary_p_dur_dist, summary_corr_dur_path, summary_p_dur_path,
+    summary_corr_dist_vpeaks, summary_p_dist_vpeaks, summary_corr_dist_ldlj, summary_p_dist_ldlj,
+    save_path,file_paths
+)
 
-# print(len(summary['reach_durations']))
 # traj_utils.plot_summarize_correlation_matrix(summary, save_path,file_paths)
 
 

@@ -8,6 +8,7 @@ import matplotlib.pyplot as plt
 import matplotlib.colors as mcolors
 import matplotlib.cm as cm
 import seaborn as sns
+from scipy.signal import butter, filtfilt
 
 '''This module provides functions to read trajectory data from a CSV file, process it to extract relevant information, and perform various analyses on the trajectory data.'''
 
@@ -86,6 +87,38 @@ def CSV_To_traj_data(file_path):
         traj_data.update(extract_columns(prefix, indices))
 
     return traj_data, Frame, time
+
+def apply_butterworth_filter(traj_data, cutoff=10, fs=200, order=4):
+    """
+    Applies a Butterworth low-pass filter to all numeric series in traj_data.
+
+    Args:
+        traj_data (dict): Dictionary of time series data to filter.
+        cutoff (float): Cutoff frequency in Hz.
+        fs (int): Sampling frequency in Hz.
+        order (int): Order of the Butterworth filter.
+
+    Returns:
+        dict: A new dictionary with the same keys and filtered values.
+    """
+    def butter_lowpass_filter(data):
+        nyq = 0.5 * fs
+        normal_cutoff = cutoff / nyq
+        b, a = butter(order, normal_cutoff, btype='low', analog=False)
+        return filtfilt(b, a, data)
+
+    filtered_data = {}
+    for key, series in traj_data.items():
+        try:
+            data_array = series.values.astype(float)
+            filtered_series = butter_lowpass_filter(data_array)
+            filtered_data[key] = pd.Series(filtered_series)
+        except Exception as e:
+            # If filtering fails (e.g., due to non-numeric data), keep original
+            filtered_data[key] = series
+
+    return filtered_data
+
 
 def Traj_Space_data(traj_data):
 
@@ -189,15 +222,90 @@ def find_speed_segments(marker_name, Traj_Space_data, time, speed_threshold, spe
 
     return speed_segments
 
-def classify_speed_segments(speed_segments, traj_data, marker_name, time):
+# def classify_speed_segments(speed_segments, traj_data, marker_name, time):
+#     """
+#     Classifies speed segments into reach and return segments based on X-coordinate changes.
+
+#     Args:
+#         speed_segments (list): List of (start_time, end_time) tuples for speed segments.
+#         traj_data (dict): Dictionary containing trajectory data.
+#         marker_name (str): Marker name to classify segments for.
+#         time (pd.Series): Time for each frame.
+
+#     Returns:
+#         tuple: Two lists containing reach and return speed segments with start/end times.
+#     """
+#     reach_speed_segments = []
+#     return_speed_segments = []
+
+#     for segment in speed_segments:
+#         start_time, end_time = segment
+#         start_index = time[time == start_time].index[0]
+#         end_index = time[time == end_time].index[0]
+
+#         start_x = traj_data[f"{marker_name}_X"][start_index]
+#         end_x = traj_data[f"{marker_name}_X"][end_index]
+
+#         if marker_name == "RFIN":
+#             if start_x < end_x and end_x > 300 and end_x < 600:
+#                 reach_speed_segments.append(segment)
+#             else:
+#                 return_speed_segments.append(segment)
+
+#         elif marker_name == "LFIN":
+#             if start_x > end_x and end_x < 200:
+#                 reach_speed_segments.append(segment)
+#             else:
+#                 return_speed_segments.append(segment)
+
+#     return reach_speed_segments, return_speed_segments
+
+def calculate_rangesByBoxTraj(BoxTrajfile_path):
+    # Read CSV
+    df = pd.read_csv(BoxTrajfile_path, skiprows=4, sep=r"\s+|,", engine="python")
+
+    # Column indices
+    column_indices = {
+        "Box:LCorner": [2, 3, 4],
+        "Box:LEdge": [5, 6, 7],
+        "Box:Partition": [8, 9, 10],
+        "Box:RCorner": [11, 12, 13],
+    }
+
+    # Extract data without filtering
+    filtered_data = {}
+    for prefix, (ix, iy, iz) in column_indices.items():
+        x = df.iloc[:, ix]
+        y = df.iloc[:, iy]
+        z = df.iloc[:, iz]
+        filtered_data[prefix] = (x, y, z)
+
+    # Calculate rfin_x_range and lfin_x_range based on the given logic
+    # for end position of the reach
+    rfin_x_range_max = filtered_data["Box:LCorner"][0].max()
+    rfin_x_range_min = filtered_data["Box:Partition"][0].min()
+
+    lfin_x_range_max = filtered_data["Box:Partition"][0].max()
+    lfin_x_range_min = filtered_data["Box:RCorner"][0].min()
+
+    rfin_x_range = (rfin_x_range_min, rfin_x_range_max)
+    lfin_x_range = (lfin_x_range_min, lfin_x_range_max)
+
+    return lfin_x_range, rfin_x_range
+
+def classify_speed_segments(speed_segments, traj_data, marker_name, time, lfin_x_range, rfin_x_range):
     """
-    Classifies speed segments into reach and return segments based on X-coordinate changes.
+    Classifies speed segments into reach and return segments based on X-coordinate changes and predefined ranges.
 
     Args:
         speed_segments (list): List of (start_time, end_time) tuples for speed segments.
         traj_data (dict): Dictionary containing trajectory data.
         marker_name (str): Marker name to classify segments for.
         time (pd.Series): Time for each frame.
+        lfin_x_range (tuple): Range for LFIN marker classification.
+        rfin_x_range (tuple): Range for RFIN marker classification.
+        # LFin X Range: (np.float64(-301.652802), np.float64(-37.812771))
+        # RFin X Range: (np.float64(-38.066681), np.float64(229.149918))
 
     Returns:
         tuple: Two lists containing reach and return speed segments with start/end times.
@@ -214,13 +322,13 @@ def classify_speed_segments(speed_segments, traj_data, marker_name, time):
         end_x = traj_data[f"{marker_name}_X"][end_index]
 
         if marker_name == "RFIN":
-            if start_x < end_x and end_x > 300 and end_x < 600:
+            if start_x < end_x and rfin_x_range[0] < end_x < rfin_x_range[1] and lfin_x_range[0] < start_x < lfin_x_range[1]:
                 reach_speed_segments.append(segment)
             else:
                 return_speed_segments.append(segment)
 
         elif marker_name == "LFIN":
-            if start_x > end_x and end_x < 200:
+            if start_x > end_x and lfin_x_range[0] < end_x < lfin_x_range[1] and rfin_x_range[0] < start_x < rfin_x_range[1]:
                 reach_speed_segments.append(segment)
             else:
                 return_speed_segments.append(segment)

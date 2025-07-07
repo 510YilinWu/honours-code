@@ -12,10 +12,11 @@ df = pd.read_csv(file_path, skiprows=4, sep=r"\s+|,", engine="python")
 
 # Column indices
 column_indices = {
-    "Box:LCorner": [2, 3, 4],
-    "Box:LEdge": [5, 6, 7],
-    "Box:Partition": [8, 9, 10],
-    "Box:RCorner": [11, 12, 13],
+    "BOX:RTC": [2, 3, 4],
+    "BOX:LTC": [5, 6, 7],
+    "BOX:LBC": [8, 9, 10],
+    "BOX:PT": [11, 12, 13],
+    "BOX:PB": [14, 15, 16],
 }
 
 # Extract data without filtering
@@ -44,11 +45,11 @@ for prefix, (max_x, max_y, max_z) in max_values.items():
     print(f"Max values for {prefix}: X={max_x}, Y={max_y}, Z={max_z}")
 
 # Calculate rfin_x_range and lfin_x_range based on the given logic
-rfin_x_range_max = filtered_data["Box:LCorner"][0].max()
-rfin_x_range_min = filtered_data["Box:Partition"][0].min()
+rfin_x_range_max = filtered_data["Box:LTC"][0].max()
+rfin_x_range_min = filtered_data["Box:PT"][0].min()
 
-lfin_x_range_max = filtered_data["Box:Partition"][0].max()
-lfin_x_range_min = filtered_data["Box:RCorner"][0].min()
+lfin_x_range_max = filtered_data["Box:PT"][0].max()
+lfin_x_range_min = filtered_data["Box:RTC"][0].min()
 
 
 

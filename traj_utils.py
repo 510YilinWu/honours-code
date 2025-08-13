@@ -153,33 +153,6 @@ def find_local_minima_peaks(data, prominence_threshold):
 
     return minima, peaks, minima_indices, peaks_indices
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 def find_speed_segments(marker_name, Traj_Space_data, time, speed_threshold, speed_peaks):
     """
     Finds segments of time where the speed exceeds a given threshold around speed peaks.

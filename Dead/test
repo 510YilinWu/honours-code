@@ -1,0 +1,16 @@
+import utils
+from scipy.signal import butter, filtfilt
+file_path = '/Users/yilinwu/Desktop/Yilin-Honours/Subject/Traj/2025/07/22/SC/SC_tBBT09.csv'
+marker_name = "RFIN"
+traj_data_filter = utils.CSV_To_traj_data_filter(file_path, marker_name)[0]
+traj_data = utils.CSV_To_traj_data(file_path, marker_name)[0]
+
+import matplotlib.pyplot as plt
+
+# Overlay the trajectory data
+plt.plot(traj_data['RFIN_X'], label="Raw Data")
+plt.plot(traj_data_filter['RFIN_X'], label="Filtered Data")
+plt.title("Trajectory Data Overlay")
+plt.legend()
+plt.grid()
+plt.show()

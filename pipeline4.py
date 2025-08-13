@@ -4,15 +4,16 @@ from scipy.stats import ttest_rel
 from scipy.stats import spearmanr
 import seaborn as sns
 import pandas as pd
+import pickle
 import matplotlib.pyplot as plt
-import os
-from pprint import pprint
 
 import utils1 # Importing utils1 for data Pre-processing
 import utils2 # Importing utils2 for reach metrics calculation and time window Specific calculation
 import utils3 # Importing utils3 for plotting functions
 import utils4 # Importing utils4 for image files
+import utils5 # Importing utils5 for combining metrics
 
+# -------------------------------------------------------------------------------------------------------------------
 
 Traj_folder = "/Users/yilinwu/Desktop/Yilin-Honours/Subject/Traj/2025"
 Box_Traj_folder = "/Users/yilinwu/Desktop/Yilin-Honours/Box/Traj/2025"
@@ -23,6 +24,7 @@ tBBT_Image_folder = "/Users/yilinwu/Desktop/Yilin-Honours/tBBT_Image/2025/"
 prominence_threshold_speed = 400
 prominence_threshold_position = 80
 
+# -------------------------------------------------------------------------------------------------------------------
 
 # --- GET ALL DATES ---
 All_dates = sorted(utils1.get_subfolders_with_depth(Traj_folder, depth=3))
@@ -31,11 +33,12 @@ All_dates = sorted(utils1.get_subfolders_with_depth(Traj_folder, depth=3))
 # All_dates = All_dates[5:len(All_dates)] 
 
 # -------------------------------------------------------------------------------------------------------------------
-# PART 0: Data Pre-processing [THINGS THAT NEED TO BE DONE ONCE !!!]
+
+# PART 0: Data Pre-processing [!!! THINGS THAT NEED TO BE DONE ONCE !!!]
 
 # --- PROCESS ALL DATE AND SAVE ALL MOVEMENT DATA AS pickle file ---
-# utils1.process_all_dates_separate(All_dates, Traj_folder, Box_Traj_folder, Figure_folder, DataProcess_folder, 
-#                       prominence_threshold_speed, prominence_threshold_position)
+utils1.process_all_dates_separate(All_dates, Traj_folder, Box_Traj_folder, Figure_folder, DataProcess_folder, 
+                      prominence_threshold_speed, prominence_threshold_position)
 
 # --- RENAME IMAGE FILES ---
 # run this only once to rename the files in the tBBT_Image_folder
@@ -48,16 +51,10 @@ All_dates = sorted(utils1.get_subfolders_with_depth(Traj_folder, depth=3))
 # subjects = [date for date in All_dates]
 # utils4.run_test_for_each_subject(subjects, tBBT_Image_folder)
 
-
 # --- PROCESS ALL SUBJECTS' IMAGES RETURN tBBT ERROR FROM IMAGE, SAVE AS pickle file---
-All_Subject_tBBTs_errors = utils4.process_all_subjects_images(All_dates, tBBT_Image_folder)
-utils4.extract_ordered_distances(All_Subject_tBBTs_errors, DataProcess_folder)
+utils4.process_all_subjects_images(All_dates, tBBT_Image_folder, DataProcess_folder)
 
-
-
-
-
-
+# -------------------------------------------------------------------------------------------------------------------
 
 # PART 1: CHECK IF DATA PROCESSING IS DONE AND LOAD RESULTS
 # --- CHECK CALIBRATION FOLDERS FOR PICKLE FILES ---
@@ -69,6 +66,7 @@ Block_Distance = utils4.load_selected_subject_errors(All_dates, DataProcess_fold
 # --- LOAD RESULTS FROM PICKLE FILE "processed_results.pkl" ---
 results = utils1.load_selected_subject_results(All_dates, DataProcess_folder)
 
+# -------------------------------------------------------------------------------------------------------------------
 
 # PART 2: Reach Metrics Calculation
 # --- GET REACH SPEED SEGMENTS ---
@@ -87,7 +85,6 @@ reach_metrics = utils2.calculate_reach_metrics(reach_speed_segments, results, fs
 # test_windows_6: Custom time window centered around the midpoint of each segment 
 test_windows_1, test_windows_2, test_windows_3, test_windows_4, test_windows_5, test_windows_6 = utils2.define_time_windows(reach_speed_segments, reach_metrics, fs=200, window_size=0.25)
 
-
 # --- CALCULATE REACH METRICS SPECIFIC TO TIME WINDOW ---
 reach_TW_metrics = utils2.calculate_reach_metrics_for_time_windows(test_windows_3, results)
 
@@ -99,10 +96,22 @@ reach_sparc_test_windows_1 = utils2.calculate_reach_sparc(test_windows_1, result
 reach_sparc_test_windows_2 = utils2.calculate_reach_sparc(test_windows_2, results)
 reach_sparc_test_windows_3 = utils2.calculate_reach_sparc(test_windows_3, results)
 
-
 # --- Save ALL SPARC VALUES BY SUBJECT, HAND, AND TRIAL ---
 utils2.save_sparc_values(reach_sparc_test_windows_1, DataProcess_folder)
 
+# -------------------------------------------------------------------------------------------------------------------
+
+# PART 3: Combine Metrics and Save Results
+# --- PROCESS AND SAVE COMBINED METRICS [DURATIONS, SPARC, LDLJ, AND DISTANCE, CALCULATED SPEED AND ACCURACY FOR ALL DATES]---
+utils5.process_and_save_combined_metrics(Block_Distance, reach_metrics, reach_sparc_test_windows_1, reach_TW_metrics, All_dates, DataProcess_folder)
+
+# --- LOAD ALL COMBINED METRICS PER SUBJECT FROM PICKLE FILE ---
+all_combined_metrics = utils5.load_combined_metrics_per_subject(DataProcess_folder)
+
+# --- LOCATE NaN INDICES (UNDETECTED BLOCK) FOR ALL SUBJECTS ---
+nan_indices_all = utils5.find_nan_indices_all_subjects(all_combined_metrics)
+
+# -------------------------------------------------------------------------------------------------------------------
 
 
 
@@ -112,89 +121,13 @@ utils2.save_sparc_values(reach_sparc_test_windows_1, DataProcess_folder)
 
 
 
-def update_block_distance_keys(Block_Distance, reach_metrics, reach_sparc_test_windows_1, reach_TW_metrics):
-    """
-    Updates the keys of Block_Distance to match the filenames in reach_metrics for each subject and hand.
-
-    Args:
-        Block_Distance (dict): Dictionary containing block distance data.
-        reach_metrics (dict): Dictionary containing reach metrics data.
-        reach_sparc_test_windows_1 (dict): Dictionary containing SPARC test window data.
-        reach_TW_metrics (dict): Dictionary containing time window metrics data.
-
-    Returns:
-        None: Updates Block_Distance in place.
-    """
-    for subject in Block_Distance:
-        for hand in Block_Distance[subject]:
-            if subject in reach_metrics['reach_durations'] and hand in reach_metrics['reach_durations'][subject] and \
-               subject in reach_sparc_test_windows_1 and hand in reach_sparc_test_windows_1[subject] and \
-               subject in reach_TW_metrics['reach_LDLJ'] and hand in reach_TW_metrics['reach_LDLJ'][subject] and \
-               len(Block_Distance[subject][hand]) == len(reach_metrics['reach_durations'][subject][hand]) == \
-               len(reach_sparc_test_windows_1[subject][hand]) == len(reach_TW_metrics['reach_LDLJ'][subject][hand]):
-
-                filenames = list(reach_metrics['reach_durations'][subject][hand].keys())  # Get filenames in a list
-
-                if len(filenames) != len(Block_Distance[subject][hand]):
-                    print(f"Error: Mismatch in lengths for subject {subject}, hand {hand}.")
-                    print(f"Filenames length: {len(filenames)}, Block_Distance length: {len(Block_Distance[subject][hand])}")
-                else:
-                    # Update Block_Distance keys to match filenames
-                    updated_distance = {filenames[i]: v for i, v in enumerate(Block_Distance[subject][hand].values())}
-                    Block_Distance[subject][hand] = updated_distance
-
-                    # Example usage
-                    print(f"Subject: {subject}, Hand: {hand}")
-                    print(Block_Distance[subject][hand])
-
-# Update Block_Distance keys to match filenames in reach_metrics
-update_block_distance_keys(Block_Distance, reach_metrics, reach_sparc_test_windows_1, reach_TW_metrics)
 
 
-def combine_metrics_for_all_dates(reach_metrics, reach_sparc_test_windows_1, reach_TW_metrics, Block_Distance, all_dates):
-    """
-    Combines reach durations, SPARC, LDLJ, and distance metrics into a single dictionary for all dates and hands.
-
-    Args:
-        reach_metrics (dict): Dictionary containing reach durations.
-        reach_sparc_test_windows_1 (dict): Dictionary containing SPARC metrics.
-        reach_TW_metrics (dict): Dictionary containing LDLJ metrics.
-        Block_Distance (dict): Dictionary containing distance metrics.
-        all_dates (list): List of all dates to process.
-
-    Returns:
-        dict: Combined metrics for all dates and hands.
-    """
-    combined_metrics = {}
-
-    for date in all_dates:
-        combined_metrics[date] = {}
-        for hand in ['left', 'right']:
-            if (
-                date in reach_metrics['reach_durations'] and hand in reach_metrics['reach_durations'][date] and
-                date in reach_sparc_test_windows_1 and hand in reach_sparc_test_windows_1[date] and
-                date in reach_TW_metrics['reach_LDLJ'] and hand in reach_TW_metrics['reach_LDLJ'][date] and
-                date in Block_Distance and hand in Block_Distance[date]
-            ):
-                combined_metrics[date][hand] = {
-                    "durations": {k: np.float64(v) for k, v in reach_metrics['reach_durations'][date][hand].items()},
-                    "sparc": {k: np.float64(v) for k, v in reach_sparc_test_windows_1[date][hand].items()},
-                    "ldlj": {k: np.float64(v) for k, v in reach_TW_metrics['reach_LDLJ'][date][hand].items()},
-                    "distance": {k: np.float64(v) for k, v in Block_Distance[date][hand].items()},
-                    "speed": {k: 1 / np.float64(v) if v != 0 else np.nan for k, v in reach_metrics['reach_durations'][date][hand].items()},
-                    "accuracy": {k: 1 / np.float64(v) if v != 0 else np.nan for k, v in Block_Distance[date][hand].items()}
-                }
 
 
-    return combined_metrics
 
 
-# Example usage
-all_combined_metrics = combine_metrics_for_all_dates(
-    reach_metrics, reach_sparc_test_windows_1, reach_TW_metrics, Block_Distance, All_dates
-)
 
-HW=all_combined_metrics['07/22/HW']['right']['accuracy']
 
 # Scatter plot for durations vs distance for all trials, overlaying them with different colors
 def plot_durations_vs_distance(all_combined_metrics, subject, hand):

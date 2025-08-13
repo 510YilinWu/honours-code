@@ -175,7 +175,8 @@ def check_calibration_folders_for_pickle(all_dates, tBBT_Image_folder):
         for folder in missing_pickle_files:
             print(folder)
     else:
-        print("All calibration folders have exactly one pickle file.")
+        pass
+        # print("All calibration folders have exactly one pickle file.")
 
 def process_blocks(p3_block2, bg, hand):
     if len(p3_block2) < 16 or len(p3_block2) > 16:

@@ -7,9 +7,6 @@ from scipy.signal import find_peaks
 from scipy.signal import butter, filtfilt
 import pickle
 
-import math
-from scipy.stats import zscore
-from scipy.stats import ttest_1samp
 
 cutoff=10 # Cutoff frequency for low-pass filter in Hz
 fs=200 # Frame rate in Hz
@@ -195,8 +192,6 @@ def find_local_minima_peaks(data, prominence_threshold):
     peaks = data[peaks_indices]
 
     return minima, peaks, minima_indices, peaks_indices
-
-
 
 # Part 3
 # --- FIND BBT FILES ---
@@ -450,8 +445,6 @@ def save_indices_to_single_csv(right_indices, left_indices, DataProcess_folder,t
                                 for fp in all_file_paths])
     print(f"✅ Saved combined indices to {combined_file_path}")
 
-
-
 # PART 4
 # --- PROCESS DATE FUNCTION ---
 def process_single_subject(date, traj_folder, Box_Traj_folder, figure_folder, DataProcess_folder, 
@@ -496,8 +489,6 @@ def process_single_subject(date, traj_folder, Box_Traj_folder, figure_folder, Da
     )
 
     return processed_single_subject_data
-
-
 
 # PART 5
 # --- PROCESS EACH DATE FUNCTION ---

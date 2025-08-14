@@ -178,90 +178,143 @@ def check_calibration_folders_for_pickle(all_dates, tBBT_Image_folder):
         pass
         # print("All calibration folders have exactly one pickle file.")
 
-def process_blocks(p3_block2, bg, hand):
-    if len(p3_block2) < 16 or len(p3_block2) > 16:
-        print(f"p3_block2: {len(p3_block2)}")
-    else:
-        pass
-    if hand == 'right': # right hand
-        x = bg.grid_xxL.flatten()
-        y = bg.grid_yyL.flatten()       
+# def process_blocks(p3_block2, bg, hand):
+#     if len(p3_block2) < 16 or len(p3_block2) > 16:
+#         print(f"p3_block2: {len(p3_block2)}")
+#     else:
+#         pass
+#     if hand == 'right': # right hand
+#         x = bg.grid_xxL.flatten()
+#         y = bg.grid_yyL.flatten()       
 
-    else: # left hand
+#     else: # left hand
+#         x = bg.grid_xxR.flatten()
+#         y = bg.grid_yyR.flatten()
+
+
+#     blockRange = [{'xRange': [x[i] - 20, x[i] + 20],
+#                    'yRange': [y[i] - 20, y[i] + 20]} for i in range(16)]
+
+#     blockMembership = [
+#         next((idx for idx, block in enumerate(blockRange)
+#               if block['xRange'][0] <= point[0] <= block['xRange'][1] and
+#                  block['yRange'][0] <= point[1] <= block['yRange'][1]), None)
+#         for point in p3_block2
+#     ]
+
+#     blocks_without_points = [idx for idx, block in enumerate(blockRange) if not any(
+#         block['xRange'][0] <= point[0] <= block['xRange'][1] and
+#         block['yRange'][0] <= point[1] <= block['yRange'][1] for point in p3_block2)]
+    
+#     if len(blocks_without_points) == len([i for i, membership in enumerate(blockMembership) if membership is None]):
+#         for i, membership in enumerate(blockMembership):
+#             if membership is None:
+#                 # Allocate the point to the nearest block based on distance
+#                 distances_to_blocks = [
+#                     ((p3_block2[i][0] - (block['xRange'][0] + block['xRange'][1]) / 2) ** 2 +
+#                      (p3_block2[i][1] - (block['yRange'][0] + block['yRange'][1]) / 2) ** 2) ** 0.5
+#                     for block in blockRange
+#                 ]
+#                 nearest_block = distances_to_blocks.index(min(distances_to_blocks))
+#                 blockMembership[i] = nearest_block
+#                 print(f"Point {i} allocated to block {nearest_block}")
+
+#                 # Update blocks_without_points if allocation occurs
+#                 if nearest_block in blocks_without_points:
+#                     blocks_without_points.remove(nearest_block)
+
+
+
+#     for i, membership in enumerate(blockMembership):
+#         if membership is not None:
+#             pass
+#         else:
+
+#             # raise Exception(f"Error: Point {i} does not belong to any block")
+#             print(f"Error: Point {i} does not belong to any block")
+
+#     if blocks_without_points:
+#         print(f"Blocks without points: {blocks_without_points}")
+#     else:
+#         pass
+
+#     # # Create a list of length 16, marking blocks without points as 'nah'
+#     # block_status = ['nah' if idx in blocks_without_points else idx for idx in range(16)]
+#     # print(f"Block status: {block_status}")
+
+#     # Calculate the error for block placement, including distance
+#     block_errors = [
+#         {
+#             'point': p3_block2[i],
+#             'membership': blockMembership[i],
+#             # 'x': bg.grid_xxR.flatten()[blockMembership[i]] - 12.5 if blockMembership[i] is not None else None,
+#             # 'y': bg.grid_yyR.flatten()[blockMembership[i]] - 12.5 if blockMembership[i] is not None else None,
+#             'distance': (
+#                 ((p3_block2[i][0] - (x[blockMembership[i]] - 12.5))**2 +
+#                  (p3_block2[i][1] - (y[blockMembership[i]] - 12.5))**2)**0.5
+#             ) if blockMembership[i] is not None else None
+#         }
+#         for i in range(len(p3_block2))
+#     ]
+
+#     # Add membership for blocks without points and keep point value as 'nah'
+#     for block_idx in blocks_without_points:
+#         blockMembership.append(None)  # Append None for blocks without points
+#         block_errors.append({
+#             'membership': block_idx,
+#         })
+
+    
+
+#     return block_errors
+
+def process_blocks(p3_block2, bg, hand, markerindex):
+
+    if len(markerindex) < 16:
+        print(f"\u26A0\uFE0F Only {len(markerindex)}, expected 16.")
+    elif len(markerindex) > 16:
+        print(f"\u26A0\uFE0F {len(markerindex)}, expected 16.")
+
+    if hand == 'right':  # right hand
+        x = bg.grid_xxL.flatten()
+        y = bg.grid_yyL.flatten()
+    else:  # left hand
         x = bg.grid_xxR.flatten()
         y = bg.grid_yyR.flatten()
 
+    # Predefined block membership order
+    blockMembership = [12, 1, 14, 3, 8, 13, 2, 15, 0, 5, 6, 11, 4, 9, 7, 10]
 
-    blockRange = [{'xRange': [x[i] - 20, x[i] + 20],
-                   'yRange': [y[i] - 20, y[i] + 20]} for i in range(16)]
+    # Initialize block errors and blocks without points
+    block_errors = []
+    blocks_without_points = []
 
-    blockMembership = [
-        next((idx for idx, block in enumerate(blockRange)
-              if block['xRange'][0] <= point[0] <= block['xRange'][1] and
-                 block['yRange'][0] <= point[1] <= block['yRange'][1]), None)
-        for point in p3_block2
-    ]
+    # Process detected markers
+    for i in range(len(markerindex)):
+        marker_idx = markerindex[i]
+        point = p3_block2[i]
+        membership = blockMembership[marker_idx]
 
-    blocks_without_points = [idx for idx, block in enumerate(blockRange) if not any(
-        block['xRange'][0] <= point[0] <= block['xRange'][1] and
-        block['yRange'][0] <= point[1] <= block['yRange'][1] for point in p3_block2)]
-    
-    if len(blocks_without_points) == len([i for i, membership in enumerate(blockMembership) if membership is None]):
-        for i, membership in enumerate(blockMembership):
-            if membership is None:
-                # Allocate the point to the nearest block based on distance
-                distances_to_blocks = [
-                    ((p3_block2[i][0] - (block['xRange'][0] + block['xRange'][1]) / 2) ** 2 +
-                     (p3_block2[i][1] - (block['yRange'][0] + block['yRange'][1]) / 2) ** 2) ** 0.5
-                    for block in blockRange
-                ]
-                nearest_block = distances_to_blocks.index(min(distances_to_blocks))
-                blockMembership[i] = nearest_block
-                print(f"Point {i} allocated to block {nearest_block}")
+        # Calculate distance for the marker
+        distance = (
+            ((point[0] - (x[membership] - 12.5))**2 +
+             (point[1] - (y[membership] - 12.5))**2)**0.5
+        )
 
-
-    for i, membership in enumerate(blockMembership):
-        if membership is not None:
-            pass
-        else:
-
-            # raise Exception(f"Error: Point {i} does not belong to any block")
-            print(f"Error: Point {i} does not belong to any block")
-
-    if blocks_without_points:
-        print(f"Blocks without points: {blocks_without_points}")
-    else:
-        pass
-
-    # # Create a list of length 16, marking blocks without points as 'nah'
-    # block_status = ['nah' if idx in blocks_without_points else idx for idx in range(16)]
-    # print(f"Block status: {block_status}")
-
-    # Calculate the error for block placement, including distance
-    block_errors = [
-        {
-            'point': p3_block2[i],
-            'membership': blockMembership[i],
-            # 'x': bg.grid_xxR.flatten()[blockMembership[i]] - 12.5 if blockMembership[i] is not None else None,
-            # 'y': bg.grid_yyR.flatten()[blockMembership[i]] - 12.5 if blockMembership[i] is not None else None,
-            'distance': (
-                ((p3_block2[i][0] - (x[blockMembership[i]] - 12.5))**2 +
-                 (p3_block2[i][1] - (y[blockMembership[i]] - 12.5))**2)**0.5
-            ) if blockMembership[i] is not None else None
-        }
-        for i in range(len(p3_block2))
-    ]
-
-    # Add membership for blocks without points and keep point value as 'nah'
-    for block_idx in blocks_without_points:
-        blockMembership.append(None)  # Append None for blocks without points
         block_errors.append({
-            'membership': block_idx,
+            'point': point,
+            'membership': membership,
+            'distance': distance
         })
 
-    
+    # Check for blocks without points
+    for idx in range(16):
+        if idx not in markerindex:
+            blocks_without_points.append(blockMembership[idx])
 
-    return block_errors
+    # print(f"Blocks without points: {sorted(blocks_without_points)}")
+
+    return block_errors, sorted(blocks_without_points)
 
 def find_min_max_number_in_folder(folder_path, hand):
     # Regular expression to match the image format for the specified hand
@@ -323,7 +376,7 @@ def process_subject_images(Date, Subject, tBBT_Image_folder, hand):
             raise FileNotFoundError(f"Expected 2 files for image number {image_number_str}, but found {len(testFiles)}: {testFiles}")
         
         testFiles = sorted(testFiles)  # Sort the files to ensure consistent order
-        p3_box2, p3_block2, bg = bbtLocalisation.charucoStereoCalib.main(calib_folder, testFolder, testFiles) # YW - MAC
+        p3_box2, p3_block2, bg, markerindex = bbtLocalisation.charucoStereoCalib.main(calib_folder, testFolder, testFiles) # YW - MAC
 
         # # Determine the hand for the current image
         # index_since_min = image_number - min_number
@@ -340,14 +393,15 @@ def process_subject_images(Date, Subject, tBBT_Image_folder, hand):
     #     print(f"Test files: {testFiles}: {hand} hand")
 
         # Process blocks for the current hand
-        block_errors = process_blocks(p3_block2, bg, hand)
+        block_errors, blocks_without_points = process_blocks(p3_block2, bg, hand, markerindex)
 
         # Store the errors in the dictionary
         Subject_tBBTs_errors[image_number] = {
             'p3_box2': p3_box2,
             'p3_block2': p3_block2,
             'bg': bg,
-            'block_errors': block_errors
+            'block_errors': block_errors,
+            'blocks_without_points': blocks_without_points,
         }
     return Subject_tBBTs_errors
 
@@ -421,3 +475,7 @@ def load_selected_subject_errors(All_dates, DataProcess_folder):
             print(f"Warning: Errors file for {date} not found. Skipping.")
     return errors
 
+
+
+
+# Subject_tBBTs_errors=process_subject_images('07/31', '07/31/JD', "/Users/yilinwu/Desktop/Yilin-Honours/tBBT_Image/2025/", 'left')

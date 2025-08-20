@@ -277,6 +277,7 @@ def process_blocks(p3_block2, bg, hand, markerindex):
 
     if hand == 'right':  # right hand
         x = bg.grid_xxL.flatten()
+        x = x[::-1]
         y = bg.grid_yyL.flatten()
     else:  # left hand
         x = bg.grid_xxR.flatten()
@@ -297,8 +298,8 @@ def process_blocks(p3_block2, bg, hand, markerindex):
 
         # Calculate distance for the marker
         distance = (
-            ((point[0] - (x[membership] - 12.5))**2 +
-             (point[1] - (y[membership] - 12.5))**2)**0.5
+            ((point[0] + 12.5 - (x[membership]))**2 +
+                (point[1] + 12.5 - (y[membership]))**2)**0.5
         )
 
         block_errors.append({
@@ -478,4 +479,4 @@ def load_selected_subject_errors(All_dates, DataProcess_folder):
 
 
 
-# Subject_tBBTs_errors=process_subject_images('07/31', '07/31/JD', "/Users/yilinwu/Desktop/Yilin-Honours/tBBT_Image/2025/", 'left')
+# Subject_tBBTs_errors=process_subject_images('07/31', '07/31/JD', "/Users/yilinwu/Desktop/Yilin-Honours/tBBT_Image/2025/", 'right')

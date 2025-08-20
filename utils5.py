@@ -78,29 +78,158 @@ def combine_metrics_for_all_dates(reach_metrics, reach_sparc_test_windows_1, rea
     return combined_metrics
 
 # --- CALCULATE MOTOR ACUITY FOR ALL REACHES, EACH HAND ---
-def calculate_motor_acuity_for_all(all_combined_metrics):
-    for subject in all_combined_metrics:
-        hands = ['left', 'right']
+# def calculate_motor_acuity_for_all(all_combined_metrics):
+#     for subject in all_combined_metrics:
+#         hands = ['left', 'right']
 
-        for hand in hands:
-            trials = all_combined_metrics[subject][hand]['speed'].keys()
+#         for hand in hands:
+#             trials = all_combined_metrics[subject][hand]['speed'].keys()
 
-            for trial_path in trials:
-                speeds = list(all_combined_metrics[subject][hand]['speed'][trial_path])
-                accuracies = list(all_combined_metrics[subject][hand]['accuracy'][trial_path])
+#             for trial_path in trials:
+#                 speeds = list(all_combined_metrics[subject][hand]['speed'][trial_path])
+#                 accuracies = list(all_combined_metrics[subject][hand]['accuracy'][trial_path])
 
-                # Calculate motor acuity for all reaches
-                motor_acuity_list = []
-                for reach_index in range(len(speeds)):
-                    if np.isnan(accuracies[reach_index]):
-                        motor_acuity = np.nan
-                    else:
-                        motor_acuity = np.sqrt(speeds[reach_index]**2 + accuracies[reach_index]**2)
-                    motor_acuity_list.append(motor_acuity)
+#                 # Calculate motor acuity for all reaches
+#                 motor_acuity_list = []
+#                 for reach_index in range(len(speeds)):
+#                     if np.isnan(accuracies[reach_index]):
+#                         motor_acuity = np.nan
+#                     else:
+#                         motor_acuity = np.sqrt(speeds[reach_index]**2 + accuracies[reach_index]**2)
+#                     motor_acuity_list.append(motor_acuity)
 
-                if 'motor_acuity' not in all_combined_metrics[subject][hand]:
-                    all_combined_metrics[subject][hand]['motor_acuity'] = {}
-                all_combined_metrics[subject][hand]['motor_acuity'][trial_path] = motor_acuity_list
+#                 if 'motor_acuity' not in all_combined_metrics[subject][hand]:
+#                     all_combined_metrics[subject][hand]['motor_acuity'] = {}
+#                 all_combined_metrics[subject][hand]['motor_acuity'][trial_path] = motor_acuity_list
+
+#     return all_combined_metrics
+
+
+def calculate_motor_acuity_for_all(all_combined_metrics, use_group_stats=True):
+    """
+    Computes motor acuity per subject and hand using the 'SAT intersection' method.
+    Your dataset stores 'accuracy' as PRECISION (1/distance to center, higher=better).
+    
+    Steps:
+      1) Fit SAT line: S = a + bE  (speed vs. error).
+      2) Convert to precision: E = 1/P  -> S(P) = a + b/P.
+      3) Build diagonal S = mP using mean+3σ across group (or per subject if use_group_stats=False).
+      4) Solve intersection (P*, S*).
+    
+    Returns:
+      Adds all_combined_metrics[subject][hand]['motor_acuity'] dict with:
+        a, b, m, P_star, S_star, diag_stats, and per-trial mean table.
+    """
+
+    # --------- 1) Collect trial-level stats across all subjects/hands ----------
+    group_S, group_P = [], []
+    per_sh = {}
+
+    for subject, subj_data in all_combined_metrics.items():
+        for hand in ['left', 'right']:
+            if hand not in subj_data:
+                continue
+            speed_dict = subj_data[hand].get('speed', {})
+            acc_dict   = subj_data[hand].get('accuracy', {})  # already precision
+
+            rows = []
+            for trial_path, speeds in speed_dict.items():
+                if trial_path not in acc_dict:
+                    continue
+                accs = acc_dict[trial_path]
+
+                s = np.asarray(speeds, dtype=float)
+                P = np.asarray(accs,   dtype=float)   # your accuracy = precision
+                E = 1.0 / P                            # error = 1/precision
+
+                # filter out bad values
+                mask = np.isfinite(s) & np.isfinite(P) & (P > 0)
+                if not np.any(mask):
+                    continue
+
+                mean_S = float(np.nanmean(s[mask]))
+                mean_P = float(np.nanmean(P[mask]))
+                mean_E = float(np.nanmean(1.0 / P[mask]))
+
+                rows.append((trial_path, mean_S, mean_E, mean_P))
+                group_S.append(mean_S)
+                group_P.append(mean_P)
+
+            per_sh[(subject, hand)] = rows
+
+    group_S = np.array(group_S)
+    group_P = np.array(group_P)
+
+    # --------- 2) Group diagonal stats (if requested) ----------
+    group_diag = None
+    if use_group_stats and group_S.size > 0 and group_P.size > 0:
+        mu_S, sigma_S = float(np.mean(group_S)), float(np.std(group_S, ddof=1))
+        mu_P, sigma_P = float(np.mean(group_P)), float(np.std(group_P, ddof=1))
+        denom = (mu_P + 3*sigma_P) if (mu_P + 3*sigma_P) > 0 else 1e-12
+        m_group = (mu_S + 3*sigma_S) / denom
+        group_diag = dict(mu_S=mu_S, sigma_S=sigma_S, mu_P=mu_P, sigma_P=sigma_P, m=m_group)
+
+    # --------- 3) Per subject/hand computation ----------
+    for (subject, hand), rows in per_sh.items():
+        if len(rows) < 2:  # not enough trials
+            all_combined_metrics[subject][hand]['motor_acuity'] = {
+                'a': np.nan, 'b': np.nan, 'm': np.nan,
+                'P_star': np.nan, 'S_star': np.nan,
+                'diag_stats': group_diag, 'trial_table': rows
+            }
+            continue
+
+        trial_paths, S_arr, E_arr, P_arr = zip(*rows)
+        S_arr, E_arr, P_arr = map(np.array, (S_arr, E_arr, P_arr))
+
+        # Fit SAT in error-space: S = a + bE
+        good = np.isfinite(S_arr) & np.isfinite(E_arr)
+        if np.sum(good) >= 2:
+            b, a = np.polyfit(E_arr[good], S_arr[good], 1)  # np.polyfit returns slope, intercept
+        else:
+            a = b = np.nan
+
+        # Choose diagonal slope m
+        if group_diag is not None:
+            mu_S, sigma_S, mu_P, sigma_P, m = (
+                group_diag['mu_S'], group_diag['sigma_S'],
+                group_diag['mu_P'], group_diag['sigma_P'],
+                group_diag['m']
+            )
+            diag_stats = dict(mu_S=mu_S, sigma_S=sigma_S, mu_P=mu_P, sigma_P=sigma_P)
+        else:  # per subject/hand
+            mu_S, sigma_S = float(np.mean(S_arr)), float(np.std(S_arr, ddof=1))
+            mu_P, sigma_P = float(np.mean(P_arr)), float(np.std(P_arr, ddof=1))
+            denom = (mu_P + 3*sigma_P) if (mu_P + 3*sigma_P) > 0 else 1e-12
+            m = (mu_S + 3*sigma_S) / denom
+            diag_stats = dict(mu_S=mu_S, sigma_S=sigma_S, mu_P=mu_P, sigma_P=sigma_P)
+
+        # Intersect: mP^2 - aP - b = 0
+        if np.any(np.isnan([a, b, m])):
+            P_star = S_star = np.nan
+        else:
+            roots = np.roots([m, -a, -b])
+            roots = roots[np.isreal(roots)].real
+            roots = roots[roots > 0]
+            if roots.size == 0:
+                P_star = S_star = np.nan
+            else:
+                P_star = float(np.max(roots))
+                S_star = float(m * P_star)
+
+        # Save result
+        trial_table = {
+            tp: {'mean_speed': ms, 'mean_error': me, 'mean_precision': mp}
+            for tp, ms, me, mp in rows
+        }
+        all_combined_metrics[subject][hand]['motor_acuity'] = {
+            'a': float(a) if np.isfinite(a) else np.nan,
+            'b': float(b) if np.isfinite(b) else np.nan,
+            'm': float(m) if np.isfinite(m) else np.nan,
+            'P_star': P_star, 'S_star': S_star,
+            'diag_stats': diag_stats,
+            'trial_table': trial_table
+        }
 
     return all_combined_metrics
 
@@ -220,7 +349,7 @@ def process_and_save_combined_metrics(Block_Distance, reach_metrics, reach_sparc
     )
 
     # Step 3: Calculate motor acuity for all reaches
-    all_combined_metrics = calculate_motor_acuity_for_all(all_combined_metrics)
+    # all_combined_metrics = calculate_motor_acuity_for_all(all_combined_metrics)
 
     # Step 4: Save combined metrics per subject
     save_combined_metrics_per_subject(all_combined_metrics, DataProcess_folder)
@@ -440,7 +569,7 @@ def plot_speed_vs_accuracy_single_reach(all_combined_metrics, subject, reach_ind
         valid_data = [(s, a) for s, a in zip(all_speeds, all_accuracies) if not np.isnan(s) and not np.isnan(a)]
         if valid_data:
             valid_speeds, valid_accuracies = zip(*valid_data)
-            x_min, x_max = np.percentile(valid_speeds, [1, 90])
+            x_min, x_max = np.percentile(valid_speeds, [0.5, 90])
             y_min, y_max = np.percentile(valid_accuracies, [0.5, 90])
             ax.set_xlim(x_min, x_max)
             ax.set_ylim(y_min, y_max)
@@ -448,10 +577,6 @@ def plot_speed_vs_accuracy_single_reach(all_combined_metrics, subject, reach_ind
             # Calculate and display Spearman correlation
             spearman_corr, _ = spearmanr(valid_speeds, valid_accuracies)
             ax.text(0.05, 0.95, f"Spearman r: {spearman_corr:.2f}", transform=ax.transAxes, fontsize=12, verticalalignment='top')
-
-            # Add a smooth curve using LOWESS
-            smooth = lowess(valid_accuracies, valid_speeds, frac=0.6)
-            ax.plot(smooth[:, 0], smooth[:, 1], color='red', linestyle='--', label='Monotonic Fit')
         else:
             print(f"Error: No valid data points for axis limits for {hand} hand.")
             continue
@@ -520,8 +645,6 @@ def plot_speed_vs_accuracy_single_reach(all_combined_metrics, subject, reach_ind
 #         plt.tight_layout(rect=[0, 0, 1, 0.95])
 #         plt.show()
 
-
-
 # Scatter plot for speed vs accuracy for all reaches, each hand as a separate figure, 4x4 layout for each reach
 def plot_speed_vs_accuracy_all_reaches(all_combined_metrics, subject):
     hands = ['left', 'right']
@@ -529,6 +652,17 @@ def plot_speed_vs_accuracy_all_reaches(all_combined_metrics, subject):
     grid_size = 4  # 4x4 layout
 
     for hand in hands:
+        # Determine global x and y ranges for all subplots
+        all_speeds = []
+        all_accuracies = []
+        for trial_path in all_combined_metrics[subject][hand]['speed'].keys():
+            speeds = all_combined_metrics[subject][hand]['speed'][trial_path]
+            accuracies = all_combined_metrics[subject][hand]['accuracy'][trial_path]
+            all_speeds.extend([value for value in speeds if not np.isnan(value)])
+            all_accuracies.extend([value for value in accuracies if not np.isnan(value)])
+        x_min, x_max = np.percentile(all_speeds, [0.5, 99.5])
+        y_min, y_max = np.percentile(all_accuracies, [0.5, 99.5])
+
         fig, axes = plt.subplots(grid_size, grid_size, figsize=(16, 16), sharey=True)
         axes = axes.flatten()
 
@@ -537,8 +671,8 @@ def plot_speed_vs_accuracy_all_reaches(all_combined_metrics, subject):
             trials = all_combined_metrics[subject][hand]['speed'].keys()
             colors = sns.color_palette("Blues", len(trials))
 
-            all_speeds = []
-            all_accuracies = []
+            reach_speeds = []
+            reach_accuracies = []
 
             for i, trial_path in enumerate(trials):
                 speeds = list(all_combined_metrics[subject][hand]['speed'][trial_path])
@@ -546,32 +680,18 @@ def plot_speed_vs_accuracy_all_reaches(all_combined_metrics, subject):
                 if reach_index >= len(speeds) or reach_index >= len(accuracies):
                     continue
                 ax.scatter(speeds[reach_index], accuracies[reach_index], color=colors[i], edgecolor='k', alpha=0.7)
-                all_speeds.append(speeds[reach_index])
-                all_accuracies.append(accuracies[reach_index])
-
-            # Use nan_indices to highlight NaN values
-            nan_indices = [
-                (trial_idx, value_idx)
-                for trial_idx, trial in enumerate(all_combined_metrics[subject][hand]['accuracy'].values())
-                for value_idx, value in enumerate(trial)
-                if np.isnan(value)
-            ]
-
-            for trial_idx, reach_index in nan_indices:
-                trial_path = list(trials)[trial_idx]
-                trial_speeds = all_combined_metrics[subject][hand]['speed'][trial_path]
-                trial_accuracies = all_combined_metrics[subject][hand]['accuracy'][trial_path]
-
-                if reach_index < len(trial_speeds) and reach_index < len(trial_accuracies):
-                    ax.scatter(trial_speeds[reach_index], trial_accuracies[reach_index], color='red', edgecolor='k', alpha=0.7, label=f'Trial {trial_path}, Reach {reach_index + 1}')
+                reach_speeds.append(speeds[reach_index])
+                reach_accuracies.append(accuracies[reach_index])
 
             # Calculate and display Spearman correlation
-            valid_data = [(s, a) for s, a in zip(all_speeds, all_accuracies) if not np.isnan(s) and not np.isnan(a)]
+            valid_data = [(s, a) for s, a in zip(reach_speeds, reach_accuracies) if not np.isnan(s) and not np.isnan(a)]
             if valid_data:
                 valid_speeds, valid_accuracies = zip(*valid_data)
                 spearman_corr, _ = spearmanr(valid_speeds, valid_accuracies)
                 ax.text(0.05, 0.95, f"Spearman r: {spearman_corr:.2f}", transform=ax.transAxes, fontsize=8, verticalalignment='top')
 
+            ax.set_xlim(0, x_max)
+            ax.set_ylim(0, y_max)
             ax.set_xlabel("Speed (1/Duration)", fontsize=12)
             ax.set_ylabel("Accuracy (1/Distance)", fontsize=12)
             ax.grid(True, linestyle='--', alpha=0.6)
@@ -582,22 +702,6 @@ def plot_speed_vs_accuracy_all_reaches(all_combined_metrics, subject):
         fig.suptitle(f"Speed vs Accuracy for {hand.capitalize()} Hand ({subject})", fontsize=16)
         plt.tight_layout(rect=[0, 0, 1, 0.95])
         plt.show()
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 # Scatter plot for motor_acuity vs sparc for all reaches, each hand as a separate figure, 4x4 layout for each reach
 def plot_motor_acuity_vs_sparc_all_reaches(all_combined_metrics, subject):
@@ -638,8 +742,8 @@ def plot_motor_acuity_vs_sparc_all_reaches(all_combined_metrics, subject):
                 ax.scatter(motor_acuity[reach_index], sparc_values[reach_index], color=colors[i], edgecolor='k', alpha=0.7, label=f'Trial {i+1}')
 
             ax.set_title(f"Reach {reach_index + 1}", fontsize=10)
-            ax.set_xlabel("Motor Acuity", fontsize=8)
-            ax.set_ylabel("SPARC", fontsize=8)
+            ax.set_xlabel("Motor Acuity\n(Bad → Good)", fontsize=8)
+            ax.set_ylabel("SPARC\n(Unsmooth → Smooth)", fontsize=8)
             ax.set_xlim(x_min, x_max)
             ax.set_ylim(y_min, y_max)
             ax.grid(True, linestyle='--', alpha=0.6)

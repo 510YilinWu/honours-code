@@ -1,0 +1,80 @@
+Reach Index: 0
+Spearman Correlation: -0.22
+P-value: 2.19e-01
+Intersections: [(np.float64(0.5228653304031253), np.float64(3.600535215672425))]
+
+Reach Index: 1
+Spearman Correlation: -0.30
+P-value: 1.01e-01
+Intersections: [(np.float64(0.5631404780508066), np.float64(3.87787639511165))]
+
+Reach Index: 2
+Spearman Correlation: -0.18
+P-value: 3.20e-01
+Intersections: [(np.float64(0.5961884572668522), np.float64(4.105450124053368))]
+
+Reach Index: 3
+Spearman Correlation: -0.02
+P-value: 9.18e-01
+Intersections: [(np.float64(0.599835691251289), np.float64(4.130565567050205))]
+
+Reach Index: 4
+Spearman Correlation: -0.45
+P-value: 1.05e-02
+Intersections: [(np.float64(0.6841488532508073), np.float64(4.7111596345319935))]
+
+Reach Index: 5
+Spearman Correlation: -0.07
+P-value: 6.89e-01
+Intersections: [(np.float64(0.6140925464108107), np.float64(4.2287405770992015))]
+
+Reach Index: 6
+Spearman Correlation: 0.07
+P-value: 7.10e-01
+Intersections: [(np.float64(0.41301210167006724), np.float64(2.844068118678745))]
+
+Reach Index: 7
+Spearman Correlation: -0.40
+P-value: 2.40e-02
+Intersections: [(np.float64(0.6794687340590635), np.float64(4.678931576973795))]
+
+Reach Index: 8
+Spearman Correlation: -0.15
+P-value: 3.90e-01
+Intersections: [(np.float64(0.5510453489466685), np.float64(3.794587380244327))]
+
+Reach Index: 9
+Spearman Correlation: 0.01
+P-value: 9.71e-01
+Intersections: [(np.float64(0.47876509549451757), np.float64(3.2968538668144944))]
+
+Reach Index: 10
+Spearman Correlation: -0.01
+P-value: 9.66e-01
+Intersections: [(np.float64(0.4763901222302593), np.float64(3.2804994168691337))]
+
+Reach Index: 11
+Spearman Correlation: 0.04
+P-value: 8.43e-01
+Intersections: [(np.float64(0.5589842688275601), np.float64(3.849256066315966))]
+
+Reach Index: 12
+Spearman Correlation: 0.15
+P-value: 4.05e-01
+Intersections: [(np.float64(0.5163496263074003), np.float64(3.555667023640126))]
+
+Reach Index: 13
+Spearman Correlation: -0.01
+P-value: 9.68e-01
+Intersections: [(np.float64(0.520657612091173), np.float64(3.58533251037479))]
+
+Reach Index: 14
+Spearman Correlation: -0.06
+P-value: 7.60e-01
+Intersections: [(np.float64(0.5139589636391181), np.float64(3.539204533921584))]
+
+Reach Index: 15
+Spearman Correlation: -0.18
+P-value: 3.19e-01
+Intersections: [(np.float64(0.6407072093601154), np.float64(4.41201344992162))]
+

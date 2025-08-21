@@ -69,11 +69,10 @@ def combine_metrics_for_all_dates(reach_metrics, reach_sparc_test_windows_1, rea
                     "durations": {k: np.float64(v) for k, v in reach_metrics['reach_durations'][date][hand].items()},
                     "sparc": {k: np.float64(v) for k, v in reach_sparc_test_windows_1[date][hand].items()},
                     "ldlj": {k: np.float64(v) for k, v in reach_TW_metrics['reach_LDLJ'][date][hand].items()},
-                    "distance": {k: np.float64(v) for k, v in Block_Distance[date][hand].items()},
-                    "speed": {k: 1 / np.float64(v) if v != 0 else np.nan for k, v in reach_metrics['reach_durations'][date][hand].items()},
-                    "accuracy": {k: 1 / np.float64(v) if v != 0 else np.nan for k, v in Block_Distance[date][hand].items()}
+                    "distance": {k: np.float64(v) for k, v in Block_Distance[date][hand].items()}
                 }
-
+                    # "speed": {k: 1 / np.float64(v) if v != 0 else np.nan for k, v in reach_metrics['reach_durations'][date][hand].items()},
+                    # "accuracy": {k: 1 / np.float64(v) if v != 0 else np.nan for k, v in Block_Distance[date][hand].items()}
 
     return combined_metrics
 
@@ -105,133 +104,133 @@ def combine_metrics_for_all_dates(reach_metrics, reach_sparc_test_windows_1, rea
 #     return all_combined_metrics
 
 
-def calculate_motor_acuity_for_all(all_combined_metrics, use_group_stats=True):
-    """
-    Computes motor acuity per subject and hand using the 'SAT intersection' method.
-    Your dataset stores 'accuracy' as PRECISION (1/distance to center, higher=better).
+# def calculate_motor_acuity_for_all(all_combined_metrics, use_group_stats=True):
+#     """
+#     Computes motor acuity per subject and hand using the 'SAT intersection' method.
+#     Your dataset stores 'accuracy' as PRECISION (1/distance to center, higher=better).
     
-    Steps:
-      1) Fit SAT line: S = a + bE  (speed vs. error).
-      2) Convert to precision: E = 1/P  -> S(P) = a + b/P.
-      3) Build diagonal S = mP using mean+3σ across group (or per subject if use_group_stats=False).
-      4) Solve intersection (P*, S*).
+#     Steps:
+#       1) Fit SAT line: S = a + bE  (speed vs. error).
+#       2) Convert to precision: E = 1/P  -> S(P) = a + b/P.
+#       3) Build diagonal S = mP using mean+3σ across group (or per subject if use_group_stats=False).
+#       4) Solve intersection (P*, S*).
     
-    Returns:
-      Adds all_combined_metrics[subject][hand]['motor_acuity'] dict with:
-        a, b, m, P_star, S_star, diag_stats, and per-trial mean table.
-    """
+#     Returns:
+#       Adds all_combined_metrics[subject][hand]['motor_acuity'] dict with:
+#         a, b, m, P_star, S_star, diag_stats, and per-trial mean table.
+#     """
 
-    # --------- 1) Collect trial-level stats across all subjects/hands ----------
-    group_S, group_P = [], []
-    per_sh = {}
+#     # --------- 1) Collect trial-level stats across all subjects/hands ----------
+#     group_S, group_P = [], []
+#     per_sh = {}
 
-    for subject, subj_data in all_combined_metrics.items():
-        for hand in ['left', 'right']:
-            if hand not in subj_data:
-                continue
-            speed_dict = subj_data[hand].get('speed', {})
-            acc_dict   = subj_data[hand].get('accuracy', {})  # already precision
+#     for subject, subj_data in all_combined_metrics.items():
+#         for hand in ['left', 'right']:
+#             if hand not in subj_data:
+#                 continue
+#             speed_dict = subj_data[hand].get('speed', {})
+#             acc_dict   = subj_data[hand].get('accuracy', {})  # already precision
 
-            rows = []
-            for trial_path, speeds in speed_dict.items():
-                if trial_path not in acc_dict:
-                    continue
-                accs = acc_dict[trial_path]
+#             rows = []
+#             for trial_path, speeds in speed_dict.items():
+#                 if trial_path not in acc_dict:
+#                     continue
+#                 accs = acc_dict[trial_path]
 
-                s = np.asarray(speeds, dtype=float)
-                P = np.asarray(accs,   dtype=float)   # your accuracy = precision
-                E = 1.0 / P                            # error = 1/precision
+#                 s = np.asarray(speeds, dtype=float)
+#                 P = np.asarray(accs,   dtype=float)   # your accuracy = precision
+#                 E = 1.0 / P                            # error = 1/precision
 
-                # filter out bad values
-                mask = np.isfinite(s) & np.isfinite(P) & (P > 0)
-                if not np.any(mask):
-                    continue
+#                 # filter out bad values
+#                 mask = np.isfinite(s) & np.isfinite(P) & (P > 0)
+#                 if not np.any(mask):
+#                     continue
 
-                mean_S = float(np.nanmean(s[mask]))
-                mean_P = float(np.nanmean(P[mask]))
-                mean_E = float(np.nanmean(1.0 / P[mask]))
+#                 mean_S = float(np.nanmean(s[mask]))
+#                 mean_P = float(np.nanmean(P[mask]))
+#                 mean_E = float(np.nanmean(1.0 / P[mask]))
 
-                rows.append((trial_path, mean_S, mean_E, mean_P))
-                group_S.append(mean_S)
-                group_P.append(mean_P)
+#                 rows.append((trial_path, mean_S, mean_E, mean_P))
+#                 group_S.append(mean_S)
+#                 group_P.append(mean_P)
 
-            per_sh[(subject, hand)] = rows
+#             per_sh[(subject, hand)] = rows
 
-    group_S = np.array(group_S)
-    group_P = np.array(group_P)
+#     group_S = np.array(group_S)
+#     group_P = np.array(group_P)
 
-    # --------- 2) Group diagonal stats (if requested) ----------
-    group_diag = None
-    if use_group_stats and group_S.size > 0 and group_P.size > 0:
-        mu_S, sigma_S = float(np.mean(group_S)), float(np.std(group_S, ddof=1))
-        mu_P, sigma_P = float(np.mean(group_P)), float(np.std(group_P, ddof=1))
-        denom = (mu_P + 3*sigma_P) if (mu_P + 3*sigma_P) > 0 else 1e-12
-        m_group = (mu_S + 3*sigma_S) / denom
-        group_diag = dict(mu_S=mu_S, sigma_S=sigma_S, mu_P=mu_P, sigma_P=sigma_P, m=m_group)
+#     # --------- 2) Group diagonal stats (if requested) ----------
+#     group_diag = None
+#     if use_group_stats and group_S.size > 0 and group_P.size > 0:
+#         mu_S, sigma_S = float(np.mean(group_S)), float(np.std(group_S, ddof=1))
+#         mu_P, sigma_P = float(np.mean(group_P)), float(np.std(group_P, ddof=1))
+#         denom = (mu_P + 3*sigma_P) if (mu_P + 3*sigma_P) > 0 else 1e-12
+#         m_group = (mu_S + 3*sigma_S) / denom
+#         group_diag = dict(mu_S=mu_S, sigma_S=sigma_S, mu_P=mu_P, sigma_P=sigma_P, m=m_group)
 
-    # --------- 3) Per subject/hand computation ----------
-    for (subject, hand), rows in per_sh.items():
-        if len(rows) < 2:  # not enough trials
-            all_combined_metrics[subject][hand]['motor_acuity'] = {
-                'a': np.nan, 'b': np.nan, 'm': np.nan,
-                'P_star': np.nan, 'S_star': np.nan,
-                'diag_stats': group_diag, 'trial_table': rows
-            }
-            continue
+#     # --------- 3) Per subject/hand computation ----------
+#     for (subject, hand), rows in per_sh.items():
+#         if len(rows) < 2:  # not enough trials
+#             all_combined_metrics[subject][hand]['motor_acuity'] = {
+#                 'a': np.nan, 'b': np.nan, 'm': np.nan,
+#                 'P_star': np.nan, 'S_star': np.nan,
+#                 'diag_stats': group_diag, 'trial_table': rows
+#             }
+#             continue
 
-        trial_paths, S_arr, E_arr, P_arr = zip(*rows)
-        S_arr, E_arr, P_arr = map(np.array, (S_arr, E_arr, P_arr))
+#         trial_paths, S_arr, E_arr, P_arr = zip(*rows)
+#         S_arr, E_arr, P_arr = map(np.array, (S_arr, E_arr, P_arr))
 
-        # Fit SAT in error-space: S = a + bE
-        good = np.isfinite(S_arr) & np.isfinite(E_arr)
-        if np.sum(good) >= 2:
-            b, a = np.polyfit(E_arr[good], S_arr[good], 1)  # np.polyfit returns slope, intercept
-        else:
-            a = b = np.nan
+#         # Fit SAT in error-space: S = a + bE
+#         good = np.isfinite(S_arr) & np.isfinite(E_arr)
+#         if np.sum(good) >= 2:
+#             b, a = np.polyfit(E_arr[good], S_arr[good], 1)  # np.polyfit returns slope, intercept
+#         else:
+#             a = b = np.nan
 
-        # Choose diagonal slope m
-        if group_diag is not None:
-            mu_S, sigma_S, mu_P, sigma_P, m = (
-                group_diag['mu_S'], group_diag['sigma_S'],
-                group_diag['mu_P'], group_diag['sigma_P'],
-                group_diag['m']
-            )
-            diag_stats = dict(mu_S=mu_S, sigma_S=sigma_S, mu_P=mu_P, sigma_P=sigma_P)
-        else:  # per subject/hand
-            mu_S, sigma_S = float(np.mean(S_arr)), float(np.std(S_arr, ddof=1))
-            mu_P, sigma_P = float(np.mean(P_arr)), float(np.std(P_arr, ddof=1))
-            denom = (mu_P + 3*sigma_P) if (mu_P + 3*sigma_P) > 0 else 1e-12
-            m = (mu_S + 3*sigma_S) / denom
-            diag_stats = dict(mu_S=mu_S, sigma_S=sigma_S, mu_P=mu_P, sigma_P=sigma_P)
+#         # Choose diagonal slope m
+#         if group_diag is not None:
+#             mu_S, sigma_S, mu_P, sigma_P, m = (
+#                 group_diag['mu_S'], group_diag['sigma_S'],
+#                 group_diag['mu_P'], group_diag['sigma_P'],
+#                 group_diag['m']
+#             )
+#             diag_stats = dict(mu_S=mu_S, sigma_S=sigma_S, mu_P=mu_P, sigma_P=sigma_P)
+#         else:  # per subject/hand
+#             mu_S, sigma_S = float(np.mean(S_arr)), float(np.std(S_arr, ddof=1))
+#             mu_P, sigma_P = float(np.mean(P_arr)), float(np.std(P_arr, ddof=1))
+#             denom = (mu_P + 3*sigma_P) if (mu_P + 3*sigma_P) > 0 else 1e-12
+#             m = (mu_S + 3*sigma_S) / denom
+#             diag_stats = dict(mu_S=mu_S, sigma_S=sigma_S, mu_P=mu_P, sigma_P=sigma_P)
 
-        # Intersect: mP^2 - aP - b = 0
-        if np.any(np.isnan([a, b, m])):
-            P_star = S_star = np.nan
-        else:
-            roots = np.roots([m, -a, -b])
-            roots = roots[np.isreal(roots)].real
-            roots = roots[roots > 0]
-            if roots.size == 0:
-                P_star = S_star = np.nan
-            else:
-                P_star = float(np.max(roots))
-                S_star = float(m * P_star)
+#         # Intersect: mP^2 - aP - b = 0
+#         if np.any(np.isnan([a, b, m])):
+#             P_star = S_star = np.nan
+#         else:
+#             roots = np.roots([m, -a, -b])
+#             roots = roots[np.isreal(roots)].real
+#             roots = roots[roots > 0]
+#             if roots.size == 0:
+#                 P_star = S_star = np.nan
+#             else:
+#                 P_star = float(np.max(roots))
+#                 S_star = float(m * P_star)
 
-        # Save result
-        trial_table = {
-            tp: {'mean_speed': ms, 'mean_error': me, 'mean_precision': mp}
-            for tp, ms, me, mp in rows
-        }
-        all_combined_metrics[subject][hand]['motor_acuity'] = {
-            'a': float(a) if np.isfinite(a) else np.nan,
-            'b': float(b) if np.isfinite(b) else np.nan,
-            'm': float(m) if np.isfinite(m) else np.nan,
-            'P_star': P_star, 'S_star': S_star,
-            'diag_stats': diag_stats,
-            'trial_table': trial_table
-        }
+#         # Save result
+#         trial_table = {
+#             tp: {'mean_speed': ms, 'mean_error': me, 'mean_precision': mp}
+#             for tp, ms, me, mp in rows
+#         }
+#         all_combined_metrics[subject][hand]['motor_acuity'] = {
+#             'a': float(a) if np.isfinite(a) else np.nan,
+#             'b': float(b) if np.isfinite(b) else np.nan,
+#             'm': float(m) if np.isfinite(m) else np.nan,
+#             'P_star': P_star, 'S_star': S_star,
+#             'diag_stats': diag_stats,
+#             'trial_table': trial_table
+#         }
 
-    return all_combined_metrics
+#     return all_combined_metrics
 
 # --- LOCATE NaN INDICES (UNDETECTED BLOCK) FOR ALL SUBJECTS ---
 def find_nan_indices_all_subjects(all_combined_metrics):
@@ -356,144 +355,190 @@ def process_and_save_combined_metrics(Block_Distance, reach_metrics, reach_sparc
 
 # -------------------------------------------------------------------------------------------------------------------
 
-# --- PLOT ---
-import matplotlib.pyplot as plt
-import seaborn as sns
-import pandas as pd
-from scipy.stats import spearmanr
-from statsmodels.nonparametric.smoothers_lowess import lowess
+# # --- PLOT ---
+# import matplotlib.pyplot as plt
+# import seaborn as sns
+# import pandas as pd
+# from scipy.stats import spearmanr
+# from statsmodels.nonparametric.smoothers_lowess import lowess
 
 
-# Scatter plot for durations vs distance for all trials, overlaying them with different colors
-def plot_durations_vs_distance_hand(all_combined_metrics, subject, hand):
-    trials = all_combined_metrics[subject][hand]['durations'].keys()
-    colors = sns.color_palette("Blues", len(trials))  # Generate a color palette from light to dark
+# # Scatter plot for durations vs distance for all trials, overlaying them with different colors
+# def plot_durations_vs_distance_hand(all_combined_metrics, subject, hand):
+#     trials = all_combined_metrics[subject][hand]['durations'].keys()
+#     colors = sns.color_palette("Blues", len(trials))  # Generate a color palette from light to dark
 
-    plt.figure(figsize=(10, 8))
-    for i, trial_path in enumerate(trials):
-        durations = all_combined_metrics[subject][hand]['durations'][trial_path]
-        distances = all_combined_metrics[subject][hand]['distance'][trial_path]
+#     plt.figure(figsize=(10, 8))
+#     for i, trial_path in enumerate(trials):
+#         durations = all_combined_metrics[subject][hand]['durations'][trial_path]
+#         distances = all_combined_metrics[subject][hand]['distance'][trial_path]
 
-        # Ensure the lengths match
-        if len(durations) != len(distances):
-            print(f"Mismatch in the number of durations and distances data points for trial {trial_path}.")
-            continue
+#         # Ensure the lengths match
+#         if len(durations) != len(distances):
+#             print(f"Mismatch in the number of durations and distances data points for trial {trial_path}.")
+#             continue
 
-        # Scatter plot for each trial
-        plt.scatter(durations, distances, color=colors[i], edgecolor='k', alpha=0.7, label=f'Trial {i+1}')
+#         # Scatter plot for each trial
+#         plt.scatter(durations, distances, color=colors[i], edgecolor='k', alpha=0.7, label=f'Trial {i+1}')
 
-    # Calculate x and y limits based on data
-    valid_durations = [d for trial_path in trials for d in all_combined_metrics[subject][hand]['durations'][trial_path] if not np.isnan(d) and not np.isinf(d)]
-    valid_distances = [d for trial_path in trials for d in all_combined_metrics[subject][hand]['distance'][trial_path] if not np.isnan(d) and not np.isinf(d)]
+#     # Calculate x and y limits based on data
+#     valid_durations = [d for trial_path in trials for d in all_combined_metrics[subject][hand]['durations'][trial_path] if not np.isnan(d) and not np.isinf(d)]
+#     valid_distances = [d for trial_path in trials for d in all_combined_metrics[subject][hand]['distance'][trial_path] if not np.isnan(d) and not np.isinf(d)]
 
-    if valid_durations and valid_distances:
-        x_min, x_max = np.percentile(valid_durations, [0.5, 99.5])
-        y_min, y_max = np.percentile(valid_distances, [0.5, 99.5])
-    else:
-        print("Error: No valid data points for axis limits.")
-        return
+#     if valid_durations and valid_distances:
+#         x_min, x_max = np.percentile(valid_durations, [0.5, 99.5])
+#         y_min, y_max = np.percentile(valid_distances, [0.5, 99.5])
+#     else:
+#         print("Error: No valid data points for axis limits.")
+#         return
 
-    plt.xlim(x_min, x_max)
-    plt.ylim(y_min, y_max)
+#     plt.xlim(x_min, x_max)
+#     plt.ylim(y_min, y_max)
 
-    plt.title(f"Durations vs Distance for {subject} ({hand.capitalize()} Hand)", fontsize=14)
-    plt.xlabel("Durations (s)", fontsize=12)
-    plt.ylabel("Distance (mm)", fontsize=12)
-    plt.grid(True, linestyle='--', alpha=0.6)
-    plt.legend(title="Trials", bbox_to_anchor=(1.05, 1), loc='upper left', fontsize='small')
-    plt.tight_layout()
-    plt.show()
+#     plt.title(f"Durations vs Distance for {subject} ({hand.capitalize()} Hand)", fontsize=14)
+#     plt.xlabel("Durations (s)", fontsize=12)
+#     plt.ylabel("Distance (mm)", fontsize=12)
+#     plt.grid(True, linestyle='--', alpha=0.6)
+#     plt.legend(title="Trials", bbox_to_anchor=(1.05, 1), loc='upper left', fontsize='small')
+#     plt.tight_layout()
+#     plt.show()
 
-# Scatter plot for durations vs distance for all trials, each hand as a subplot
-def plot_durations_vs_distance_hands(all_combined_metrics, subject):
-    hands = ['left', 'right']
-    fig, axes = plt.subplots(1, 2, figsize=(16, 8), sharey=True)
+# # Scatter plot for durations vs distance for all trials, each hand as a subplot
+# def plot_durations_vs_distance_hands(all_combined_metrics, subject):
+#     hands = ['left', 'right']
+#     fig, axes = plt.subplots(1, 2, figsize=(16, 8), sharey=True)
 
-    for ax, hand in zip(axes, hands):
-        trials = all_combined_metrics[subject][hand]['durations'].keys()
-        colors = sns.color_palette("Blues", len(trials))  # Generate a color palette from light to dark
+#     for ax, hand in zip(axes, hands):
+#         trials = all_combined_metrics[subject][hand]['durations'].keys()
+#         colors = sns.color_palette("Blues", len(trials))  # Generate a color palette from light to dark
 
-        for i, trial_path in enumerate(trials):
-            durations = all_combined_metrics[subject][hand]['durations'][trial_path]
-            distances = all_combined_metrics[subject][hand]['distance'][trial_path]
+#         for i, trial_path in enumerate(trials):
+#             durations = all_combined_metrics[subject][hand]['durations'][trial_path]
+#             distances = all_combined_metrics[subject][hand]['distance'][trial_path]
 
-            # Ensure the lengths match
-            if len(durations) != len(distances):
-                print(f"Mismatch in the number of durations and distances data points for trial {trial_path}.")
-                continue
+#             # Ensure the lengths match
+#             if len(durations) != len(distances):
+#                 print(f"Mismatch in the number of durations and distances data points for trial {trial_path}.")
+#                 continue
 
-            # Scatter plot for each trial
-            ax.scatter(durations, distances, color=colors[i], edgecolor='k', alpha=0.7, label=f'Trial {i+1}')
+#             # Scatter plot for each trial
+#             ax.scatter(durations, distances, color=colors[i], edgecolor='k', alpha=0.7, label=f'Trial {i+1}')
 
-        # Calculate x and y limits based on data
-        valid_durations = [d for trial_path in trials for d in all_combined_metrics[subject][hand]['durations'][trial_path] if not np.isnan(d) and not np.isinf(d)]
-        valid_distances = [d for trial_path in trials for d in all_combined_metrics[subject][hand]['distance'][trial_path] if not np.isnan(d) and not np.isinf(d)]
+#         # Calculate x and y limits based on data
+#         valid_durations = [d for trial_path in trials for d in all_combined_metrics[subject][hand]['durations'][trial_path] if not np.isnan(d) and not np.isinf(d)]
+#         valid_distances = [d for trial_path in trials for d in all_combined_metrics[subject][hand]['distance'][trial_path] if not np.isnan(d) and not np.isinf(d)]
 
-        if valid_durations and valid_distances:
-            x_min, x_max = np.percentile(valid_durations, [0.5, 99.5])
-            y_min, y_max = np.percentile(valid_distances, [0.5, 99.5])
-            ax.set_xlim(x_min, x_max)
-            ax.set_ylim(y_min, y_max)
-        else:
-            print(f"Error: No valid data points for axis limits for {hand} hand.")
-            continue
+#         if valid_durations and valid_distances:
+#             x_min, x_max = np.percentile(valid_durations, [0.5, 99.5])
+#             y_min, y_max = np.percentile(valid_distances, [0.5, 99.5])
+#             ax.set_xlim(x_min, x_max)
+#             ax.set_ylim(y_min, y_max)
+#         else:
+#             print(f"Error: No valid data points for axis limits for {hand} hand.")
+#             continue
 
-        ax.set_title(f"Durations vs Distance for {subject} ({hand.capitalize()} Hand)", fontsize=14)
-        ax.set_xlabel("Durations (s)", fontsize=12)
-        ax.set_ylabel("Distance (mm)", fontsize=12)
-        ax.grid(True, linestyle='--', alpha=0.6)
-        ax.legend(title="Trials", bbox_to_anchor=(1.05, 1), loc='upper left', fontsize='small')
+#         ax.set_title(f"Durations vs Distance for {subject} ({hand.capitalize()} Hand)", fontsize=14)
+#         ax.set_xlabel("Durations (s)", fontsize=12)
+#         ax.set_ylabel("Distance (mm)", fontsize=12)
+#         ax.grid(True, linestyle='--', alpha=0.6)
+#         ax.legend(title="Trials", bbox_to_anchor=(1.05, 1), loc='upper left', fontsize='small')
 
-    plt.tight_layout()
-    plt.show()
+#     plt.tight_layout()
+#     plt.show()
 
-# Scatter plot for speed vs accuracy for all trials, each hand as a subplot
-def plot_speed_vs_accuracy(all_combined_metrics, subject):
-    hands = ['left', 'right']
-    fig, axes = plt.subplots(1, 2, figsize=(16, 8), sharey=True)
+# # Scatter plot for speed vs accuracy for all trials, each hand as a subplot
+# def plot_speed_vs_accuracy(all_combined_metrics, subject):
+#     hands = ['left', 'right']
+#     fig, axes = plt.subplots(1, 2, figsize=(16, 8), sharey=True)
 
-    for ax, hand in zip(axes, hands):
-        trials = all_combined_metrics[subject][hand]['speed'].keys()
-        colors = sns.color_palette("Blues", len(trials))  # Generate a color palette from light to dark
+#     for ax, hand in zip(axes, hands):
+#         trials = all_combined_metrics[subject][hand]['speed'].keys()
+#         colors = sns.color_palette("Blues", len(trials))  # Generate a color palette from light to dark
 
-        for i, trial_path in enumerate(trials):
-            speeds = list(all_combined_metrics[subject][hand]['speed'][trial_path])
-            accuracies = list(all_combined_metrics[subject][hand]['accuracy'][trial_path])
-            if any(np.isnan(accuracies)):
-                motor_acuity = np.nan
-                continue
+#         for i, trial_path in enumerate(trials):
+#             speeds = list(all_combined_metrics[subject][hand]['speed'][trial_path])
+#             accuracies = list(all_combined_metrics[subject][hand]['accuracy'][trial_path])
+#             if any(np.isnan(accuracies)):
+#                 motor_acuity = np.nan
+#                 continue
 
-            # Ensure the lengths match
-            if len(speeds) != len(accuracies):
-                print(f"Mismatch in the number of speeds and accuracies data points for trial {trial_path}.")
-                continue
+#             # Ensure the lengths match
+#             if len(speeds) != len(accuracies):
+#                 print(f"Mismatch in the number of speeds and accuracies data points for trial {trial_path}.")
+#                 continue
 
-            # Scatter plot for each trial
-            ax.scatter(speeds, accuracies, color=colors[i], edgecolor='k', alpha=0.7, label=f'Trial {i+1}')
+#             # Scatter plot for each trial
+#             ax.scatter(speeds, accuracies, color=colors[i], edgecolor='k', alpha=0.7, label=f'Trial {i+1}')
 
-        # Calculate x and y limits based on data
-        valid_speeds = [s for trial_path in trials for s in all_combined_metrics[subject][hand]['speed'][trial_path] if not np.isnan(s) and not np.isinf(s)]
-        valid_accuracies = [a for trial_path in trials for a in all_combined_metrics[subject][hand]['accuracy'][trial_path] if not np.isnan(a) and not np.isinf(a)]
+#         # Calculate x and y limits based on data
+#         valid_speeds = [s for trial_path in trials for s in all_combined_metrics[subject][hand]['speed'][trial_path] if not np.isnan(s) and not np.isinf(s)]
+#         valid_accuracies = [a for trial_path in trials for a in all_combined_metrics[subject][hand]['accuracy'][trial_path] if not np.isnan(a) and not np.isinf(a)]
 
-        if valid_speeds and valid_accuracies:
-            x_min, x_max = np.percentile(valid_speeds, [0.5, 99.5])
-            y_min, y_max = np.percentile(valid_accuracies, [0.5, 99.5])
-            ax.set_xlim(x_min, x_max)
-            ax.set_ylim(y_min, y_max)
-        else:
-            print(f"Error: No valid data points for axis limits for {hand} hand.")
-            continue
+#         if valid_speeds and valid_accuracies:
+#             x_min, x_max = np.percentile(valid_speeds, [0.5, 99.5])
+#             y_min, y_max = np.percentile(valid_accuracies, [0.5, 99.5])
+#             ax.set_xlim(x_min, x_max)
+#             ax.set_ylim(y_min, y_max)
+#         else:
+#             print(f"Error: No valid data points for axis limits for {hand} hand.")
+#             continue
 
-        ax.set_title(f"Speed vs Accuracy for {subject} ({hand.capitalize()} Hand)", fontsize=14)
-        ax.set_xlabel("Speed (1/Duration)\n(Slow → Fast)", fontsize=8)
-        ax.set_ylabel("Accuracy (1/Distance)\n(Bad → Good)", fontsize=8)
-        ax.grid(True, linestyle='--', alpha=0.6)
-        ax.legend(title="Trials", bbox_to_anchor=(1.05, 1), loc='upper left', fontsize='small')
+#         ax.set_title(f"Speed vs Accuracy for {subject} ({hand.capitalize()} Hand)", fontsize=14)
+#         ax.set_xlabel("Speed (1/Duration)\n(Slow → Fast)", fontsize=8)
+#         ax.set_ylabel("Accuracy (1/Distance)\n(Bad → Good)", fontsize=8)
+#         ax.grid(True, linestyle='--', alpha=0.6)
+#         ax.legend(title="Trials", bbox_to_anchor=(1.05, 1), loc='upper left', fontsize='small')
 
-    plt.tight_layout()
-    plt.show()
+#     plt.tight_layout()
+#     plt.show()
 
-# Scatter plot for speed vs accuracy for a single reach, each hand as a subplot
+# # Scatter plot for speed vs accuracy for a single reach, each hand as a subplot
+# # def plot_speed_vs_accuracy_single_reach(all_combined_metrics, subject, reach_index):
+# #     hands = ['left', 'right']
+# #     fig, axes = plt.subplots(1, 2, figsize=(16, 8), sharey=True)
+
+# #     for ax, hand in zip(axes, hands):
+# #         trials = all_combined_metrics[subject][hand]['speed'].keys()
+# #         colors = sns.color_palette("Blues", len(trials))  # Generate a color palette from light to dark
+
+# #         for i, trial_path in enumerate(trials):
+# #             speeds = list(all_combined_metrics[subject][hand]['speed'][trial_path])
+# #             accuracies = list(all_combined_metrics[subject][hand]['accuracy'][trial_path])
+
+# #             # Ensure the reach index is valid
+# #             if reach_index >= len(speeds) or reach_index >= len(accuracies):
+# #                 print(f"Invalid reach index {reach_index} for trial {trial_path}.")
+# #                 continue
+
+# #             # Scatter plot for the specified reach
+# #             ax.scatter(speeds[reach_index], accuracies[reach_index], color=colors[i], edgecolor='k', alpha=0.7, label=f'Trial {i+1}')
+
+# #         # Calculate x and y limits based on data
+# #         valid_speeds = [s[reach_index] for trial_path in trials for s in [all_combined_metrics[subject][hand]['speed'][trial_path]] if not np.isnan(s[reach_index]) and not np.isinf(s[reach_index])]
+# #         valid_accuracies = [a[reach_index] for trial_path in trials for a in [all_combined_metrics[subject][hand]['accuracy'][trial_path]] if not np.isnan(a[reach_index]) and not np.isinf(a[reach_index])]
+
+# #         if valid_speeds and valid_accuracies:
+# #             x_min, x_max = np.percentile(valid_speeds, [1, 90])
+# #             y_min, y_max = np.percentile(valid_accuracies, [0.5, 90])
+# #             # x_min, x_max = min(valid_speeds), max(valid_speeds)
+# #             # y_min, y_max = min(valid_accuracies), max(valid_accuracies)
+# #             ax.set_xlim(x_min, x_max)
+# #             ax.set_ylim(y_min, y_max)
+# #         else:
+# #             print(f"Error: No valid data points for axis limits for {hand} hand.")
+# #             continue
+
+# #         ax.set_title(f"Speed vs Accuracy for {subject} ({hand.capitalize()} Hand, Reach {reach_index + 1})", fontsize=14)
+# #         ax.set_xlabel("Speed (1/Duration)\n(Slow → Fast)", fontsize=8)
+# #         ax.set_ylabel("Accuracy (1/Distance)\n(Bad → Good)", fontsize=8)
+# #         ax.grid(True, linestyle='--', alpha=0.6)
+# #         ax.legend(title="Trials", bbox_to_anchor=(1.05, 1), loc='upper left', fontsize='small')
+
+# #     plt.tight_layout()
+# #     plt.show()
+
+
+# # Scatter plot for speed vs accuracy for a single reach, each hand as a subplot
 # def plot_speed_vs_accuracy_single_reach(all_combined_metrics, subject, reach_index):
 #     hands = ['left', 'right']
 #     fig, axes = plt.subplots(1, 2, figsize=(16, 8), sharey=True)
@@ -501,6 +546,9 @@ def plot_speed_vs_accuracy(all_combined_metrics, subject):
 #     for ax, hand in zip(axes, hands):
 #         trials = all_combined_metrics[subject][hand]['speed'].keys()
 #         colors = sns.color_palette("Blues", len(trials))  # Generate a color palette from light to dark
+
+#         all_speeds = []
+#         all_accuracies = []
 
 #         for i, trial_path in enumerate(trials):
 #             speeds = list(all_combined_metrics[subject][hand]['speed'][trial_path])
@@ -513,82 +561,88 @@ def plot_speed_vs_accuracy(all_combined_metrics, subject):
 
 #             # Scatter plot for the specified reach
 #             ax.scatter(speeds[reach_index], accuracies[reach_index], color=colors[i], edgecolor='k', alpha=0.7, label=f'Trial {i+1}')
+#             all_speeds.append(speeds[reach_index])
+#             all_accuracies.append(accuracies[reach_index])
 
 #         # Calculate x and y limits based on data
-#         valid_speeds = [s[reach_index] for trial_path in trials for s in [all_combined_metrics[subject][hand]['speed'][trial_path]] if not np.isnan(s[reach_index]) and not np.isinf(s[reach_index])]
-#         valid_accuracies = [a[reach_index] for trial_path in trials for a in [all_combined_metrics[subject][hand]['accuracy'][trial_path]] if not np.isnan(a[reach_index]) and not np.isinf(a[reach_index])]
-
-#         if valid_speeds and valid_accuracies:
-#             x_min, x_max = np.percentile(valid_speeds, [1, 90])
+#         valid_data = [(s, a) for s, a in zip(all_speeds, all_accuracies) if not np.isnan(s) and not np.isnan(a)]
+#         if valid_data:
+#             valid_speeds, valid_accuracies = zip(*valid_data)
+#             x_min, x_max = np.percentile(valid_speeds, [0.5, 90])
 #             y_min, y_max = np.percentile(valid_accuracies, [0.5, 90])
-#             # x_min, x_max = min(valid_speeds), max(valid_speeds)
-#             # y_min, y_max = min(valid_accuracies), max(valid_accuracies)
 #             ax.set_xlim(x_min, x_max)
 #             ax.set_ylim(y_min, y_max)
+
+#             # Calculate and display Spearman correlation
+#             spearman_corr, _ = spearmanr(valid_speeds, valid_accuracies)
+#             ax.text(0.05, 0.95, f"Spearman r: {spearman_corr:.2f}", transform=ax.transAxes, fontsize=12, verticalalignment='top')
 #         else:
 #             print(f"Error: No valid data points for axis limits for {hand} hand.")
 #             continue
 
 #         ax.set_title(f"Speed vs Accuracy for {subject} ({hand.capitalize()} Hand, Reach {reach_index + 1})", fontsize=14)
-#         ax.set_xlabel("Speed (1/Duration)\n(Slow → Fast)", fontsize=8)
-#         ax.set_ylabel("Accuracy (1/Distance)\n(Bad → Good)", fontsize=8)
+#         ax.set_xlabel("Speed (1/Duration)\n(Slow → Fast)", fontsize=14)
+#         ax.set_ylabel("Accuracy (1/Distance)\n(Bad → Good)", fontsize=14)
 #         ax.grid(True, linestyle='--', alpha=0.6)
 #         ax.legend(title="Trials", bbox_to_anchor=(1.05, 1), loc='upper left', fontsize='small')
 
 #     plt.tight_layout()
 #     plt.show()
 
+# # # Scatter plot for speed vs accuracy for all reaches, each hand as a separate figure, 4x4 layout for each reach
+# # def plot_speed_vs_accuracy_all_reaches(all_combined_metrics, subject):
+# #     hands = ['left', 'right']
+# #     num_reaches = max(len(all_combined_metrics[subject][hand]['speed'][list(all_combined_metrics[subject][hand]['speed'].keys())[0]]) for hand in hands)
+# #     grid_size = 4  # 4x4 layout
 
-# Scatter plot for speed vs accuracy for a single reach, each hand as a subplot
-def plot_speed_vs_accuracy_single_reach(all_combined_metrics, subject, reach_index):
-    hands = ['left', 'right']
-    fig, axes = plt.subplots(1, 2, figsize=(16, 8), sharey=True)
+# #     for hand in hands:
+# #         fig, axes = plt.subplots(grid_size, grid_size, figsize=(16, 16), sharey=True)
+# #         axes = axes.flatten()
 
-    for ax, hand in zip(axes, hands):
-        trials = all_combined_metrics[subject][hand]['speed'].keys()
-        colors = sns.color_palette("Blues", len(trials))  # Generate a color palette from light to dark
+# #         for reach_index in range(num_reaches):
+# #             ax = axes[reach_index]
+# #             trials = all_combined_metrics[subject][hand]['speed'].keys()
+# #             colors = sns.color_palette("Blues", len(trials))  # Generate a color palette from light to dark
 
-        all_speeds = []
-        all_accuracies = []
+# #             for i, trial_path in enumerate(trials):
+# #                 speeds = list(all_combined_metrics[subject][hand]['speed'][trial_path])
+# #                 accuracies = list(all_combined_metrics[subject][hand]['accuracy'][trial_path])
 
-        for i, trial_path in enumerate(trials):
-            speeds = list(all_combined_metrics[subject][hand]['speed'][trial_path])
-            accuracies = list(all_combined_metrics[subject][hand]['accuracy'][trial_path])
+# #                 # Ensure the reach index is valid
+# #                 if reach_index >= len(speeds) or reach_index >= len(accuracies):
+# #                     print(f"Invalid reach index {reach_index} for trial {trial_path}.")
+# #                     continue
 
-            # Ensure the reach index is valid
-            if reach_index >= len(speeds) or reach_index >= len(accuracies):
-                print(f"Invalid reach index {reach_index} for trial {trial_path}.")
-                continue
+# #                 # Scatter plot for the specified reach
+# #                 ax.scatter(speeds[reach_index], accuracies[reach_index], color=colors[i], edgecolor='k', alpha=0.7, label=f'Trial {i+1}')
 
-            # Scatter plot for the specified reach
-            ax.scatter(speeds[reach_index], accuracies[reach_index], color=colors[i], edgecolor='k', alpha=0.7, label=f'Trial {i+1}')
-            all_speeds.append(speeds[reach_index])
-            all_accuracies.append(accuracies[reach_index])
+# #             # Calculate x and y limits based on data
+# #             valid_speeds = [s[reach_index] for trial_path in trials for s in [all_combined_metrics[subject][hand]['speed'][trial_path]] if not np.isnan(s[reach_index]) and not np.isinf(s[reach_index])]
+# #             valid_accuracies = [a[reach_index] for trial_path in trials for a in [all_combined_metrics[subject][hand]['accuracy'][trial_path]] if not np.isnan(a[reach_index]) and not np.isinf(a[reach_index])]
 
-        # Calculate x and y limits based on data
-        valid_data = [(s, a) for s, a in zip(all_speeds, all_accuracies) if not np.isnan(s) and not np.isnan(a)]
-        if valid_data:
-            valid_speeds, valid_accuracies = zip(*valid_data)
-            x_min, x_max = np.percentile(valid_speeds, [0.5, 90])
-            y_min, y_max = np.percentile(valid_accuracies, [0.5, 90])
-            ax.set_xlim(x_min, x_max)
-            ax.set_ylim(y_min, y_max)
+# #             if valid_speeds and valid_accuracies:
+# #                 x_min, x_max = np.percentile(valid_speeds, [0.5, 99.5])
+# #                 y_min, y_max = np.percentile(valid_accuracies, [0.5, 99.5])
+# #                 # x_min, x_max = min(valid_speeds), max(valid_speeds)
+# #                 # y_min, y_max = min(valid_accuracies), max(valid_accuracies)
+# #                 ax.set_xlim(x_min, x_max)
+# #                 ax.set_ylim(y_min-0.5, y_max)
+# #             # else:
+# #             #     print(f"Error: No valid data points for axis limits for {hand} hand.")
+# #             #     continue
 
-            # Calculate and display Spearman correlation
-            spearman_corr, _ = spearmanr(valid_speeds, valid_accuracies)
-            ax.text(0.05, 0.95, f"Spearman r: {spearman_corr:.2f}", transform=ax.transAxes, fontsize=12, verticalalignment='top')
-        else:
-            print(f"Error: No valid data points for axis limits for {hand} hand.")
-            continue
+# #             ax.set_title(f"Reach {reach_index + 1} ({len(valid_accuracies)} points)", fontsize=10)
+# #             ax.set_xlabel("Speed (1/Duration)\n(Slow → Fast)", fontsize=8)
+# #             ax.set_ylabel("Accuracy (1/Distance)\n(Bad → Good)", fontsize=8)
+# #             ax.grid(True, linestyle='--', alpha=0.6)
 
-        ax.set_title(f"Speed vs Accuracy for {subject} ({hand.capitalize()} Hand, Reach {reach_index + 1})", fontsize=14)
-        ax.set_xlabel("Speed (1/Duration)\n(Slow → Fast)", fontsize=14)
-        ax.set_ylabel("Accuracy (1/Distance)\n(Bad → Good)", fontsize=14)
-        ax.grid(True, linestyle='--', alpha=0.6)
-        ax.legend(title="Trials", bbox_to_anchor=(1.05, 1), loc='upper left', fontsize='small')
+# #         # Hide unused subplots
+# #         for unused_ax in axes[num_reaches:]:
+# #             unused_ax.axis('off')
 
-    plt.tight_layout()
-    plt.show()
+# #         fig.suptitle(f"Speed vs Accuracy for {hand.capitalize()} Hand ({subject})", fontsize=16)
+# #         plt.tight_layout(rect=[0, 0, 1, 0.95])
+# #         plt.show()
 
 # # Scatter plot for speed vs accuracy for all reaches, each hand as a separate figure, 4x4 layout for each reach
 # def plot_speed_vs_accuracy_all_reaches(all_combined_metrics, subject):
@@ -597,47 +651,50 @@ def plot_speed_vs_accuracy_single_reach(all_combined_metrics, subject, reach_ind
 #     grid_size = 4  # 4x4 layout
 
 #     for hand in hands:
+#         # Determine global x and y ranges for all subplots
+#         all_speeds = []
+#         all_accuracies = []
+#         for trial_path in all_combined_metrics[subject][hand]['speed'].keys():
+#             speeds = all_combined_metrics[subject][hand]['speed'][trial_path]
+#             accuracies = all_combined_metrics[subject][hand]['accuracy'][trial_path]
+#             all_speeds.extend([value for value in speeds if not np.isnan(value)])
+#             all_accuracies.extend([value for value in accuracies if not np.isnan(value)])
+#         x_min, x_max = np.percentile(all_speeds, [0.5, 99.5])
+#         y_min, y_max = np.percentile(all_accuracies, [0.5, 99.5])
+
 #         fig, axes = plt.subplots(grid_size, grid_size, figsize=(16, 16), sharey=True)
 #         axes = axes.flatten()
 
 #         for reach_index in range(num_reaches):
 #             ax = axes[reach_index]
 #             trials = all_combined_metrics[subject][hand]['speed'].keys()
-#             colors = sns.color_palette("Blues", len(trials))  # Generate a color palette from light to dark
+#             colors = sns.color_palette("Blues", len(trials))
+
+#             reach_speeds = []
+#             reach_accuracies = []
 
 #             for i, trial_path in enumerate(trials):
 #                 speeds = list(all_combined_metrics[subject][hand]['speed'][trial_path])
 #                 accuracies = list(all_combined_metrics[subject][hand]['accuracy'][trial_path])
-
-#                 # Ensure the reach index is valid
 #                 if reach_index >= len(speeds) or reach_index >= len(accuracies):
-#                     print(f"Invalid reach index {reach_index} for trial {trial_path}.")
 #                     continue
+#                 ax.scatter(speeds[reach_index], accuracies[reach_index], color=colors[i], edgecolor='k', alpha=0.7)
+#                 reach_speeds.append(speeds[reach_index])
+#                 reach_accuracies.append(accuracies[reach_index])
 
-#                 # Scatter plot for the specified reach
-#                 ax.scatter(speeds[reach_index], accuracies[reach_index], color=colors[i], edgecolor='k', alpha=0.7, label=f'Trial {i+1}')
+#             # Calculate and display Spearman correlation
+#             valid_data = [(s, a) for s, a in zip(reach_speeds, reach_accuracies) if not np.isnan(s) and not np.isnan(a)]
+#             if valid_data:
+#                 valid_speeds, valid_accuracies = zip(*valid_data)
+#                 spearman_corr, _ = spearmanr(valid_speeds, valid_accuracies)
+#                 ax.text(0.05, 0.95, f"Spearman r: {spearman_corr:.2f}", transform=ax.transAxes, fontsize=8, verticalalignment='top')
 
-#             # Calculate x and y limits based on data
-#             valid_speeds = [s[reach_index] for trial_path in trials for s in [all_combined_metrics[subject][hand]['speed'][trial_path]] if not np.isnan(s[reach_index]) and not np.isinf(s[reach_index])]
-#             valid_accuracies = [a[reach_index] for trial_path in trials for a in [all_combined_metrics[subject][hand]['accuracy'][trial_path]] if not np.isnan(a[reach_index]) and not np.isinf(a[reach_index])]
-
-#             if valid_speeds and valid_accuracies:
-#                 x_min, x_max = np.percentile(valid_speeds, [0.5, 99.5])
-#                 y_min, y_max = np.percentile(valid_accuracies, [0.5, 99.5])
-#                 # x_min, x_max = min(valid_speeds), max(valid_speeds)
-#                 # y_min, y_max = min(valid_accuracies), max(valid_accuracies)
-#                 ax.set_xlim(x_min, x_max)
-#                 ax.set_ylim(y_min-0.5, y_max)
-#             # else:
-#             #     print(f"Error: No valid data points for axis limits for {hand} hand.")
-#             #     continue
-
-#             ax.set_title(f"Reach {reach_index + 1} ({len(valid_accuracies)} points)", fontsize=10)
-#             ax.set_xlabel("Speed (1/Duration)\n(Slow → Fast)", fontsize=8)
-#             ax.set_ylabel("Accuracy (1/Distance)\n(Bad → Good)", fontsize=8)
+#             ax.set_xlim(0, x_max)
+#             ax.set_ylim(0, y_max)
+#             ax.set_xlabel("Speed (1/Duration)", fontsize=12)
+#             ax.set_ylabel("Accuracy (1/Distance)", fontsize=12)
 #             ax.grid(True, linestyle='--', alpha=0.6)
 
-#         # Hide unused subplots
 #         for unused_ax in axes[num_reaches:]:
 #             unused_ax.axis('off')
 
@@ -645,113 +702,55 @@ def plot_speed_vs_accuracy_single_reach(all_combined_metrics, subject, reach_ind
 #         plt.tight_layout(rect=[0, 0, 1, 0.95])
 #         plt.show()
 
-# Scatter plot for speed vs accuracy for all reaches, each hand as a separate figure, 4x4 layout for each reach
-def plot_speed_vs_accuracy_all_reaches(all_combined_metrics, subject):
-    hands = ['left', 'right']
-    num_reaches = max(len(all_combined_metrics[subject][hand]['speed'][list(all_combined_metrics[subject][hand]['speed'].keys())[0]]) for hand in hands)
-    grid_size = 4  # 4x4 layout
+# # Scatter plot for motor_acuity vs sparc for all reaches, each hand as a separate figure, 4x4 layout for each reach
+# def plot_motor_acuity_vs_sparc_all_reaches(all_combined_metrics, subject):
+#     hands = ['left', 'right']
+#     num_reaches = max(len(all_combined_metrics[subject][hand]['motor_acuity'][list(all_combined_metrics[subject][hand]['motor_acuity'].keys())[0]]) for hand in hands)
+#     grid_size = 4  # 4x4 layout
 
-    for hand in hands:
-        # Determine global x and y ranges for all subplots
-        all_speeds = []
-        all_accuracies = []
-        for trial_path in all_combined_metrics[subject][hand]['speed'].keys():
-            speeds = all_combined_metrics[subject][hand]['speed'][trial_path]
-            accuracies = all_combined_metrics[subject][hand]['accuracy'][trial_path]
-            all_speeds.extend([value for value in speeds if not np.isnan(value)])
-            all_accuracies.extend([value for value in accuracies if not np.isnan(value)])
-        x_min, x_max = np.percentile(all_speeds, [0.5, 99.5])
-        y_min, y_max = np.percentile(all_accuracies, [0.5, 99.5])
+#     for hand in hands:
+#         # Determine global x and y ranges for all subplots
+#         all_motor_acuity = []
+#         all_sparc = []
+#         for trial_path in all_combined_metrics[subject][hand]['motor_acuity'].keys():
+#             motor_acuity_values = all_combined_metrics[subject][hand]['motor_acuity'][trial_path]
+#             sparc_values = all_combined_metrics[subject][hand]['sparc'][trial_path]
+#             all_motor_acuity.extend([value for value in motor_acuity_values if not pd.isna(value)])
+#             all_sparc.extend([value for value in sparc_values if not pd.isna(value)])
+#         x_min, x_max = np.percentile(all_motor_acuity, [0.5, 99.5])
+#         y_min, y_max = np.percentile(all_sparc, [0.5, 99.5])
 
-        fig, axes = plt.subplots(grid_size, grid_size, figsize=(16, 16), sharey=True)
-        axes = axes.flatten()
+#         fig, axes = plt.subplots(grid_size, grid_size, figsize=(16, 16), sharey=True)
+#         axes = axes.flatten()
 
-        for reach_index in range(num_reaches):
-            ax = axes[reach_index]
-            trials = all_combined_metrics[subject][hand]['speed'].keys()
-            colors = sns.color_palette("Blues", len(trials))
+#         for reach_index in range(num_reaches):
+#             ax = axes[reach_index]
+#             trials = all_combined_metrics[subject][hand]['motor_acuity'].keys()
+#             colors = sns.color_palette("Blues", len(trials))  # Generate a color palette from light to dark
 
-            reach_speeds = []
-            reach_accuracies = []
+#             for i, trial_path in enumerate(trials):
+#                 motor_acuity = list(all_combined_metrics[subject][hand]['motor_acuity'][trial_path])
+#                 sparc_values = list(all_combined_metrics[subject][hand]['sparc'][trial_path])
 
-            for i, trial_path in enumerate(trials):
-                speeds = list(all_combined_metrics[subject][hand]['speed'][trial_path])
-                accuracies = list(all_combined_metrics[subject][hand]['accuracy'][trial_path])
-                if reach_index >= len(speeds) or reach_index >= len(accuracies):
-                    continue
-                ax.scatter(speeds[reach_index], accuracies[reach_index], color=colors[i], edgecolor='k', alpha=0.7)
-                reach_speeds.append(speeds[reach_index])
-                reach_accuracies.append(accuracies[reach_index])
+#                 # Ensure the reach index is valid
+#                 if reach_index >= len(motor_acuity) or reach_index >= len(sparc_values):
+#                     print(f"Invalid reach index {reach_index} for trial {trial_path}.")
+#                     continue
 
-            # Calculate and display Spearman correlation
-            valid_data = [(s, a) for s, a in zip(reach_speeds, reach_accuracies) if not np.isnan(s) and not np.isnan(a)]
-            if valid_data:
-                valid_speeds, valid_accuracies = zip(*valid_data)
-                spearman_corr, _ = spearmanr(valid_speeds, valid_accuracies)
-                ax.text(0.05, 0.95, f"Spearman r: {spearman_corr:.2f}", transform=ax.transAxes, fontsize=8, verticalalignment='top')
+#                 # Scatter plot for the specified reach
+#                 ax.scatter(motor_acuity[reach_index], sparc_values[reach_index], color=colors[i], edgecolor='k', alpha=0.7, label=f'Trial {i+1}')
 
-            ax.set_xlim(0, x_max)
-            ax.set_ylim(0, y_max)
-            ax.set_xlabel("Speed (1/Duration)", fontsize=12)
-            ax.set_ylabel("Accuracy (1/Distance)", fontsize=12)
-            ax.grid(True, linestyle='--', alpha=0.6)
+#             ax.set_title(f"Reach {reach_index + 1}", fontsize=10)
+#             ax.set_xlabel("Motor Acuity\n(Bad → Good)", fontsize=8)
+#             ax.set_ylabel("SPARC\n(Unsmooth → Smooth)", fontsize=8)
+#             ax.set_xlim(x_min, x_max)
+#             ax.set_ylim(y_min, y_max)
+#             ax.grid(True, linestyle='--', alpha=0.6)
 
-        for unused_ax in axes[num_reaches:]:
-            unused_ax.axis('off')
+#         # Hide unused subplots
+#         for unused_ax in axes[num_reaches:]:
+#             unused_ax.axis('off')
 
-        fig.suptitle(f"Speed vs Accuracy for {hand.capitalize()} Hand ({subject})", fontsize=16)
-        plt.tight_layout(rect=[0, 0, 1, 0.95])
-        plt.show()
-
-# Scatter plot for motor_acuity vs sparc for all reaches, each hand as a separate figure, 4x4 layout for each reach
-def plot_motor_acuity_vs_sparc_all_reaches(all_combined_metrics, subject):
-    hands = ['left', 'right']
-    num_reaches = max(len(all_combined_metrics[subject][hand]['motor_acuity'][list(all_combined_metrics[subject][hand]['motor_acuity'].keys())[0]]) for hand in hands)
-    grid_size = 4  # 4x4 layout
-
-    for hand in hands:
-        # Determine global x and y ranges for all subplots
-        all_motor_acuity = []
-        all_sparc = []
-        for trial_path in all_combined_metrics[subject][hand]['motor_acuity'].keys():
-            motor_acuity_values = all_combined_metrics[subject][hand]['motor_acuity'][trial_path]
-            sparc_values = all_combined_metrics[subject][hand]['sparc'][trial_path]
-            all_motor_acuity.extend([value for value in motor_acuity_values if not pd.isna(value)])
-            all_sparc.extend([value for value in sparc_values if not pd.isna(value)])
-        x_min, x_max = np.percentile(all_motor_acuity, [0.5, 99.5])
-        y_min, y_max = np.percentile(all_sparc, [0.5, 99.5])
-
-        fig, axes = plt.subplots(grid_size, grid_size, figsize=(16, 16), sharey=True)
-        axes = axes.flatten()
-
-        for reach_index in range(num_reaches):
-            ax = axes[reach_index]
-            trials = all_combined_metrics[subject][hand]['motor_acuity'].keys()
-            colors = sns.color_palette("Blues", len(trials))  # Generate a color palette from light to dark
-
-            for i, trial_path in enumerate(trials):
-                motor_acuity = list(all_combined_metrics[subject][hand]['motor_acuity'][trial_path])
-                sparc_values = list(all_combined_metrics[subject][hand]['sparc'][trial_path])
-
-                # Ensure the reach index is valid
-                if reach_index >= len(motor_acuity) or reach_index >= len(sparc_values):
-                    print(f"Invalid reach index {reach_index} for trial {trial_path}.")
-                    continue
-
-                # Scatter plot for the specified reach
-                ax.scatter(motor_acuity[reach_index], sparc_values[reach_index], color=colors[i], edgecolor='k', alpha=0.7, label=f'Trial {i+1}')
-
-            ax.set_title(f"Reach {reach_index + 1}", fontsize=10)
-            ax.set_xlabel("Motor Acuity\n(Bad → Good)", fontsize=8)
-            ax.set_ylabel("SPARC\n(Unsmooth → Smooth)", fontsize=8)
-            ax.set_xlim(x_min, x_max)
-            ax.set_ylim(y_min, y_max)
-            ax.grid(True, linestyle='--', alpha=0.6)
-
-        # Hide unused subplots
-        for unused_ax in axes[num_reaches:]:
-            unused_ax.axis('off')
-
-        fig.suptitle(f"Motor Acuity vs SPARC for {hand.capitalize()} Hand ({subject})", fontsize=16)
-        plt.tight_layout(rect=[0, 0, 1, 0.95])
-        plt.show()
+#         fig.suptitle(f"Motor Acuity vs SPARC for {hand.capitalize()} Hand ({subject})", fontsize=16)
+#         plt.tight_layout(rect=[0, 0, 1, 0.95])
+#         plt.show()

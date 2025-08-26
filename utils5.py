@@ -1,6 +1,7 @@
 import pickle
 import os
 import numpy as np
+import pandas as pd
 
 
 # --- UPDATE BLOCK DISTANCE KEYS TO MATCH FILENAMES IN REACH METRICS ---
@@ -75,201 +76,6 @@ def combine_metrics_for_all_dates(reach_metrics, reach_sparc_test_windows_1, rea
                     # "accuracy": {k: 1 / np.float64(v) if v != 0 else np.nan for k, v in Block_Distance[date][hand].items()}
 
     return combined_metrics
-
-# --- CALCULATE MOTOR ACUITY FOR ALL REACHES, EACH HAND ---
-# def calculate_motor_acuity_for_all(all_combined_metrics):
-#     for subject in all_combined_metrics:
-#         hands = ['left', 'right']
-
-#         for hand in hands:
-#             trials = all_combined_metrics[subject][hand]['speed'].keys()
-
-#             for trial_path in trials:
-#                 speeds = list(all_combined_metrics[subject][hand]['speed'][trial_path])
-#                 accuracies = list(all_combined_metrics[subject][hand]['accuracy'][trial_path])
-
-#                 # Calculate motor acuity for all reaches
-#                 motor_acuity_list = []
-#                 for reach_index in range(len(speeds)):
-#                     if np.isnan(accuracies[reach_index]):
-#                         motor_acuity = np.nan
-#                     else:
-#                         motor_acuity = np.sqrt(speeds[reach_index]**2 + accuracies[reach_index]**2)
-#                     motor_acuity_list.append(motor_acuity)
-
-#                 if 'motor_acuity' not in all_combined_metrics[subject][hand]:
-#                     all_combined_metrics[subject][hand]['motor_acuity'] = {}
-#                 all_combined_metrics[subject][hand]['motor_acuity'][trial_path] = motor_acuity_list
-
-#     return all_combined_metrics
-
-
-# def calculate_motor_acuity_for_all(all_combined_metrics, use_group_stats=True):
-#     """
-#     Computes motor acuity per subject and hand using the 'SAT intersection' method.
-#     Your dataset stores 'accuracy' as PRECISION (1/distance to center, higher=better).
-    
-#     Steps:
-#       1) Fit SAT line: S = a + bE  (speed vs. error).
-#       2) Convert to precision: E = 1/P  -> S(P) = a + b/P.
-#       3) Build diagonal S = mP using mean+3σ across group (or per subject if use_group_stats=False).
-#       4) Solve intersection (P*, S*).
-    
-#     Returns:
-#       Adds all_combined_metrics[subject][hand]['motor_acuity'] dict with:
-#         a, b, m, P_star, S_star, diag_stats, and per-trial mean table.
-#     """
-
-#     # --------- 1) Collect trial-level stats across all subjects/hands ----------
-#     group_S, group_P = [], []
-#     per_sh = {}
-
-#     for subject, subj_data in all_combined_metrics.items():
-#         for hand in ['left', 'right']:
-#             if hand not in subj_data:
-#                 continue
-#             speed_dict = subj_data[hand].get('speed', {})
-#             acc_dict   = subj_data[hand].get('accuracy', {})  # already precision
-
-#             rows = []
-#             for trial_path, speeds in speed_dict.items():
-#                 if trial_path not in acc_dict:
-#                     continue
-#                 accs = acc_dict[trial_path]
-
-#                 s = np.asarray(speeds, dtype=float)
-#                 P = np.asarray(accs,   dtype=float)   # your accuracy = precision
-#                 E = 1.0 / P                            # error = 1/precision
-
-#                 # filter out bad values
-#                 mask = np.isfinite(s) & np.isfinite(P) & (P > 0)
-#                 if not np.any(mask):
-#                     continue
-
-#                 mean_S = float(np.nanmean(s[mask]))
-#                 mean_P = float(np.nanmean(P[mask]))
-#                 mean_E = float(np.nanmean(1.0 / P[mask]))
-
-#                 rows.append((trial_path, mean_S, mean_E, mean_P))
-#                 group_S.append(mean_S)
-#                 group_P.append(mean_P)
-
-#             per_sh[(subject, hand)] = rows
-
-#     group_S = np.array(group_S)
-#     group_P = np.array(group_P)
-
-#     # --------- 2) Group diagonal stats (if requested) ----------
-#     group_diag = None
-#     if use_group_stats and group_S.size > 0 and group_P.size > 0:
-#         mu_S, sigma_S = float(np.mean(group_S)), float(np.std(group_S, ddof=1))
-#         mu_P, sigma_P = float(np.mean(group_P)), float(np.std(group_P, ddof=1))
-#         denom = (mu_P + 3*sigma_P) if (mu_P + 3*sigma_P) > 0 else 1e-12
-#         m_group = (mu_S + 3*sigma_S) / denom
-#         group_diag = dict(mu_S=mu_S, sigma_S=sigma_S, mu_P=mu_P, sigma_P=sigma_P, m=m_group)
-
-#     # --------- 3) Per subject/hand computation ----------
-#     for (subject, hand), rows in per_sh.items():
-#         if len(rows) < 2:  # not enough trials
-#             all_combined_metrics[subject][hand]['motor_acuity'] = {
-#                 'a': np.nan, 'b': np.nan, 'm': np.nan,
-#                 'P_star': np.nan, 'S_star': np.nan,
-#                 'diag_stats': group_diag, 'trial_table': rows
-#             }
-#             continue
-
-#         trial_paths, S_arr, E_arr, P_arr = zip(*rows)
-#         S_arr, E_arr, P_arr = map(np.array, (S_arr, E_arr, P_arr))
-
-#         # Fit SAT in error-space: S = a + bE
-#         good = np.isfinite(S_arr) & np.isfinite(E_arr)
-#         if np.sum(good) >= 2:
-#             b, a = np.polyfit(E_arr[good], S_arr[good], 1)  # np.polyfit returns slope, intercept
-#         else:
-#             a = b = np.nan
-
-#         # Choose diagonal slope m
-#         if group_diag is not None:
-#             mu_S, sigma_S, mu_P, sigma_P, m = (
-#                 group_diag['mu_S'], group_diag['sigma_S'],
-#                 group_diag['mu_P'], group_diag['sigma_P'],
-#                 group_diag['m']
-#             )
-#             diag_stats = dict(mu_S=mu_S, sigma_S=sigma_S, mu_P=mu_P, sigma_P=sigma_P)
-#         else:  # per subject/hand
-#             mu_S, sigma_S = float(np.mean(S_arr)), float(np.std(S_arr, ddof=1))
-#             mu_P, sigma_P = float(np.mean(P_arr)), float(np.std(P_arr, ddof=1))
-#             denom = (mu_P + 3*sigma_P) if (mu_P + 3*sigma_P) > 0 else 1e-12
-#             m = (mu_S + 3*sigma_S) / denom
-#             diag_stats = dict(mu_S=mu_S, sigma_S=sigma_S, mu_P=mu_P, sigma_P=sigma_P)
-
-#         # Intersect: mP^2 - aP - b = 0
-#         if np.any(np.isnan([a, b, m])):
-#             P_star = S_star = np.nan
-#         else:
-#             roots = np.roots([m, -a, -b])
-#             roots = roots[np.isreal(roots)].real
-#             roots = roots[roots > 0]
-#             if roots.size == 0:
-#                 P_star = S_star = np.nan
-#             else:
-#                 P_star = float(np.max(roots))
-#                 S_star = float(m * P_star)
-
-#         # Save result
-#         trial_table = {
-#             tp: {'mean_speed': ms, 'mean_error': me, 'mean_precision': mp}
-#             for tp, ms, me, mp in rows
-#         }
-#         all_combined_metrics[subject][hand]['motor_acuity'] = {
-#             'a': float(a) if np.isfinite(a) else np.nan,
-#             'b': float(b) if np.isfinite(b) else np.nan,
-#             'm': float(m) if np.isfinite(m) else np.nan,
-#             'P_star': P_star, 'S_star': S_star,
-#             'diag_stats': diag_stats,
-#             'trial_table': trial_table
-#         }
-
-#     return all_combined_metrics
-
-# --- LOCATE NaN INDICES (UNDETECTED BLOCK) FOR ALL SUBJECTS ---
-def find_nan_indices_all_subjects(all_combined_metrics):
-    nan_reach_indices = {}
-
-    for subject in all_combined_metrics:
-        nan_reach_indices[subject] = {}
-        for hand in ['left', 'right']:
-            if hand in all_combined_metrics[subject]:
-                distance = all_combined_metrics[subject][hand]['distance']
-                accuracy = all_combined_metrics[subject][hand]['accuracy']
-                motor_acuity = all_combined_metrics[subject][hand]['motor_acuity']
-
-                nan_indices = [
-                    (trial_idx, value_idx)
-                    for trial_idx, trial in enumerate(distance.values())
-                    for value_idx, value in enumerate(trial)
-                    if np.isnan(value)
-                ]
-
-                if not (
-                    nan_indices == [
-                        (trial_idx, value_idx)
-                        for trial_idx, trial in enumerate(accuracy.values())
-                        for value_idx, value in enumerate(trial)
-                        if np.isnan(value)
-                    ] == [
-                        (trial_idx, value_idx)
-                        for trial_idx, trial in enumerate(motor_acuity.values())
-                        for value_idx, value in enumerate(trial)
-                        if np.isnan(value)
-                    ]
-                ):
-                    print(
-                        f"Subject: {subject}, Hand: {hand} - NaN indices do not match."
-                    )
-                nan_reach_indices[subject][hand] = nan_indices
-
-    return nan_reach_indices
 
 # --- SAVE ALL COMBINED METRICS PER SUBJECT AS PICKLE FILE ---
 def save_combined_metrics_per_subject(all_combined_metrics, output_folder):
@@ -353,6 +159,121 @@ def process_and_save_combined_metrics(Block_Distance, reach_metrics, reach_sparc
     # Step 4: Save combined metrics per subject
     save_combined_metrics_per_subject(all_combined_metrics, DataProcess_folder)
 
+# Filter all_combined_metrics based on distance
+def filter_combined_metrics_and_count_nan(all_combined_metrics):
+    """
+    Filters combined metrics to handle NaN values in the distance metric and counts NaNs.
+
+    Parameters:
+        all_combined_metrics (dict): Combined metrics for all subjects.
+
+    Returns:
+        tuple: (Filtered metrics, total NaN count, percentage of NaNs, counts per subject per hand, counts per index, total NaN per subject per hand)
+    """
+    filtered_metrics = {}
+    total_nan, total_points = 0, 0
+    counts_per_subject_per_hand = {}
+    counts_per_index = {}
+    total_nan_per_subject_hand = {}
+
+    for subject, hands_data in all_combined_metrics.items():
+        filtered_metrics[subject] = {}
+        counts_per_subject_per_hand[subject] = {}
+        total_nan_per_subject_hand[subject] = {}
+        for hand, metrics in hands_data.items():
+            filtered_metrics[subject][hand] = {k: {} for k in metrics}
+            counts_per_subject_per_hand[subject][hand] = 0
+            total_nan_per_subject_hand[subject][hand] = 0
+            for trial, distances in metrics['distance'].items():
+                filtered = {k: [] for k in metrics}
+                for i, dist in enumerate(distances):
+                    total_points += 1
+                    if pd.isna(dist):
+                        total_nan += 1
+                        counts_per_subject_per_hand[subject][hand] += 1
+                        counts_per_index[i] = counts_per_index.get(i, 0) + 1
+                        for k in filtered: 
+                            filtered[k].append(np.nan)
+                    else:
+                        for k in filtered: 
+                            filtered[k].append(metrics[k][trial][i])
+                for k in filtered: 
+                    filtered_metrics[subject][hand][k][trial] = filtered[k]
+
+    print(f"Total NaN values in distance: {total_nan}")
+    print(f"Percentage of NaN values in distance: {(total_nan / total_points) * 100:.2f}%")
+
+    return filtered_metrics, total_nan, counts_per_subject_per_hand, counts_per_index
+
+# Update filtered metrics and count NaN replacements based on distance and duration thresholds
+def update_filtered_metrics_and_count(filtered_metrics, distance_threshold=15, duration_threshold=1.6):
+    """
+    Updates the filtered metrics by setting all metrics to NaN for indices where
+    distances exceed the distance threshold or durations exceed the duration threshold.
+    Also calculates how many values exceed the thresholds for each subject, hand, and index.
+
+    Parameters:
+        filtered_metrics (dict): Filtered combined metrics data.
+        distance_threshold (float): Threshold for distances.
+        duration_threshold (float): Threshold for durations.
+
+    Returns:
+        tuple: (Updated filtered metrics, counts per subject per hand, counts per index, total NaN replacements)
+    """
+    counts_per_subject_per_hand = {}
+    counts_per_index = {}
+    total_nan_per_subject_hand = {}
+
+    for subject, hands_data in filtered_metrics.items():
+        counts_per_subject_per_hand[subject] = {}
+        total_nan_per_subject_hand[subject] = {}
+        for hand, metrics in hands_data.items():
+            counts_per_subject_per_hand[subject][hand] = 0
+            total_nan_per_subject_hand[subject][hand] = 0
+            for trial, distances in metrics['distance'].items():
+                for i, dist in enumerate(distances):
+                    if dist > distance_threshold:
+                        counts_per_subject_per_hand[subject][hand] += 1
+                        counts_per_index[i] = counts_per_index.get(i, 0) + 1
+                        for k in metrics:
+                            if not pd.isna(metrics[k][trial][i]):
+                                metrics[k][trial][i] = np.nan  # Update all metrics to NaN for this index
+            for trial, durations in metrics['durations'].items():
+                for i, dur in enumerate(durations):
+                    if dur > duration_threshold:
+                        counts_per_subject_per_hand[subject][hand] += 1
+                        counts_per_index[i] = counts_per_index.get(i, 0) + 1
+                        for k in metrics:
+                            if not pd.isna(metrics[k][trial][i]):
+                                metrics[k][trial][i] = np.nan  # Update all metrics to NaN for this index
+    
+            # Count total NaN values for this subject and hand
+            for trial, durations in metrics['durations'].items():
+                total_nan_per_subject_hand[subject][hand] += sum(pd.isna(dur) for dur in durations)
+
+    # Sort counts_per_index by index
+    counts_per_index = dict(sorted(counts_per_index.items()))
+
+    # Count total NaN values in durations and calculate percentage
+    total_nan_replacements = 0
+    total_values = 0
+    for subject, hands_data in filtered_metrics.items():
+        for hand, metrics in hands_data.items():
+            for trial, durations in metrics['durations'].items():
+                total_nan_replacements += sum(pd.isna(dur) for dur in durations)
+                total_values += len(durations)
+
+    nan_percentage = (total_nan_replacements / total_values) * 100 if total_values else 0
+    print(f"Total NaN replacements: {total_nan_replacements}")
+    print(f"Percentage of NaN values: {nan_percentage:.2f}%")
+
+    return filtered_metrics, counts_per_subject_per_hand, counts_per_index, total_nan_per_subject_hand
+
+# -------------------------------------------------------------------------------------------------------------------
+# -------------------------------------------------------------------------------------------------------------------
+# -------------------------------------------------------------------------------------------------------------------
+# -------------------------------------------------------------------------------------------------------------------
+# -------------------------------------------------------------------------------------------------------------------
 # -------------------------------------------------------------------------------------------------------------------
 
 # # --- PLOT ---

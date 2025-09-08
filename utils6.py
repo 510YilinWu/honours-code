@@ -7,81 +7,191 @@ import seaborn as sns
 from scipy.stats import wilcoxon
 from scipy.optimize import curve_fit
 from scipy.stats import spearmanr
+from matplotlib.patches import Rectangle
 
-def scatter_plot_duration_distance_by_choice(updated_metrics, overlay_hands=True, selected_subjects=None, special_indices=None):
+
+figuresize = (8, 6)
+# # reachindexlabels = list(range(1, 17))
+# # # Fixed colors assigned to specific reach indices.
+# # color_groups = {
+# #     0: 'black', 4: 'red', 8: 'red', 12: 'red',
+# #     1: 'green', 5: 'green', 9: 'green', 13: 'green',
+# #     2: 'blue', 6: 'blue', 10: 'blue', 14: 'blue',
+# #     3: 'purple', 7: 'purple', 11: 'purple', 15: 'purple'
+# # }
+
+labelfontsize =24
+tickfontsize =10
+numbrticks =5
+legendfontsize =16
+# legend_position = {"loc": "upper left", "bbox_to_anchor": (0.01, 0.99)}
+marker_size =150
+handorder = ['non_dominant', 'dominant']
+legendonoroff = False 
+tittleononoroff = False
+
+# Set global matplotlib and seaborn defaults
+plt.rcParams['figure.figsize'] = figuresize
+plt.rcParams['axes.titlesize'] = 20
+plt.rcParams['axes.labelsize'] = labelfontsize
+plt.rcParams['xtick.labelsize'] = tickfontsize
+plt.rcParams['ytick.labelsize'] = tickfontsize
+plt.rcParams['legend.fontsize'] = legendfontsize
+plt.rcParams['legend.loc'] = 'best'
+plt.rcParams['axes.grid'] = False
+
+sns.set_style("whitegrid")
+
+
+
+# # -------------------------------------------------------------------------------------------------------------------
+# # PART 4: Data Analysis and Visualization
+# # -------------------------------------------------------------------------------------------------------------------
+# # 1.1	Does a subject show a speed–accuracy trade-off trial by trial?
+# result_Check_SAT_in_trial_by_trial = utils6.Check_SAT_in_trial_by_trial(updated_metrics, All_dates, sample_subject= ['07/22/HW'], overlay_hands=False)
+
+# # 1.2	Do reach types that are faster on average also tend to be less accurate on average?
+# result_Check_SAT_in_trials_mean_median_of_reach_indices = utils6.Check_SAT_in_trials_mean_median_of_reach_indices(updated_metrics, '07/22/HW', 'durations', 'distance', stat_type="median")
+
+# # 1.3	Within one reach location, is there still a speed–accuracy trade-off across repetitions?
+# _, _, result_Check_SAT_in_reach_indices_by_hand, _ = utils6.Check_SAT_in_reach_indices_by_index_or_subject(updated_metrics, '07/22/HW', grouping="hand", hyperbolic=False)
+# _, _, result_Check_SAT_in_reach_indices_by_hand_by_index, _ = utils6.Check_SAT_in_reach_indices_by_index_or_subject(updated_metrics, '07/22/HW', grouping="hand_by_index", hyperbolic=False)
+# _, _, result_Check_SAT_in_reach_indices_by_hand_by_subject, heatmap_medians = utils6.Check_SAT_in_reach_indices_by_index_or_subject(updated_metrics, '07/22/HW', grouping="hand_by_subject", hyperbolic=False)
+# subject_statistics, _, _, _ = utils6.Check_SAT_in_reach_indices_by_index_or_subject(updated_metrics, '07/22/HW', grouping="hand", hyperbolic=True)
+# # -------------------------------------------------------------------------------------------------------------------
+# # -------------------------------------------------------------------------------------------------------------------
+# # Appendix
+# utils6.scatter_plot_duration_distance_by_choice(updated_metrics, overlay_hands=False, selected_subjects=['07/22/HW'])
+# utils6.scatter_plot_duration_distance_by_choice(updated_metrics, overlay_hands=False, selected_subjects=['07/22/HW'], special_indices=[0, 4, 8, 12])
+# utils6.scatter_plot_duration_distance_by_choice(updated_metrics, overlay_hands=False, selected_subjects=['07/22/HW'], special_indices=[0])
+# utils6.scatter_plot_duration_distance_by_choice(updated_metrics, overlay_hands=False, selected_subjects=['07/22/HW'], special_indices=[0], show_hyperbolic_fit=False, color_mode="uniform", show_median_overlay=False)
+# # -------------------------------------------------------------------------------------------------------------------
+
+
+def scatter_plot_duration_distance_by_choice(updated_metrics, overlay_hands=True, selected_subjects=None, 
+                                               special_indices=None, show_hyperbolic_fit=True, color_mode="uniform",
+                                               show_median_overlay=True):
     """
     Plots a scatter plot of all durations vs all distances across selected subjects, hands, and trials,
-    and fits a hyperbolic curve. Optionally overlays both hands or separates them.
-    Allows highlighting specific reach indices.
-
+    and (optionally) fits a hyperbolic curve. Optionally overlays both hands or separates them.
+    Data points can be colored with a light-to-dark gradient (from trial one to last) or in one fixed color.
+    
     Parameters:
         updated_metrics (dict): Updated metrics data.
         overlay_hands (bool): If True, overlays both hands in the same plot. If False, separates them.
         selected_subjects (list or None): List of subjects to include. If None, includes all subjects.
         special_indices (list or None): List of reach indices to include. If None, all indices are included.
+        show_hyperbolic_fit (bool): If True, displays the hyperbolic fit.
+        color_mode (str): One of {"gradient", "uniform"}; if "gradient" uses a colormap for trial order.
+        show_median_overlay (bool): If True, overlays median values for each reach index if available.
     """
-    def extract_data(metrics, hand, indices):
+    def extract_data(metrics, hand, indices, color_mode):
+        # For each reach index, collect durations, distances and the trial order (to color by trial order)
         durations = [[] for _ in range(16)]
         distances = [[] for _ in range(16)]
-        for trial, trial_durations in metrics[hand]['durations'].items():
-            for reach_index, duration in enumerate(trial_durations):
-                if not pd.isna(duration) and (indices is None or reach_index in indices):
-                    durations[reach_index].append(duration)
-        for trial, trial_distances in metrics[hand]['distance'].items():
-            for reach_index, distance in enumerate(trial_distances):
-                if not pd.isna(distance) and (indices is None or reach_index in indices):
-                    distances[reach_index].append(distance)
-        return durations, distances
+        trial_orders = [[] for _ in range(16)]
+        trial_counter = 1
+        # Loop in sorted order for consistency
+        for trial in sorted(metrics[hand]['durations'].keys()):
+            trial_durations = metrics[hand]['durations'][trial]
+            trial_distances = metrics[hand]['distance'][trial]
+            for reach_index, (duration, distance) in enumerate(zip(trial_durations, trial_distances)):
+                if (indices is None or reach_index in indices):
+                    if not pd.isna(duration) and not pd.isna(distance):
+                        durations[reach_index].append(duration)
+                        distances[reach_index].append(distance)
+                        trial_orders[reach_index].append(trial_counter)
+            trial_counter += 1
+        return durations, distances, trial_orders
 
-    def _plot_scatter_with_fit(durations, distances, title, special_indices=None):
+    def _plot_scatter_with_fit(durations, distances, trial_orders, title, special_indices=None, 
+                               show_hyperbolic_fit=True, color_mode="uniform", show_median_overlay=True):
         """
-        Helper function to plot scatter and fit a hyperbolic curve.
-
+        Helper function to plot scatter and (optionally) fit a hyperbolic curve.
+        
         Parameters:
-            durations (list of lists): List of durations for each reach index.
-            distances (list of lists): List of distances for each reach index.
+            durations (list of lists): Collected durations for each reach index.
+            distances (list of lists): Collected distances for each reach index.
+            trial_orders (list of lists): Trial order for each point (used if gradient coloring is chosen).
             title (str): Title of the plot.
-            special_indices (list or None): List of reach indices to include. If None, all indices are included.
+            special_indices (list or None): List of reach indices to include. If None, all indices are used.
+            show_hyperbolic_fit (bool): If True, displays the hyperbolic fit.
+            color_mode (str): "gradient" or "uniform" for point colors.
+            show_median_overlay (bool): If True, overlays median values for each reach index if available.
         """
-        # Define color groups for reach indices
+        # Define fixed colors for each reach index if using uniform colors
         color_groups = {
-            0: 'red', 4: 'red', 8: 'red', 12: 'red',
-            1: 'blue', 5: 'blue', 9: 'blue', 13: 'blue',
-            2: 'green', 6: 'green', 10: 'green', 14: 'green',
-            3: 'purple', 7: 'purple', 11: 'purple', 15: 'purple'
+            0: 'black', 4: 'red', 8: 'red', 12: 'red',
+            1: 'green', 5: 'green', 9: 'green', 13: 'green',
+            2: 'blue', 6: 'blue', 10: 'blue', 14: 'blue',
+            3: 'purple', 7: 'black', 11: 'purple', 15: 'purple'
         }
-
-        # Flatten durations and distances for correlation calculation
-        flat_durations = [d for i, sublist in enumerate(durations) for d in sublist if special_indices is None or i in special_indices]
-        flat_distances = [d for i, sublist in enumerate(distances) for d in sublist if special_indices is None or i in special_indices]
-
+        # Flatten lists for Spearman correlation calculation
+        flat_durations = []
+        flat_distances = []
+        flat_trials = []
+        for i, d_list in enumerate(durations):
+            if special_indices is None or i in special_indices:
+                for j, d in enumerate(d_list):
+                    flat_durations.append(d)
+                    flat_distances.append(distances[i][j])
+                    flat_trials.append(trial_orders[i][j])
+                    
         # Calculate Spearman correlation
         if len(flat_durations) > 1 and len(flat_distances) > 1:
             spearman_corr, p_value = spearmanr(flat_durations, flat_distances)
         else:
             spearman_corr, p_value = np.nan, np.nan
-
-        # Scatter plot
+    
         plt.figure(figsize=(8, 6))
+        # If using gradient colors, we will base the gradient on each reach index's fixed color
+        # and vary its lightness from light (first trial) to dark (last trial)
+        # For uniform mode, we use the fixed color directly.
+        # Iterate over each reach index
+        # Import mcolors for color conversion in gradient mode.
+        import matplotlib.colors as mcolors
         for i in range(16):
-            if special_indices is None or i in special_indices:
-                alpha = 1.0 if special_indices and i in special_indices else 0.7
-                size = 100 if special_indices and i in special_indices else 50
-                if i in [0, 1, 2, 3]:  # Label only for these indices
-                    plt.scatter(durations[i], distances[i], alpha=alpha, color=color_groups[i], s=size, label=f"{i}, {i+4}, {i+8}, {i+12}")
+            if special_indices is not None and i not in special_indices:
+                continue
+            for idx, d in enumerate(durations[i]):
+                dist = distances[i][idx]
+                if color_mode == "gradient":
+                    base_color = color_groups.get(i, 'black')
+                    trial_val = trial_orders[i][idx]
+                    if flat_trials:
+                        max_trial = max(flat_trials)
+                    else:
+                        max_trial = 1
+                    # Normalize trial order so that first trial is 0 and last is 1
+                    normalized = (trial_val - 1) / (max_trial - 1) if max_trial > 1 else 1
+
+                    # Define a helper blend function
+                    def blend(c1, c2, t):
+                        return tuple((1-t)*c1_i + t*c2_i for c1_i, c2_i in zip(c1, c2))
+                    base_rgb = mcolors.to_rgb(base_color)
+                    # Create a light version of the base color by blending it with white (50% lighter)
+                    light_variant = blend(base_rgb, (1, 1, 1), 0.5)
+                    # Interpolate between the light variant and the base color based on normalized trial order:
+                    color = blend(light_variant, base_rgb, normalized)
+                    marker_size = 100
                 else:
-                    plt.scatter(durations[i], distances[i], alpha=alpha, color=color_groups[i], s=size)
-
-                # Overlay median values
-                if durations[i] and distances[i]:
-                    median_duration = np.median(durations[i])
-                    median_distance = np.median(distances[i])
-                    plt.scatter(median_duration, median_distance, color='none', edgecolor='black', s=100, zorder=5)
-                    plt.text(median_duration, median_distance, f"{i}", fontsize=7, color='black', ha="center", va="center",
-                             bbox=dict(facecolor='white', edgecolor='black', boxstyle='circle', linewidth=1.5))
-
-        plt.title(f"Scatter Plot of Durations vs Distances ({title})")
-
+                    color = color_groups.get(i, 'black')
+                    marker_size = 100
+                # Label only once for certain indices
+                if special_indices is None or len(special_indices) != 1:
+                    label = f"{i+1}, {i+5}, {i+9}, {i+13}" if (i in [0, 1, 2, 3] and idx==0) else None 
+                else:
+                    label = f"Reach Index {i+1}" if idx == 0 else None # Label only once per reach index
+                plt.scatter(d, dist, color=color, s=marker_size, alpha=0.8, label=label)
+            # Overlay median values for each reach index if available and enabled
+            if show_median_overlay and durations[i] and distances[i]:
+                median_duration = np.median(durations[i])
+                median_distance = np.median(distances[i])
+                plt.scatter(median_duration, median_distance, facecolors='none', edgecolors='black', s=100, zorder=5)
+                plt.text(median_duration, median_distance, f"{i}", fontsize=7, color='black', ha="center", va="center",
+                         bbox=dict(facecolor='white', edgecolor='black', boxstyle='circle', linewidth=1.5))
+    
+        # plt.title(f"Scatter Plot of Durations vs Distances ({title})")
         labels = {
             'distance': "Good → Bad (cm)",
             'durations': "Good / Fast → Bad / Slow (s)"
@@ -89,463 +199,67 @@ def scatter_plot_duration_distance_by_choice(updated_metrics, overlay_hands=True
         plt.xlabel(f"Durations ({labels.get('durations', '')})")
         plt.ylabel(f"Distance ({labels.get('distance', '')})")
         plt.grid(alpha=0.5)
-
+        plt.title(f"{title} - {'Overlayed Hands' if overlay_hands else f'{hand.capitalize()} Hand'}", fontsize=16)
         # Add Spearman correlation and number of data points to the plot
-        plt.text(0.05, 0.95, f"Spearman Corr: {spearman_corr:.4f}\nP-value: {p_value:.4f}\nData Points: {len(flat_durations)}",
-                 transform=plt.gca().transAxes, fontsize=12, verticalalignment='top', bbox=dict(boxstyle="round", facecolor="white", alpha=0.5))
-
-        # Fit a hyperbolic curve
-        def hyperbolic_func(x, a, b):
-            return a / (x + b)
-
-        try:
-            params, _ = curve_fit(hyperbolic_func, flat_durations, flat_distances)
-            x_fit = np.linspace(min(flat_durations), max(flat_durations), 500)
-            y_fit = hyperbolic_func(x_fit, *params)
-            plt.plot(x_fit, y_fit, color='red', linestyle='--', label=f"Hyperbolic Fit: a={params[0]:.2f}, b={params[1]:.2f}")
-        except Exception as e:
-            print(f"Hyperbolic fit failed: {e}")
-
+        plt.text(0.05, 0.95, f"Spearman Corr: {spearman_corr:.4f}\nP-value: {p_value:.4f}\nn: {len(flat_durations)}",
+                 transform=plt.gca().transAxes, fontsize=12, verticalalignment='top',
+                 bbox=dict(boxstyle="round", facecolor="white", alpha=0.5))
+    
+        # Option to fit a hyperbolic curve if requested
+        if show_hyperbolic_fit and len(flat_durations) > 1:
+            def hyperbolic_func(x, a, b):
+                return a / (x + b)
+            try:
+                params, _ = curve_fit(hyperbolic_func, flat_durations, flat_distances)
+                x_fit = np.linspace(min(flat_durations), max(flat_durations), 500)
+                y_fit = hyperbolic_func(x_fit, *params)
+                plt.plot(x_fit, y_fit, color='red', linestyle='--', 
+                         label=f"Hyperbolic Fit: a={params[0]:.2f}, b={params[1]:.2f}")
+            except Exception as e:
+                print(f"Hyperbolic fit failed: {e}")
+    
         plt.legend()
         plt.tight_layout()
         plt.show()
-
+    
     if selected_subjects is None:
         selected_subjects = updated_metrics.keys()
-
+    
     if overlay_hands:
         all_durations = [[] for _ in range(16)]
         all_distances = [[] for _ in range(16)]
+        all_trial_orders = [[] for _ in range(16)]
         for subject in selected_subjects:
             if subject in updated_metrics:
-                for hand in ['left', 'right']:
-                    durations, distances = extract_data(updated_metrics[subject], hand, special_indices)
+                for hand in ['non_dominant', 'dominant']:
+                    d, dist, trials = extract_data(updated_metrics[subject], hand, special_indices, color_mode)
                     for i in range(16):
-                        all_durations[i].extend(durations[i])
-                        all_distances[i].extend(distances[i])
-
-        # Plot overlayed hands
-        _plot_scatter_with_fit(all_durations, all_distances, title=f"Overlayed Hands (Subjects: {', '.join(selected_subjects)})", special_indices=special_indices)
+                        all_durations[i].extend(d[i])
+                        all_distances[i].extend(dist[i])
+                        all_trial_orders[i].extend(trials[i])
+        _plot_scatter_with_fit(all_durations, all_distances, all_trial_orders, 
+                               title=f"Overlayed Hands (Subjects: {', '.join(selected_subjects)})", 
+                               special_indices=special_indices, show_hyperbolic_fit=show_hyperbolic_fit,
+                               color_mode=color_mode, show_median_overlay=show_median_overlay)
     else:
-        for hand in ['left', 'right']:
+        for hand in ['non_dominant', 'dominant']:
             all_durations = [[] for _ in range(16)]
             all_distances = [[] for _ in range(16)]
+            all_trial_orders = [[] for _ in range(16)]
             for subject in selected_subjects:
                 if subject in updated_metrics:
-                    durations, distances = extract_data(updated_metrics[subject], hand, special_indices)
+                    d, dist, trials = extract_data(updated_metrics[subject], hand, special_indices, color_mode)
                     for i in range(16):
-                        all_durations[i].extend(durations[i])
-                        all_distances[i].extend(distances[i])
-
-            # Plot separate hands
-            _plot_scatter_with_fit(all_durations, all_distances, title=f"{hand.capitalize()} Hand (Subjects: {', '.join(selected_subjects)})", special_indices=special_indices)
-
-
-
-# 1.1	Does a subject show a speed–accuracy trade-off trial by trial?
+                        all_durations[i].extend(d[i])
+                        all_distances[i].extend(dist[i])
+                        all_trial_orders[i].extend(trials[i])
+            _plot_scatter_with_fit(all_durations, all_distances, all_trial_orders, 
+                                   title=f"{hand.capitalize()} Hand (Subjects: {', '.join(selected_subjects)})",
+                                   special_indices=special_indices, show_hyperbolic_fit=show_hyperbolic_fit,
+                                   color_mode=color_mode, show_median_overlay=show_median_overlay)
 # -------------------------------------------------------------------------------------------------------------------
-# Scatter plot for all durations and all distances with hyperbolic fit per subject per hand (or overlay hands)
-def duration_distance_trial_by_trial(updated_metrics, overlay_hands=True, selected_subjects=None):
-    """
-    Plots a scatter plot of all durations vs all distances across selected subjects, hands, and trials,
-    and fits a hyperbolic curve. Optionally overlays both hands or separates them.
-
-    Parameters:
-        updated_metrics (dict): Updated metrics data.
-        overlay_hands (bool): If True, overlays both hands in the same plot. If False, separates them.
-        selected_subjects (list or None): List of subjects to include. If None, includes all subjects.
-    """
-    def extract_data(metrics, hand):
-        durations = []
-        distances = []
-        for trial, trial_durations in metrics[hand]['durations'].items():
-            durations.extend([duration for duration in trial_durations if not pd.isna(duration)])
-        for trial, trial_distances in metrics[hand]['distance'].items():
-            distances.extend([distance for distance in trial_distances if not pd.isna(distance)])
-        return durations, distances
-
-    if selected_subjects is None:
-        selected_subjects = updated_metrics.keys()
-
-    if overlay_hands:
-        all_durations, all_distances = [], []
-        for subject in selected_subjects:
-            if subject in updated_metrics:
-                for hand in ['left', 'right']:
-                    durations, distances = extract_data(updated_metrics[subject], hand)
-                    all_durations.extend(durations)
-                    all_distances.extend(distances)
-
-        # Determine title based on the number of selected subjects
-        title = f"{len(selected_subjects)} Subjects" if len(selected_subjects) > 1 else f"Subject: {', '.join(selected_subjects)}"
-        _plot_scatter_with_fit(all_durations, all_distances, title=f"Overlayed Hands ({title})")
-    else:
-        for hand in ['left', 'right']:
-            all_durations, all_distances = [], []
-            for subject in selected_subjects:
-                if subject in updated_metrics:
-                    durations, distances = extract_data(updated_metrics[subject], hand)
-                    all_durations.extend(durations)
-                    all_distances.extend(distances)
-
-            # Determine title based on the number of selected subjects
-            title = f"{len(selected_subjects)} Subjects" if len(selected_subjects) > 1 else f"Subject: {', '.join(selected_subjects)}"
-            _plot_scatter_with_fit(all_durations, all_distances, title=f"{hand.capitalize()} Hand ({title})")
-
-def _plot_scatter_with_fit(durations, distances, title):
-    """
-    Helper function to plot scatter and fit a hyperbolic curve.
-
-    Parameters:
-        durations (list): List of durations.
-        distances (list): List of distances.
-        title (str): Title of the plot.
-    """
-    # Calculate Spearman correlation
-    if len(durations) > 1 and len(distances) > 1:
-        spearman_corr, p_value = spearmanr(durations, distances)
-    else:
-        spearman_corr, p_value = np.nan, np.nan
-
-    # Scatter plot
-    plt.figure(figsize=(8, 6))
-    plt.scatter(durations, distances, alpha=0.7, color='blue')
-    plt.title(f"Scatter Plot of Durations vs Distances ({title})")
-
-    labels = {
-        'distance': "Good → Bad (cm)",
-        'durations': "Good / Fast → Bad / Slow (s)"
-    }
-    plt.xlabel(f"Durations ({labels.get('durations', '')})")
-    plt.ylabel(f"Distance ({labels.get('distance', '')})")
-    plt.grid(alpha=0.5)
-
-    # Add Spearman correlation and number of data points to the plot
-    plt.text(0.05, 0.95, f"Spearman Corr: {spearman_corr:.4f}\nP-value: {p_value:.4f}\nData Points: {len(durations)}",
-             transform=plt.gca().transAxes, fontsize=12, verticalalignment='top', bbox=dict(boxstyle="round", facecolor="white", alpha=0.5))
-
-    # Fit a hyperbolic curve
-    def hyperbolic_func(x, a, b):
-        return a / (x + b)
-
-    try:
-        params, _ = curve_fit(hyperbolic_func, durations, distances)
-        x_fit = np.linspace(min(durations), max(durations), 500)
-        y_fit = hyperbolic_func(x_fit, *params)
-        plt.plot(x_fit, y_fit, color='red', linestyle='--', label=f"Hyperbolic Fit: a={params[0]:.2f}, b={params[1]:.2f}")
-    except Exception as e:
-        print(f"Hyperbolic fit failed: {e}")
-
-    plt.legend()
-    plt.tight_layout()
-    plt.show()
-
-# Calculate Spearman correlation, p-value, data points, and hyperbolic fit parameters (a, b) for durations vs distances for each subject and hand
-def calculate_duration_distance_trial_by_trial(updated_metrics, selected_subjects=None):
-    """
-    Calculates Spearman correlation, p-value, data points, and hyperbolic fit parameters (a, b)
-    for durations vs distances for each subject and hand.
-
-    Parameters:
-        updated_metrics (dict): Updated metrics data.
-        selected_subjects (list or None): List of subjects to include. If None, includes all subjects.
-
-    Returns:
-        dict: Dictionary containing results for each subject and hand.
-    """
-    def extract_data(metrics, hand):
-        durations = []
-        distances = []
-        for trial, trial_durations in metrics[hand]['durations'].items():
-            durations.extend([duration for duration in trial_durations if not pd.isna(duration)])
-        for trial, trial_distances in metrics[hand]['distance'].items():
-            distances.extend([distance for distance in trial_distances if not pd.isna(distance)])
-        return durations, distances
-
-    if selected_subjects is None:
-        selected_subjects = updated_metrics.keys()
-
-    results = {}
-
-    for subject in selected_subjects:
-        if subject in updated_metrics:
-            results[subject] = {}
-            for hand in ['left', 'right']:
-                durations, distances = extract_data(updated_metrics[subject], hand)
-
-                # Calculate Spearman correlation
-                if len(durations) > 1 and len(distances) > 1:
-                    spearman_corr, p_value = spearmanr(durations, distances)
-                else:
-                    spearman_corr, p_value = np.nan, np.nan
-
-                # Fit a hyperbolic curve
-                def hyperbolic_func(x, a, b):
-                    return a / (x + b)
-
-                try:
-                    params, _ = curve_fit(hyperbolic_func, durations, distances)
-                    a, b = params
-                except Exception:
-                    a, b = np.nan, np.nan
-
-                # Store results
-                results[subject][hand] = {
-                    "spearman_corr": spearman_corr,
-                    "p_value": p_value,
-                    "data_points": len(durations),
-                    "hyperbolic_fit_a": a,
-                    "hyperbolic_fit_b": b
-                }
-
-    return results
-
-# Plot column chart of Spearman correlations and p-values for left and right hands
-def plot_column_spearman_corr_pvalues_trial_by_trial(results):
-    """
-    Plots column charts of Spearman correlations and p-values for left and right hands across all subjects.
-
-    Parameters:
-        results (dict): Results containing Spearman correlations and p-values for each subject and hand.
-    """
-    subjects = list(results.keys())
-    correlations_left = [results[subject]['left']['spearman_corr'] if 'left' in results[subject] else np.nan for subject in subjects]
-    correlations_right = [results[subject]['right']['spearman_corr'] if 'right' in results[subject] else np.nan for subject in subjects]
-    pvalues_left = [results[subject]['left']['p_value'] if 'left' in results[subject] else np.nan for subject in subjects]
-    pvalues_right = [results[subject]['right']['p_value'] if 'right' in results[subject] else np.nan for subject in subjects]
-
-    x = np.arange(len(subjects))  # the label locations
-    width = 0.35  # the width of the bars
-
-    # Create figure and subplots
-    fig, axes = plt.subplots(2, 1, figsize=(12, 10), sharex=True)
-
-    # Plot Spearman correlations
-    bars_left_corr = axes[0].bar(x - width / 2, correlations_left, width, label='Left Hand', color='orange', alpha=0.7)
-    bars_right_corr = axes[0].bar(x + width / 2, correlations_right, width, label='Right Hand', color='blue', alpha=0.7)
-    axes[0].axhline(0, color='black', linewidth=0.8, linestyle='--')
-    axes[0].set_ylabel('Spearman Correlation')
-    axes[0].set_title('Spearman Correlations by Subject and Hand')
-    axes[0].legend()
-
-    # Annotate Spearman correlation values
-    for bar in bars_left_corr:
-        height = bar.get_height()
-        if not np.isnan(height):
-            axes[0].annotate(f'{height:.2f}', xy=(bar.get_x() + bar.get_width() / 2, height),
-                             xytext=(0, 3), textcoords="offset points", ha='center', va='bottom', fontsize=9)
-    for bar in bars_right_corr:
-        height = bar.get_height()
-        if not np.isnan(height):
-            axes[0].annotate(f'{height:.2f}', xy=(bar.get_x() + bar.get_width() / 2, height),
-                             xytext=(0, 3), textcoords="offset points", ha='center', va='bottom', fontsize=9)
-
-    # Plot P-values
-    bars_left_pval = axes[1].bar(x - width / 2, pvalues_left, width, label='Left Hand', color='orange', alpha=0.7)
-    bars_right_pval = axes[1].bar(x + width / 2, pvalues_right, width, label='Right Hand', color='blue', alpha=0.7)
-    axes[1].axhline(0.05, color='red', linewidth=0.8, linestyle='--', label='Significance Threshold (0.05)')
-    axes[1].set_ylabel('P-value')
-    axes[1].set_title('P-values by Subject and Hand')
-    axes[1].legend()
-
-    # Annotate P-value values only when > 0.05
-    for bar in bars_left_pval:
-        height = bar.get_height()
-        if not np.isnan(height) and height > 0.05:
-            axes[1].annotate(f'{height:.2f}', xy=(bar.get_x() + bar.get_width() / 2, height),
-                             xytext=(0, 3), textcoords="offset points", ha='center', va='bottom', fontsize=9)
-    for bar in bars_right_pval:
-        height = bar.get_height()
-        if not np.isnan(height) and height > 0.05:
-            axes[1].annotate(f'{height:.2f}', xy=(bar.get_x() + bar.get_width() / 2, height),
-                             xytext=(0, 3), textcoords="offset points", ha='center', va='bottom', fontsize=9)
-
-    # Set x-axis labels for both subplots
-    axes[1].set_xticks(x)
-    axes[1].set_xticklabels(subjects, rotation=45, ha='right')
-    axes[1].set_xlabel('Subjects')
-
-    plt.tight_layout()
-    plt.show()
-
-# Plot histograms for Spearman correlations, overlaying hands, and report median, IQR, and Wilcoxon signed-rank test result by hand
-def plot_histogram_spearman_corr_with_stats_trial_by_trial(results):
-    """
-    Plots histograms of Spearman correlations for durations vs distances across all subjects,
-    overlaying left and right hands in different colors. Reports median, IQR, and Wilcoxon signed-rank test result by hand.
-
-    Parameters:
-        results (dict): Results containing Spearman correlations for each subject and hand.
-    """
-    correlations_left = []
-    correlations_right = []
-
-    for subject, hands_data in results.items():
-        for hand, metrics in hands_data.items():
-            if 'spearman_corr' in metrics and not np.isnan(metrics['spearman_corr']):
-                if hand == 'left':
-                    correlations_left.append(metrics['spearman_corr'])
-                elif hand == 'right':
-                    correlations_right.append(metrics['spearman_corr'])
-
-    # Calculate statistics
-    median_left = np.median(correlations_left)
-    iqr_left = np.percentile(correlations_left, 75) - np.percentile(correlations_left, 25)
-    q1_left = np.percentile(correlations_left, 25)
-    q3_left = np.percentile(correlations_left, 75)
-
-    median_right = np.median(correlations_right)
-    iqr_right = np.percentile(correlations_right, 75) - np.percentile(correlations_right, 25)
-    q1_right = np.percentile(correlations_right, 25)
-    q3_right = np.percentile(correlations_right, 75)
-
-    # Perform Wilcoxon signed-rank test for each hand separately
-    stat_left, p_value_left = wilcoxon(correlations_left)
-    stat_right, p_value_right = wilcoxon(correlations_right)
-
-    # Plot histogram for Spearman correlations
-    plt.figure(figsize=(8, 6))
-    plt.hist(correlations_left, bins=15, color='orange', alpha=0.7, edgecolor='black', label='Left Hand')
-    plt.hist(correlations_right, bins=15, color='blue', alpha=0.7, edgecolor='black', label='Right Hand')
-    plt.axvline(median_left, color='orange', linestyle='--', label=f"Median Left: {median_left:.2f}")
-    plt.axvline(median_right, color='blue', linestyle='--', label=f"Median Right: {median_right:.2f}")
-    plt.axvspan(q1_left, q3_left, color='orange', alpha=0.2, label=f"IQR Left: {iqr_left:.2f}")
-    plt.axvspan(q1_right, q3_right, color='blue', alpha=0.2, label=f"IQR Right: {iqr_right:.2f}")
-    plt.title("Histogram of Spearman Correlations by Hand")
-    plt.xlabel("Spearman Correlation")
-    plt.ylabel("Frequency")
-    plt.legend()
-
-    plt.tight_layout()
-    plt.show()
-
-    # # Print statistics
-    # print(f"Left Hand: Median = {median_left:.2f}, IQR = {iqr_left:.2f}")
-    # print(f"Right Hand: Median = {median_right:.2f}, IQR = {iqr_right:.2f}")
-    # print(f"Wilcoxon Signed-Rank Test (Left Hand): Statistic = {stat_left:.2f}, P-value = {p_value_left:.4f}")
-    # print(f"Wilcoxon Signed-Rank Test (Right Hand): Statistic = {stat_right:.2f}, P-value = {p_value_right:.4f}")
-
-# Perform Wilcoxon signed-rank test on Spearman correlation values for left and right hands separately
-def wilcoxon_test_spearman_corr_separate_trial_by_trial(results):
-    """
-    Performs the Wilcoxon signed-rank test on Spearman correlation values for left and right hands separately.
-
-    Parameters:
-        results (dict): Results containing Spearman correlations for each subject and hand.
-
-    Returns:
-        dict: Test statistics and p-values for left and right hands.
-    """
-    correlations_left = []
-    correlations_right = []
-
-    for subject, hands_data in results.items():
-        if 'left' in hands_data and 'spearman_corr' in hands_data['left']:
-            correlations_left.append(hands_data['left']['spearman_corr'])
-        if 'right' in hands_data and 'spearman_corr' in hands_data['right']:
-            correlations_right.append(hands_data['right']['spearman_corr'])
-
-    # Perform Wilcoxon signed-rank test for left hand
-    stat_left, p_value_left = wilcoxon(correlations_left)
-
-    # Perform Wilcoxon signed-rank test for right hand
-    stat_right, p_value_right = wilcoxon(correlations_right)
-
-    # Print the results of the Wilcoxon signed-rank test
-    print(f"Wilcoxon Signed-Rank Test Results:")
-    print(f"Left Hand: Statistic = {stat_left:.2f}, P-value = {p_value_left:.4f}, Data Points = {len(correlations_left)}")
-    print(f"Right Hand: Statistic = {stat_right:.2f}, P-value = {p_value_right:.4f}, Data Points = {len(correlations_right)}")
-
-
-    return {
-        "left": {"statistic": stat_left, "p_value": p_value_left},
-        "right": {"statistic": stat_right, "p_value": p_value_right}
-    }
-
+# Do reach types that are faster on average also tend to be less accurate on average?
 # -------------------------------------------------------------------------------------------------------------------
-# 1.1	Does a subject show a speed–accuracy trade-off trial by trial?
-def Check_SAT_in_trial_by_trial(updated_metrics, selected_subjects, sample_subject= ['07/22/HW'], overlay_hands=False):
-    """
-    Analyzes the speed-accuracy trade-off trial by trial for selected subjects.
-    Generates scatter plots, calculates Spearman correlations, and performs statistical tests.
-
-    Parameters:
-        updated_metrics (dict): Updated metrics data.
-        selected_subjects (list or None): List of subjects to include. If None, includes all subjects.
-        overlay_hands (bool): If True, overlays both hands in the same plot. If False, separates them.
-
-    Returns:
-        dict: Results containing Spearman correlations, p-values, and statistical test results.
-    """
-    # Scatter plot for all durations and distances
-    # duration_distance_trial_by_trial(updated_metrics, overlay_hands=overlay_hands, selected_subjects=selected_subjects)
-    duration_distance_trial_by_trial(updated_metrics, overlay_hands=overlay_hands, selected_subjects=sample_subject)
-
-    # Calculate Spearman correlation, p-value, data points, and hyperbolic fit parameters
-    results_trial_by_trial = calculate_duration_distance_trial_by_trial(updated_metrics, selected_subjects=selected_subjects)
-
-    # Plot column chart of Spearman correlations and p-values
-    plot_column_spearman_corr_pvalues_trial_by_trial(results_trial_by_trial)
-
-    # Plot histograms for Spearman correlations and report statistics
-    plot_histogram_spearman_corr_with_stats_trial_by_trial(results_trial_by_trial)
-
-    # Perform Wilcoxon signed-rank test on Spearman correlation values
-    wilcoxon_results_by_hand_trial_by_trial = wilcoxon_test_spearman_corr_separate_trial_by_trial(results_trial_by_trial)
-
-    return {
-        "results": results_trial_by_trial,
-        "wilcoxon_results_by_hand": wilcoxon_results_by_hand_trial_by_trial
-    }
-
-# -------------------------------------------------------------------------------------------------------------------
-# 1.2	Do reach types that are faster on average also tend to be less accurate on average?
-
-# Box plot for all reach indices with median and IQR
-def boxplot_trials_mean_median_of_reach_indices(updated_metrics, subject, hand, metric):
-    """
-    Plots a box plot for all reach indices with median and IQR.
-    Y-axis represents reach indices, and X-axis represents the metric values.
-
-    Parameters:
-        updated_metrics (dict): Updated metrics data.
-        subject (str): Subject identifier.
-        hand (str): Hand ('left' or 'right').
-        metric (str): Metric to plot ('durations' or 'distance').
-    """
-
-    # Collect data for each reach index
-    reach_data = {reach_index: [] for reach_index in range(16)}
-
-    trials = updated_metrics[subject][hand][metric].keys()
-
-    for trial in trials:
-        trial_values = np.array(updated_metrics[subject][hand][metric][trial])
-
-        for reach_index in range(len(trial_values)):
-            if not np.isnan(trial_values[reach_index]):
-                reach_data[reach_index].append(trial_values[reach_index])
-
-    # Convert to DataFrame for box plot
-    reach_df = pd.DataFrame(dict([(k, pd.Series(v)) for k, v in reach_data.items()]))
-
-    # Plot box plot
-    plt.figure(figsize=(8, 6))
-    sns.boxplot(data=reach_df, orient="h", palette="coolwarm", showmeans=False, width=0.6)
-    plt.title(f"Box Plot for {subject} - {hand.capitalize()} Hand - {metric.capitalize()}")
-    plt.xlabel(f"{metric.capitalize()} Values")
-    plt.ylabel("Reach Index")
-    plt.grid(alpha=0.5)
-
-    # Add median and IQR annotations
-    medians = reach_df.median()
-    q1 = reach_df.quantile(0.25)
-    q3 = reach_df.quantile(0.75)
-    for i, median in enumerate(medians):
-        plt.text(median, i, f"{median:.2f}", verticalalignment='center', color='black', fontsize=8, horizontalalignment='right')
-
-    plt.tight_layout()
-    plt.show()
 
 # Calculate average and median 'durations', and average and median 'distance' for each reach_index for all subjects and hands across trials
 def calculate_trials_mean_median_of_reach_indices(updated_metrics, metric_x, metric_y):
@@ -624,7 +338,7 @@ def plot_trials_mean_median_of_reach_indices(stats, subject, hand, metric_x, met
     Parameters:
         stats (dict): Statistics (mean or median) for all subjects and hands.
         subject (str): Subject identifier.
-        hand (str): Hand ('left' or 'right').
+        hand (str): Hand ('non_dominant' or 'dominant').
         metric_x (str): Metric for x-axis.
         metric_y (str): Metric for y-axis.
         stat_type (str): Type of statistics to use ("mean" or "median").
@@ -634,15 +348,16 @@ def plot_trials_mean_median_of_reach_indices(stats, subject, hand, metric_x, met
         tuple: Spearman correlation and p-value for the overlayed points.
     """
     # Initialize the plot
-    plt.figure(figsize=(6, 6))
+    plt.figure(figsize=(8, 6))
 
     x_values = []
     y_values = []
 
     # Define color groups for reach indices
     if use_unique_colors:
-        color_palette = sns.color_palette("coolwarm", 16)
-        color_groups = {i: color_palette[i] for i in range(16)}
+        # color_palette = sns.color_palette("viridis", 16)
+        # color_groups = {i: color_palette[i] for i in range(16)}
+        color_groups = {i: 'black' for i in range(16)}
     else:
         color_groups = {
             0: 'red', 4: 'red', 8: 'red', 12: 'red',
@@ -662,35 +377,34 @@ def plot_trials_mean_median_of_reach_indices(stats, subject, hand, metric_x, met
         # Get statistics for the current reach index
         duration = stats[subject][hand][reach_index][f"{stat_type}_duration"]
         distance = stats[subject][hand][reach_index][f"{stat_type}_distance"]
-
-        # Overlay the points
+        # Overlay the points as empty markers with the reach index annotated inside
         if not np.isnan(duration) and not np.isnan(distance):
             x_values.append(duration)
             y_values.append(distance)
             color = color_groups[reach_index]
             label = f"Group {reach_index % 4}, {group_indexes[reach_index % 4]}" if not use_unique_colors and reach_index < 4 else None
-            plt.scatter(duration, distance, color=color, s=50, label=label, zorder=5)
-
-            # Annotate the reach index
-            plt.text(duration, distance, f"{reach_index}", fontsize=12, color=color, ha="right" if stat_type == "mean" else "left")
+            import matplotlib.colors as mcolors
+            dark_color = tuple(c * 0.8 for c in mcolors.to_rgb(color))
+            plt.scatter(duration, distance, facecolors='none', edgecolors=dark_color, s=270, label=label, zorder=5, alpha=1.0)
+            # Annotate the reach index at the center of the empty marker
+            plt.text(duration, distance, f"{reach_index+1}", fontsize=12, color=dark_color, ha="center", va="center")
 
     # Calculate Spearman correlation
     if len(x_values) > 1 and len(y_values) > 1:
         spearman_corr, p_value = spearmanr(x_values, y_values)
     else:
         spearman_corr, p_value = np.nan, np.nan
+    
+    # Add Spearman correlation and number of data points to the plot
+    plt.text(0.05, 0.95, f"Spearman Corr: {spearman_corr:.4f}\nP-value: {p_value:.4f}\nn: 16",
+                transform=plt.gca().transAxes, fontsize=12, verticalalignment='top',
+                bbox=dict(boxstyle="round", facecolor="white", alpha=0.5))
 
-    # Add labels and legend
-    labels = {
-        'distance': "Good → Bad (cm)",
-        'accuracy': "Bad → Good (%)",
-        'durations': "Good / Fast → Bad / Slow (s)",
-        'speed': "Bad / Slow → Good / Fast (1/s)"
-    }
-    plt.xlabel(f"{metric_x.capitalize()} ({labels.get(metric_x, '')})")
-    plt.ylabel(f"{metric_y.capitalize()} ({labels.get(metric_y, '')})")
-    plt.title(f"Overlay of Reach Statistics ({subject}, {hand.capitalize()}, {stat_type.capitalize()})\nSpearman Corr: {spearman_corr:.2f}, P-value: {p_value:.2f}")
-    plt.legend()
+
+    plt.ylabel('Median distance : Good → Bad (cm)', fontsize=20)
+    plt.xlabel('Median duration : Fast → Slow (s)', fontsize=20)
+    plt.title(f"Overlay of Reach Statistics ({subject}, {hand.capitalize()}, {stat_type.capitalize()})\nSpearman Corr: {spearman_corr:.2f}, P-value: {p_value:.2f}", fontsize=16)
+    # plt.legend(fontsize=20)
     plt.grid(alpha=0.5)
     plt.tight_layout()
     plt.show()
@@ -719,7 +433,7 @@ def calculate_duration_distance_trials_mean_median_of_reach_indices(stats, selec
     for subject in selected_subjects:
         if subject in stats:
             results[subject] = {}
-            for hand in ['left', 'right']:
+            for hand in ['non_dominant', 'dominant']:
                 x_values = []
                 y_values = []
 
@@ -759,171 +473,110 @@ def calculate_duration_distance_trials_mean_median_of_reach_indices(stats, selec
 
     return results
 
-# Plot column chart of Spearman correlations and p-values for left and right hands
-def plot_column_spearman_corr_pvalues_trials_mean_median_of_reach_indices(results):
-    """
-    Plots column charts of Spearman correlations and p-values for left and right hands across all subjects.
-
-    Parameters:
-        results (dict): Results containing Spearman correlations and p-values for each subject and hand.
-    """
-    subjects = list(results.keys())
-    correlations_left = [results[subject]['left']['spearman_corr'] if 'left' in results[subject] else np.nan for subject in subjects]
-    correlations_right = [results[subject]['right']['spearman_corr'] if 'right' in results[subject] else np.nan for subject in subjects]
-    pvalues_left = [results[subject]['left']['p_value'] if 'left' in results[subject] else np.nan for subject in subjects]
-    pvalues_right = [results[subject]['right']['p_value'] if 'right' in results[subject] else np.nan for subject in subjects]
-
-    x = np.arange(len(subjects))  # the label locations
-    width = 0.35  # the width of the bars
-
-    # Create figure and subplots
-    fig, axes = plt.subplots(2, 1, figsize=(12, 10), sharex=True)
-
-    # Plot Spearman correlations
-    bars_left_corr = axes[0].bar(x - width / 2, correlations_left, width, label='Left Hand', color='orange', alpha=0.7)
-    bars_right_corr = axes[0].bar(x + width / 2, correlations_right, width, label='Right Hand', color='blue', alpha=0.7)
-    axes[0].axhline(0, color='black', linewidth=0.8, linestyle='--')
-    axes[0].set_ylabel('Spearman Correlation')
-    axes[0].set_title('Spearman Correlations by Subject and Hand')
-    axes[0].legend()
-
-    # Annotate Spearman correlation values
-    for bar in bars_left_corr:
-        height = bar.get_height()
-        if not np.isnan(height):
-            axes[0].annotate(f'{height:.2f}', xy=(bar.get_x() + bar.get_width() / 2, height),
-                             xytext=(0, 3), textcoords="offset points", ha='center', va='bottom', fontsize=9)
-    for bar in bars_right_corr:
-        height = bar.get_height()
-        if not np.isnan(height):
-            axes[0].annotate(f'{height:.2f}', xy=(bar.get_x() + bar.get_width() / 2, height),
-                             xytext=(0, 3), textcoords="offset points", ha='center', va='bottom', fontsize=9)
-
-    # Plot P-values
-    bars_left_pval = axes[1].bar(x - width / 2, pvalues_left, width, label='Left Hand', color='orange', alpha=0.7)
-    bars_right_pval = axes[1].bar(x + width / 2, pvalues_right, width, label='Right Hand', color='blue', alpha=0.7)
-    axes[1].axhline(0.05, color='red', linewidth=0.8, linestyle='--', label='Significance Threshold (0.05)')
-    axes[1].set_ylabel('P-value')
-    axes[1].set_title('P-values by Subject and Hand')
-    axes[1].legend()
-
-    # Annotate P-value values only when > 0.05
-    for bar in bars_left_pval:
-        height = bar.get_height()
-        if not np.isnan(height) and height > 0.05:
-            axes[1].annotate(f'{height:.2f}', xy=(bar.get_x() + bar.get_width() / 2, height),
-                             xytext=(0, 3), textcoords="offset points", ha='center', va='bottom', fontsize=9)
-    for bar in bars_right_pval:
-        height = bar.get_height()
-        if not np.isnan(height) and height > 0.05:
-            axes[1].annotate(f'{height:.2f}', xy=(bar.get_x() + bar.get_width() / 2, height),
-                             xytext=(0, 3), textcoords="offset points", ha='center', va='bottom', fontsize=9)
-
-    # Set x-axis labels for both subplots
-    axes[1].set_xticks(x)
-    axes[1].set_xticklabels(subjects, rotation=45, ha='right')
-    axes[1].set_xlabel('Subjects')
-
-    plt.tight_layout()
-    plt.show()
-
 # Plot histograms for Spearman correlations, overlaying hands, and report median, IQR, and Wilcoxon signed-rank test result by hand
 def plot_histogram_spearman_corr_with_stats_trials_mean_median_of_reach_indices(results):
     """
     Plots histograms of Spearman correlations for durations vs distances across all subjects,
-    overlaying left and right hands in different colors. Reports median, IQR, and Wilcoxon signed-rank test result by hand.
+    overlaying non_dominant and dominant hands in different colors. Reports median, IQR, and Wilcoxon signed-rank test result by hand.
 
     Parameters:
         results (dict): Results containing Spearman correlations for each subject and hand.
     """
-    correlations_left = []
-    correlations_right = []
+    correlations_non_dominant = []
+    correlations_dominant = []
 
     for subject, hands_data in results.items():
         for hand, metrics in hands_data.items():
             if 'spearman_corr' in metrics and not np.isnan(metrics['spearman_corr']):
-                if hand == 'left':
-                    correlations_left.append(metrics['spearman_corr'])
-                elif hand == 'right':
-                    correlations_right.append(metrics['spearman_corr'])
+                if hand == 'non_dominant':
+                    correlations_non_dominant.append(metrics['spearman_corr'])
+                elif hand == 'dominant':
+                    correlations_dominant.append(metrics['spearman_corr'])
 
     # Calculate statistics
-    median_left = np.median(correlations_left)
-    iqr_left = np.percentile(correlations_left, 75) - np.percentile(correlations_left, 25)
-    q1_left = np.percentile(correlations_left, 25)
-    q3_left = np.percentile(correlations_left, 75)
+    median_non_dominant = np.median(correlations_non_dominant)
+    iqr_non_dominant = np.percentile(correlations_non_dominant, 75) - np.percentile(correlations_non_dominant, 25)
+    q1_non_dominant = np.percentile(correlations_non_dominant, 25)
+    q3_non_dominant = np.percentile(correlations_non_dominant, 75)
 
-    median_right = np.median(correlations_right)
-    iqr_right = np.percentile(correlations_right, 75) - np.percentile(correlations_right, 25)
-    q1_right = np.percentile(correlations_right, 25)
-    q3_right = np.percentile(correlations_right, 75)
+    median_dominant = np.median(correlations_dominant)
+    iqr_dominant = np.percentile(correlations_dominant, 75) - np.percentile(correlations_dominant, 25)
+    q1_dominant = np.percentile(correlations_dominant, 25)
+    q3_dominant = np.percentile(correlations_dominant, 75)
 
     # Perform Wilcoxon signed-rank test for each hand separately
-    stat_left, p_value_left = wilcoxon(correlations_left)
-    stat_right, p_value_right = wilcoxon(correlations_right)
+    stat_non_dominant, p_value_non_dominant = wilcoxon(correlations_non_dominant)
+    stat_dominant, p_value_dominant = wilcoxon(correlations_dominant)
 
     # Plot histogram for Spearman correlations
     plt.figure(figsize=(8, 6))
-    plt.hist(correlations_left, bins=15, color='orange', alpha=0.7, edgecolor='black', label='Left Hand')
-    plt.hist(correlations_right, bins=15, color='blue', alpha=0.7, edgecolor='black', label='Right Hand')
-    plt.axvline(median_left, color='orange', linestyle='--', label=f"Median Left: {median_left:.2f}")
-    plt.axvline(median_right, color='blue', linestyle='--', label=f"Median Right: {median_right:.2f}")
-    plt.axvspan(q1_left, q3_left, color='orange', alpha=0.2, label=f"IQR Left: {iqr_left:.2f}")
-    plt.axvspan(q1_right, q3_right, color='blue', alpha=0.2, label=f"IQR Right: {iqr_right:.2f}")
+    plt.hist(correlations_non_dominant, bins=15, color='orange', alpha=0.7, edgecolor='black', label='non_dominant Hand')
+    plt.hist(correlations_dominant, bins=15, color='blue', alpha=0.7, edgecolor='black', label='dominant Hand')
+    plt.axvline(median_non_dominant, color='orange', linestyle='--', label=f"Median non_dominant: {median_non_dominant:.2f}")
+    plt.axvline(median_dominant, color='blue', linestyle='--', label=f"Median dominant: {median_dominant:.2f}")
+    plt.axvspan(q1_non_dominant, q3_non_dominant, color='orange', alpha=0.2, label=f"IQR non_dominant: {iqr_non_dominant:.2f}")
+    plt.axvspan(q1_dominant, q3_dominant, color='blue', alpha=0.2, label=f"IQR dominant: {iqr_dominant:.2f}")
+    # plt.hist(correlations_non_dominant, bins=15, color='orange', alpha=0.7, edgecolor='black', label='non dominant')
+    # plt.hist(correlations_dominant, bins=15, color='blue', alpha=0.7, edgecolor='black', label='dominant')
+    # plt.axvline(median_non_dominant, color='orange', linestyle='--', label="non dominant median")
+    # plt.axvline(median_dominant, color='blue', linestyle='--', label="dominant median")
+    # plt.axvspan(q1_non_dominant, q3_non_dominant, color='orange', alpha=0.2, label="non dominant IQR")
+    # plt.axvspan(q1_dominant, q3_dominant, color='blue', alpha=0.2, label="dominant IQR")
+    
     plt.title("Histogram of Spearman Correlations by Hand")
     plt.xlabel("Spearman Correlation")
     plt.ylabel("Frequency")
-    plt.legend()
+    plt.legend(fontsize=16)
 
     plt.tight_layout()
     plt.show()
 
     # # Print statistics
-    # print(f"Left Hand: Median = {median_left:.2f}, IQR = {iqr_left:.2f}")
-    # print(f"Right Hand: Median = {median_right:.2f}, IQR = {iqr_right:.2f}")
-    # print(f"Wilcoxon Signed-Rank Test (Left Hand): Statistic = {stat_left:.2f}, P-value = {p_value_left:.4f}")
-    # print(f"Wilcoxon Signed-Rank Test (Right Hand): Statistic = {stat_right:.2f}, P-value = {p_value_right:.4f}")
+    # print(f"non_dominant Hand: Median = {median_non_dominant:.2f}, IQR = {iqr_non_dominant:.2f}")
+    # print(f"dominant Hand: Median = {median_dominant:.2f}, IQR = {iqr_dominant:.2f}")
+    # print(f"Wilcoxon Signed-Rank Test (non_dominant Hand): Statistic = {stat_non_dominant:.2f}, P-value = {p_value_non_dominant:.4f}")
+    # print(f"Wilcoxon Signed-Rank Test (dominant Hand): Statistic = {stat_dominant:.2f}, P-value = {p_value_dominant:.4f}")
 
-# Perform Wilcoxon signed-rank test on Spearman correlation values for left and right hands separately
+# Perform Wilcoxon signed-rank test on Spearman correlation values for non_dominant and dominant hands separately
 def wilcoxon_test_spearman_corr_separate(results):
     """
-    Performs the Wilcoxon signed-rank test on Spearman correlation values for left and right hands separately.
+    Performs the Wilcoxon signed-rank test on Spearman correlation values for non_dominant and dominant hands separately.
 
     Parameters:
         results (dict): Results containing Spearman correlations for each subject and hand.
 
     Returns:
-        dict: Test statistics and p-values for left and right hands.
+        dict: Test statistics and p-values for non_dominant and dominant hands.
     """
-    correlations_left = []
-    correlations_right = []
+    correlations_non_dominant = []
+    correlations_dominant = []
 
     for subject, hands_data in results.items():
-        if 'left' in hands_data and 'spearman_corr' in hands_data['left']:
-            correlations_left.append(hands_data['left']['spearman_corr'])
-        if 'right' in hands_data and 'spearman_corr' in hands_data['right']:
-            correlations_right.append(hands_data['right']['spearman_corr'])
+        if 'non_dominant' in hands_data and 'spearman_corr' in hands_data['non_dominant']:
+            correlations_non_dominant.append(hands_data['non_dominant']['spearman_corr'])
+        if 'dominant' in hands_data and 'spearman_corr' in hands_data['dominant']:
+            correlations_dominant.append(hands_data['dominant']['spearman_corr'])
 
-    # Perform Wilcoxon signed-rank test for left hand
-    stat_left, p_value_left = wilcoxon(correlations_left)
+    # Perform Wilcoxon signed-rank test for non_dominant hand
+    stat_non_dominant, p_value_non_dominant = wilcoxon(correlations_non_dominant)
 
-    # Perform Wilcoxon signed-rank test for right hand
-    stat_right, p_value_right = wilcoxon(correlations_right)
+    # Perform Wilcoxon signed-rank test for dominant hand
+    stat_dominant, p_value_dominant = wilcoxon(correlations_dominant)
 
     # Print the results of the Wilcoxon signed-rank test
     print(f"Wilcoxon Signed-Rank Test Results:")
-    print(f"Left Hand: Statistic = {stat_left:.2f}, P-value = {p_value_left:.4f}, Data Points = {len(correlations_left)}")
-    print(f"Right Hand: Statistic = {stat_right:.2f}, P-value = {p_value_right:.4f}, Data Points = {len(correlations_right)}")
+    print(f"non_dominant Hand: Statistic = {stat_non_dominant:.2f}, P-value = {p_value_non_dominant:.4f}, Data Points = {len(correlations_non_dominant)}")
+    print(f"dominant Hand: Statistic = {stat_dominant:.2f}, P-value = {p_value_dominant:.4f}, Data Points = {len(correlations_dominant)}")
 
     return {
-        "left": {"statistic": stat_left, "p_value": p_value_left},
-        "right": {"statistic": stat_right, "p_value": p_value_right}
+        "non_dominant": {"statistic": stat_non_dominant, "p_value": p_value_non_dominant},
+        "dominant": {"statistic": stat_dominant, "p_value": p_value_dominant}
     }
 
-# Compare left vs right hands at the subject level using Wilcoxon signed-rank test on paired subject Spearman correlations for durations and distances
-def compare_left_vs_right_hands_trials_mean_median_of_reach_indices(results):
+# Compare non_dominant vs dominant hands at the subject level using Wilcoxon signed-rank test on paired subject Spearman correlations for durations and distances
+def compare_non_dominant_vs_dominant_hands_trials_mean_median_of_reach_indices(results):
     """
-    Compares the left and right hands at the subject level using the Wilcoxon signed-rank test
+    Compares the non_dominant and dominant hands at the subject level using the Wilcoxon signed-rank test
     on paired subject Spearman correlations for durations and distances.
 
     Parameters:
@@ -932,33 +585,33 @@ def compare_left_vs_right_hands_trials_mean_median_of_reach_indices(results):
     Returns:
         dict: Results of the Wilcoxon signed-rank test for durations and distances.
     """
-    left_spearman_corrs = []
-    right_spearman_corrs = []
+    non_dominant_spearman_corrs = []
+    dominant_spearman_corrs = []
 
 
     for subject, hands_data in results.items():
-        if 'left' in hands_data and 'right' in hands_data:
-            left_corr = hands_data['left']['spearman_corr']
-            right_corr = hands_data['right']['spearman_corr']
-            if not (pd.isna(left_corr) or pd.isna(right_corr)):
-                left_spearman_corrs.append(left_corr)
-                right_spearman_corrs.append(right_corr)
+        if 'non_dominant' in hands_data and 'dominant' in hands_data:
+            non_dominant_corr = hands_data['non_dominant']['spearman_corr']
+            dominant_corr = hands_data['dominant']['spearman_corr']
+            if not (pd.isna(non_dominant_corr) or pd.isna(dominant_corr)):
+                non_dominant_spearman_corrs.append(non_dominant_corr)
+                dominant_spearman_corrs.append(dominant_corr)
 
-    left_data_points = len(left_spearman_corrs)
-    right_data_points = len(right_spearman_corrs)
+    non_dominant_data_points = len(non_dominant_spearman_corrs)
+    dominant_data_points = len(dominant_spearman_corrs)
 
     # Perform Wilcoxon signed-rank test for Spearman correlations
-    stat_corrs, p_value_corrs = wilcoxon(left_spearman_corrs, right_spearman_corrs)
+    stat_corrs, p_value_corrs = wilcoxon(non_dominant_spearman_corrs, dominant_spearman_corrs)
 
     results = {
         "spearman_correlations": {"statistic": stat_corrs, "p_value": p_value_corrs},
-        "data_points": {"left": left_data_points, "right": right_data_points}
+        "data_points": {"non_dominant": non_dominant_data_points, "dominant": dominant_data_points}
     }
 
     # Print the results of the Wilcoxon signed-rank test
-    print(f"Wilcoxon Signed-Rank Test Results Compare Left And Right:")
+    print(f"Wilcoxon Signed-Rank Test Results Compare non_dominant And dominant:")
     print(f"Spearman Correlations: Statistic = {stat_corrs:.2f}, P-value = {p_value_corrs:.4f}")
-    print(f"Data Points: Left Hand = {left_data_points}, Right Hand = {right_data_points}")
+    print(f"Data Points: non_dominant Hand = {non_dominant_data_points}, dominant Hand = {dominant_data_points}")
 
     return results
 
@@ -978,22 +631,15 @@ def Check_SAT_in_trials_mean_median_of_reach_indices(updated_metrics, sample_sub
     Returns:
         dict: Results containing Spearman correlations, p-values, and statistical test results.
     """
-    # Box plot for all reach indices with median and IQR
-    boxplot_trials_mean_median_of_reach_indices(updated_metrics, sample_subject, 'right', metric_y)
-    boxplot_trials_mean_median_of_reach_indices(updated_metrics, sample_subject, 'left', metric_y)
-
     # Calculate average and median metrics for all reach indices for each reach_index for all subjects and hands across trials
     mean_stats, median_stats = calculate_trials_mean_median_of_reach_indices(updated_metrics, metric_x, metric_y)
 
     # Overlay scatter plots for all reach indices
-    plot_trials_mean_median_of_reach_indices(median_stats, sample_subject, 'right', metric_x, metric_y, stat_type=stat_type, use_unique_colors=True)
-    plot_trials_mean_median_of_reach_indices(median_stats, sample_subject, 'left', metric_x, metric_y, stat_type=stat_type, use_unique_colors=True)
+    plot_trials_mean_median_of_reach_indices(median_stats, sample_subject, 'non_dominant', metric_x, metric_y, stat_type=stat_type, use_unique_colors=True)
+    plot_trials_mean_median_of_reach_indices(median_stats, sample_subject, 'dominant', metric_x, metric_y, stat_type=stat_type, use_unique_colors=True)
 
     # Calculate Spearman correlation, p-value, data points, and hyperbolic fit parameters
     results = calculate_duration_distance_trials_mean_median_of_reach_indices(median_stats, stat_type=stat_type)
-
-    # Plot column chart of Spearman correlations and p-values
-    plot_column_spearman_corr_pvalues_trials_mean_median_of_reach_indices(results)
 
     # Plot histograms for Spearman correlations and p-values
     plot_histogram_spearman_corr_with_stats_trials_mean_median_of_reach_indices(results)
@@ -1001,8 +647,8 @@ def Check_SAT_in_trials_mean_median_of_reach_indices(updated_metrics, sample_sub
     # Perform Wilcoxon signed-rank test on Spearman correlation values
     wilcoxon_results_by_hand_trials_mean_median_of_reach_indices = wilcoxon_test_spearman_corr_separate(results)
 
-    # Compare left vs right hands at the subject level using Wilcoxon signed-rank test on paired Spearman correlations
-    wilcoxon_results_compare_hand_trials_mean_median_of_reach_indices = compare_left_vs_right_hands_trials_mean_median_of_reach_indices(results)
+    # Compare non_dominant vs dominant hands at the subject level using Wilcoxon signed-rank test on paired Spearman correlations
+    wilcoxon_results_compare_hand_trials_mean_median_of_reach_indices = compare_non_dominant_vs_dominant_hands_trials_mean_median_of_reach_indices(results)
 
     return {
         "results": results,
@@ -1059,7 +705,7 @@ def scatter_by_reach_indices(updated_metrics, subject, hand, metric_x, metric_y,
     Parameters:
         updated_metrics (dict): Updated metrics data.
         subject (str): Subject identifier.
-        hand (str): Hand ('left' or 'right').
+        hand (str): Hand ('non_dominant' or 'dominant').
         metric_x (str): Metric for x-axis.
         metric_y (str): Metric for y-axis.
         subject_statistics (dict): Statistics containing max durations and max distances for the subject.
@@ -1153,7 +799,7 @@ def scatter_by_reach_indices(updated_metrics, subject, hand, metric_x, metric_y,
                     for (xi, yi) in intersections:
                         ax.scatter(xi, yi, color="black", s=50, zorder=5, label="Intersection")
                         ax.text(xi, yi, f"({xi:.2f}, {yi:.2f})",
-                                fontsize=12, color="black", ha="left", va="bottom")
+                                fontsize=12, color="black", ha="non_dominant", va="bottom")
             except Exception as e:
                 print(f"Hyperbolic regression failed for Reach Index {reach_index}: {e}")
 
@@ -1186,7 +832,7 @@ def overlay_hyperbolic_regressions_reach_indices(updated_metrics, subject, hand,
     Parameters:
         updated_metrics (dict): Updated metrics data.
         subject (str): Subject identifier.
-        hand (str): Hand ('left' or 'right').
+        hand (str): Hand ('non_dominant' or 'dominant').
         metric_x (str): Metric for x-axis.
         metric_y (str): Metric for y-axis.
         subject_statistics (dict): Statistics containing max durations and max distances for the subject.
@@ -1261,7 +907,7 @@ def overlay_hyperbolic_regressions_reach_indices(updated_metrics, subject, hand,
                 # Plot intersections
                 for idx, (xi, yi) in enumerate(intersections):
                     plt.scatter(xi, yi, color=color_palette[reach_index], edgecolors='black', s=50, zorder=5)
-                    # plt.text(xi, yi, f"({xi:.2f}, {yi:.2f})", fontsize=8, color=color_palette[reach_index], ha="right", va="bottom")
+                    # plt.text(xi, yi, f"({xi:.2f}, {yi:.2f})", fontsize=8, color=color_palette[reach_index], ha="dominant", va="bottom")
 
             # Save results for this reach index
             results.append({
@@ -1309,7 +955,7 @@ def calculate_duration_distance_reach_indices(updated_metrics):
 
     for subject in updated_metrics.keys():
         results[subject] = {}
-        for hand in ['left', 'right']:
+        for hand in ['non_dominant', 'dominant']:
             results[subject][hand] = {}
             for reach_index in range(16):
                 x_values = []
@@ -1359,504 +1005,155 @@ def calculate_duration_distance_reach_indices(updated_metrics):
 
     return results
 
-# Plot heatmap for Spearman correlations for each reach indices (0 to 15) for each subject and hand
-def heatmap_spearman_correlation_reach_indices(results, hand):
+
+def heatmap_spearman_correlation_reach_indices(results, hand="both", simplified=False, return_medians=False, overlay_median=False):
     """
-    Plots a heatmap of Spearman correlations for the specified hand (right or left).
-    X-axis represents reach indices (0 to 15), and Y-axis represents subjects.
-
-    Parameters:
-        results (dict): Results containing Spearman correlations for each subject and hand.
-        hand (str): Hand to plot ('right' or 'left').
-    """
-    subjects = list(results.keys())
-    reach_indices = range(16)
-
-    # Prepare data for the heatmap
-    correlation_data = []
-    for subject in subjects:
-        if hand in results[subject]:
-            correlations = [
-                results[subject][hand].get(reach_index, {}).get("spearman_corr", np.nan)
-                for reach_index in reach_indices
-            ]
-            correlation_data.append(correlations)
-
-    # Convert to DataFrame for heatmap
-    correlation_df = pd.DataFrame(correlation_data, index=subjects, columns=reach_indices)
-
-    # Plot heatmap
-    plt.figure(figsize=(12, len(subjects) * 0.5))
-    sns.heatmap(
-        correlation_df,
-        annot=True,
-        fmt=".2f",
-        cmap="coolwarm",
-        cbar=True,
-        xticklabels=reach_indices,
-        yticklabels=subjects,
-        vmin=-1,
-        vmax=1,
-    )
-    plt.title(f"Spearman Correlation Heatmap ({hand.capitalize()} Hand)")
-    plt.xlabel("Reach Index")
-    plt.ylabel("Subjects")
-    plt.tight_layout()
-    plt.show()
-
-# -------------------------------------------------------------------------------------------------------------------
-## ## correlations grouped by hand 
-# -------------------------------------------------------------------------------------------------------------------
-# Plot histogram of Spearman correlations for left and right hands, overlaying them
-def plot_histogram_spearman_corr_reach_indices(results):
-    """
-    Plots a histogram of Spearman correlations for left and right hands, overlaying them in different colors.
-    X-axis represents Spearman correlations, and Y-axis represents frequency.
-    Displays the overall median for each hand.
-
-    Parameters:
-        results (dict): Results containing Spearman correlations for each subject and hand.
-    """
-    correlations_left = []
-    correlations_right = []
-
-    # Collect data for left and right hands
-    for subject in results.keys():
-        if 'left' in results[subject]:
-            for reach_index in range(16):
-                corr = results[subject]['left'].get(reach_index, {}).get("spearman_corr", np.nan)
-                if not np.isnan(corr):
-                    correlations_left.append(corr)
-        if 'right' in results[subject]:
-            for reach_index in range(16):
-                corr = results[subject]['right'].get(reach_index, {}).get("spearman_corr", np.nan)
-                if not np.isnan(corr):
-                    correlations_right.append(corr)
+    Plots a heatmap of Spearman correlations for the specified hand(s) and optionally returns the column and row medians.
+    Optionally overlays a green square on each row at the cell closest to the row median.
     
-    # print(f"Total Left Hand Correlations: {len(correlations_left)}")
-    # print(f"Total Right Hand Correlations: {len(correlations_right)}")
-
-    # Calculate overall medians
-    overall_median_left = np.median(correlations_left) if correlations_left else np.nan
-    overall_median_right = np.median(correlations_right) if correlations_right else np.nan
-
-    # Plot histogram
-    plt.figure(figsize=(8, 6))
-    plt.hist(correlations_left, bins=15, color='orange', alpha=0.7, edgecolor='black', label='Left Hand')
-    plt.hist(correlations_right, bins=15, color='blue', alpha=0.7, edgecolor='black', label='Right Hand')
-
-    # Add median lines
-    plt.axvline(overall_median_left, color='orange', linestyle='--', label=f'Median Left: {overall_median_left:.2f}')
-    plt.axvline(overall_median_right, color='blue', linestyle='--', label=f'Median Right: {overall_median_right:.2f}')
-    # plt.axvline(0, color='red', linestyle='--', label='Correlation = 0')  # Add line at correlation = 0
-
-    # Calculate and display IQR for left and right hands
-    iqr_left = np.percentile(correlations_left, 75) - np.percentile(correlations_left, 25)
-    iqr_right = np.percentile(correlations_right, 75) - np.percentile(correlations_right, 25)
-    plt.axvspan(np.percentile(correlations_left, 25), np.percentile(correlations_left, 75), color='orange', alpha=0.2, label=f"IQR Left: {iqr_left:.2f}")
-    plt.axvspan(np.percentile(correlations_right, 25), np.percentile(correlations_right, 75), color='blue', alpha=0.2, label=f"IQR Right: {iqr_right:.2f}")
-
-    # Add labels, title, and legend
-    plt.title("Spearman Correlation Histogram (Overlayed Hands)")
-    plt.xlabel("Spearman Correlation")
-    plt.ylabel("Frequency")
-    plt.legend()
-    plt.tight_layout()
-    plt.show()
-
-# Perform Wilcoxon signed-rank test on Spearman correlation values for left and right hands separately
-def wilcoxon_test_spearman_corr_separate_reach_indices(results):
-    """
-    Performs the Wilcoxon signed-rank test on Spearman correlation values for left and right hands separately.
-    Also calculates the median for each hand.
-
     Parameters:
-        results_all (dict): Results containing Spearman correlations for each subject and hand.
-
+        results (dict): Results containing Spearman correlations for each subject and hand.
+        hand (str): Which hand to plot; "non_dominant", "dominant", or "both". Default is "both".
+        simplified (bool): If True, plots a compact version with no annotations and no subject labels.
+                           When hand == "both", each hand is plotted as a subplot.
+        return_medians (bool): If True, returns a dictionary containing column and row medians.
+        overlay_median (bool): If True, overlays a green square on each row at the cell closest to the row median.
+        
     Returns:
-        dict: Test statistics, p-values, and medians for left and right hands.
+        dict or None: If return_medians is True, returns a dictionary with keys corresponding to each hand 
+                      (or the chosen hand) and values as dictionaries with 'column_medians' and 'row_medians'.
     """
-    correlations_left = []
-    correlations_right = []
-
-    for subject, hands_data in results.items():
-        if 'left' in hands_data:
-            for reach_index in range(16):
-                corr = hands_data['left'].get(reach_index, {}).get("spearman_corr", np.nan)
-                if not np.isnan(corr):
-                    correlations_left.append(corr)
-        if 'right' in hands_data:
-            for reach_index in range(16):
-                corr = hands_data['right'].get(reach_index, {}).get("spearman_corr", np.nan)
-                if not np.isnan(corr):
-                    correlations_right.append(corr)
-
-    # Perform Wilcoxon signed-rank test for left hand
-    stat_left, p_value_left = wilcoxon(correlations_left)
-
-    # Perform Wilcoxon signed-rank test for right hand
-    stat_right, p_value_right = wilcoxon(correlations_right)
-
-    # Calculate medians
-    median_left = np.median(correlations_left) if correlations_left else np.nan
-    median_right = np.median(correlations_right) if correlations_right else np.nan
-
-    # Print the results of the Wilcoxon signed-rank test
-    print(f"Wilcoxon Signed-Rank Test Results:")
-    print(f"Left Hand: Statistic = {stat_left:.2f}, P-value = {p_value_left:.4f}, Data Points = {len(correlations_left)}")
-    print(f"Right Hand: Statistic = {stat_right:.2f}, P-value = {p_value_right:.4f}, Data Points = {len(correlations_right)}")
-
-    return {
-        "left": {"statistic": stat_left, "p_value": p_value_left, "median": median_left},
-        "right": {"statistic": stat_right, "p_value": p_value_right, "median": median_right}
-    }
-
-# Compare left vs right hands at the subject level using Wilcoxon signed-rank test on Spearman correlation values for durations and distances for each subject each reach index
-def compare_left_vs_right_hands_reach_indices(results):
-    """
-    Compares the left and right hands at the subject level using the Wilcoxon signed-rank test
-    on paired subject Spearman correlations for durations and distances.
-
-    Parameters:
-        results (dict): Dictionary containing Spearman correlation results for each subject.
-
-    Returns:
-        dict: Results of the Wilcoxon signed-rank test for durations and distances.
-    """
-    left_spearman_corrs = []
-    right_spearman_corrs = []
-
-    for subject, hands_data in results.items():
-        if 'left' in hands_data and 'right' in hands_data:
-            left_corrs = [hands_data['left'][reach_index]['spearman_corr'] for reach_index in hands_data['left'] if not pd.isna(hands_data['left'][reach_index]['spearman_corr'])]
-            right_corrs = [hands_data['right'][reach_index]['spearman_corr'] for reach_index in hands_data['right'] if not pd.isna(hands_data['right'][reach_index]['spearman_corr'])]
-            
-            if len(left_corrs) == len(right_corrs) and len(left_corrs) > 0:
-                left_spearman_corrs.extend(left_corrs)
-                right_spearman_corrs.extend(right_corrs)
-
-    # Perform Wilcoxon signed-rank test for Spearman correlations
-    stat_corrs, p_value_corrs = wilcoxon(left_spearman_corrs, right_spearman_corrs)
-
-    results = {
-        "spearman_correlations": {"statistic": stat_corrs, "p_value": p_value_corrs},
-        "data_points": {"left": len(left_spearman_corrs), "right": len(right_spearman_corrs)}
-    }
-
-    # Print the results of the Wilcoxon signed-rank test
-    print(f"Wilcoxon Signed-Rank Test Results Compare Left And Right:")
-    print(f"Spearman Correlations: Statistic = {stat_corrs:.2f}, P-value = {p_value_corrs:.4f}")
-    print(f"Data Points: Left Hand = {len(left_spearman_corrs)}, Right Hand = {len(right_spearman_corrs)}")
-
-    return results
+    import matplotlib.pyplot as plt
+    reach_indices = list(range(16))
+    medians = {}
+    
+    if hand == "both":
+        if simplified:
+            fig, axes = plt.subplots(1, 2, figsize=(8, 4))
+        else:
+            fig, axes = plt.subplots(2, 1, figsize=(12, len(results) * 0.5))
+        
+        for idx, h in enumerate(["non_dominant", "dominant"]):
+            subjects = list(results.keys())
+            data = []
+            for subject in subjects:
+                if h in results[subject]:
+                    correlations = [
+                        results[subject][h].get(ri, {}).get("spearman_corr", np.nan)
+                        for ri in reach_indices
+                    ]
+                    data.append(correlations)
+            df = pd.DataFrame(data, index=subjects, columns=reach_indices)
+            ax = axes[idx] if isinstance(axes, (list, np.ndarray)) else axes
+            sns.heatmap(
+                df,
+                annot=not simplified,
+                fmt=".2f",
+                cmap="coolwarm",
+                cbar=True,
+                xticklabels=list(range(1, 17)),
+                yticklabels=[] if simplified else subjects,
+                vmin=-1,
+                vmax=1,
+                ax=ax
+            )
+            ax.set_title(f"{h.capitalize()} Hand", fontsize=18)
+            ax.set_xlabel("Reach Index", fontsize=18)
+            ax.set_xticklabels(range(1, 17), fontsize=10, rotation=0)
+            ax.set_ylabel("Subjects", fontsize=18)
+            if overlay_median:
+                import matplotlib.patches as patches
+                for i, subject in enumerate(df.index):
+                    # Calculate row median from non-NaN values
+                    row_data = df.loc[subject].dropna()
+                    if row_data.empty:
+                        continue
+                    median_val = np.median(row_data.values)
+                    # Find the column index with the value closest to the row median
+                    col_idx = np.argmin(np.abs(df.loc[subject].values - median_val))
+                    # Overlay a green rectangle to highlight the cell
+                    ax.add_patch(patches.Rectangle((col_idx, i), 1, 1, fill=False, edgecolor='green', lw=2))
+            if return_medians:
+                medians[h] = {
+                    "column_medians": df.median(axis=0).to_dict(),
+                    "row_medians": df.median(axis=1).to_dict()
+                }
+        
+        plt.tight_layout()
+        plt.show()
+    
+    else:
+        subjects = list(results.keys())
+        data = []
+        for subject in subjects:
+            if hand in results[subject]:
+                correlations = [
+                    results[subject][hand].get(ri, {}).get("spearman_corr", np.nan)
+                    for ri in reach_indices
+                ]
+                data.append(correlations)
+        df = pd.DataFrame(data, index=subjects, columns=reach_indices)
+        fig, ax = plt.subplots(figsize=(8, 4) if simplified else (12, len(subjects) * 0.5))
+        sns.heatmap(
+            df,
+            annot=not simplified,
+            fmt=".2f",
+            cmap="coolwarm",
+            cbar=True,
+            xticklabels=list(range(1, 17)),
+            yticklabels=[] if simplified else subjects,
+            vmin=-1,
+            vmax=1,
+            ax=ax
+        )
+        ax.set_title(f"{hand.capitalize()} Hand")
+        ax.set_xlabel("Reach Index")
+        ax.set_xticklabels(range(1, 17), fontsize=10, rotation=0)
+        ax.set_ylabel("Subjects")
+        ax.set_yticklabels([] if simplified else ax.get_yticklabels())
+        if overlay_median:
+            import matplotlib.patches as patches
+            for i, subject in enumerate(df.index):
+                # Calculate row median from non-NaN values
+                row_data = df.loc[subject].dropna()
+                if row_data.empty:
+                    continue
+                median_val = np.median(row_data.values)
+                # Find the column index with the value closest to the row median
+                col_idx = np.argmin(np.abs(df.loc[subject].values - median_val))
+                # Overlay a green rectangle to highlight the cell
+                ax.add_patch(patches.Rectangle((col_idx, i), 1, 1, fill=False, edgecolor='green', lw=2))
+        plt.tight_layout()
+        plt.show()
+        if return_medians:
+            medians[hand] = {
+                "column_medians": df.median(axis=0).to_dict(),
+                "row_medians": df.median(axis=1).to_dict()
+            }
+    
+    if return_medians:
+        return medians
 
 # -------------------------------------------------------------------------------------------------------------------
-## correlations grouped by hand by index
-# -------------------------------------------------------------------------------------------------------------------
-# Plot box plot for Spearman correlations for each reach indices (0 to 15) for each subject and hand
-def plot_correlation_boxplot_reach_indices_by_index(results, hand):
-    """
-    Plots a box plot of Spearman correlations for each reach index, rotated 90 degrees to the left.
-    Y-axis represents reach indices (0 to 15), and X-axis represents Spearman correlations for each subject.
-    Displays the median value for each reach index and the overall median across all reach types.
-
-    Parameters:
-        results (dict): Results containing Spearman correlations for each subject and hand.
-        hand (str): Hand to plot ('right' or 'left').
-    """
-    reach_indices = range(16)
-    correlation_data = {reach_index: [] for reach_index in reach_indices}
-
-    # Collect data for each reach index
-    for subject in results.keys():
-        if hand in results[subject]:
-            for reach_index in reach_indices:
-                corr = results[subject][hand].get(reach_index, {}).get("spearman_corr", np.nan)
-                if not np.isnan(corr):
-                    correlation_data[reach_index].append(corr)
-
-    # Convert to DataFrame for box plot
-    correlation_df = pd.DataFrame(dict([(k, pd.Series(v)) for k, v in correlation_data.items()]))
-
-    # Calculate overall median across all reach types
-    overall_median = correlation_df.median().median()
-
-    # Plot box plot (rotated)
-    plt.figure(figsize=(8, 6))
-    sns.boxplot(data=correlation_df, palette="coolwarm", orient="h", showmeans=False, width=0.6)
-    plt.axvline(0, color='red', linestyle='--', label='Correlation = 0')  # Add vertical line at correlation 0
-    plt.axvline(overall_median, color='purple', linestyle='--', label=f'Overall Median: {overall_median:.2f}')  # Add overall median line
-    plt.title(f"Spearman Correlation Box Plot ({hand.capitalize()} Hand)")
-    plt.ylabel("Reach Index")
-    plt.xlabel("Spearman Correlation")
-    plt.grid(alpha=0.5)
-
-    # Add median values to the plot
-    medians = correlation_df.median()
-    for i, median in enumerate(medians):
-        plt.text(median, i, f"{median:.2f}", verticalalignment='center', color='black', fontsize=8, horizontalalignment='right')
-
-    plt.legend()
-    plt.tight_layout()
-    plt.show()
-
-# Plot histograms for median Spearman correlations, overlaying hands, and report median, IQR, and Wilcoxon signed-rank test result by hand
-def plot_histogram_spearman_corr_with_stats_reach_indices_by_index(results):
-    """
-    Plots histograms of median Spearman correlations for each reach index,
-    overlaying left and right hands in different colors. Reports median, IQR, and Wilcoxon signed-rank test result by hand.
-
-    Parameters:
-        results (dict): Results containing Spearman correlations for each subject and hand.
-    """
-    median_correlations_left = []
-    median_correlations_right = []
-
-    # Collect median correlation for each reach index
-    for reach_index in range(16):
-        correlations_left = []
-        correlations_right = []
-        for subject in results.keys():
-            if 'left' in results[subject]:
-                corr_left = results[subject]['left'].get(reach_index, {}).get("spearman_corr", np.nan)
-                if not np.isnan(corr_left):
-                    correlations_left.append(corr_left)
-            if 'right' in results[subject]:
-                corr_right = results[subject]['right'].get(reach_index, {}).get("spearman_corr", np.nan)
-                if not np.isnan(corr_right):
-                    correlations_right.append(corr_right)
-        if correlations_left:
-            median_correlations_left.append(np.median(correlations_left))
-        if correlations_right:
-            median_correlations_right.append(np.median(correlations_right))
-
-    # Calculate statistics
-    median_left = np.median(median_correlations_left)
-    iqr_left = np.percentile(median_correlations_left, 75) - np.percentile(median_correlations_left, 25)
-    q1_left = np.percentile(median_correlations_left, 25)
-    q3_left = np.percentile(median_correlations_left, 75)
-
-    median_right = np.median(median_correlations_right)
-    iqr_right = np.percentile(median_correlations_right, 75) - np.percentile(median_correlations_right, 25)
-    q1_right = np.percentile(median_correlations_right, 25)
-    q3_right = np.percentile(median_correlations_right, 75)
-
-    # Perform Wilcoxon signed-rank test for each hand separately
-    stat_left, p_value_left = wilcoxon(median_correlations_left)
-    stat_right, p_value_right = wilcoxon(median_correlations_right)
-
-    # Plot histogram for median Spearman correlations
-    plt.figure(figsize=(8, 6))
-    plt.hist(median_correlations_left, bins=15, color='orange', alpha=0.7, edgecolor='black', label='Left Hand')
-    plt.hist(median_correlations_right, bins=15, color='blue', alpha=0.7, edgecolor='black', label='Right Hand')
-    plt.axvline(median_left, color='orange', linestyle='--', label=f"Median Left: {median_left:.2f}")
-    plt.axvline(median_right, color='blue', linestyle='--', label=f"Median Right: {median_right:.2f}")
-    plt.axvspan(q1_left, q3_left, color='orange', alpha=0.2, label=f"IQR Left: {iqr_left:.2f}")
-    plt.axvspan(q1_right, q3_right, color='blue', alpha=0.2, label=f"IQR Right: {iqr_right:.2f}")
-    plt.title("Histogram of Median Spearman Correlations by Hand")
-    plt.xlabel("Median Spearman Correlation")
-    plt.ylabel("Frequency")
-    plt.legend()
-
-    plt.tight_layout()
-    plt.show()
-
-    # # Print statistics
-    # print(f"Left Hand: Median = {median_left:.2f}, IQR = {iqr_left:.2f}")
-    # print(f"Right Hand: Median = {median_right:.2f}, IQR = {iqr_right:.2f}")
-    # print(f"Wilcoxon Signed-Rank Test (Left Hand): Statistic = {stat_left:.2f}, P-value = {p_value_left:.4f}")
-    # print(f"Wilcoxon Signed-Rank Test (Right Hand): Statistic = {stat_right:.2f}, P-value = {p_value_right:.4f}")
-
-# Perform Wilcoxon signed-rank test on median Spearman correlation values for left and right hands separately
-def wilcoxon_test_spearman_corr_separate_reach_indices_by_index(results):
-    """
-    Performs the Wilcoxon signed-rank test on median Spearman correlation values for left and right hands separately.
-
-    Parameters:
-        results (dict): Results containing Spearman correlations for each subject and hand.
-
-    Returns:
-        dict: Test statistics, p-values, and median statistics for left and right hands.
-    """
-    median_correlations_left = []
-    median_correlations_right = []
-
-    # Collect median correlation for each reach index
-    for reach_index in range(16):
-        correlations_left = []
-        correlations_right = []
-        for subject in results.keys():
-            if 'left' in results[subject]:
-                corr_left = results[subject]['left'].get(reach_index, {}).get("spearman_corr", np.nan)
-                if not np.isnan(corr_left):
-                    correlations_left.append(corr_left)
-            if 'right' in results[subject]:
-                corr_right = results[subject]['right'].get(reach_index, {}).get("spearman_corr", np.nan)
-                if not np.isnan(corr_right):
-                    correlations_right.append(corr_right)
-        if correlations_left:
-            median_correlations_left.append(np.median(correlations_left))
-        if correlations_right:
-            median_correlations_right.append(np.median(correlations_right))
-
-
-    # Calculate statistics
-    median_left = np.median(median_correlations_left)
-    iqr_left = np.percentile(median_correlations_left, 75) - np.percentile(median_correlations_left, 25)
-    q1_left = np.percentile(median_correlations_left, 25)
-    q3_left = np.percentile(median_correlations_left, 75)
-
-    median_right = np.median(median_correlations_right)
-    iqr_right = np.percentile(median_correlations_right, 75) - np.percentile(median_correlations_right, 25)
-    q1_right = np.percentile(median_correlations_right, 25)
-    q3_right = np.percentile(median_correlations_right, 75)
-
-    # Perform Wilcoxon signed-rank test for each hand separately
-    stat_left, p_value_left = wilcoxon(median_correlations_left)
-    stat_right, p_value_right = wilcoxon(median_correlations_right)
-
-    # Print the results of the Wilcoxon signed-rank test
-    print(f"Wilcoxon Signed-Rank Test Results:")
-    print(f"Left Hand: Statistic = {stat_left:.2f}, P-value = {p_value_left:.4f}, Data Points = {len(median_correlations_left)}")
-    print(f"Right Hand: Statistic = {stat_right:.2f}, P-value = {p_value_right:.4f}, Data Points = {len(median_correlations_right)}")
-
-    return {
-        "left": {
-            "statistic": stat_left,
-            "p_value": p_value_left,
-            "median": median_left,
-            "iqr": iqr_left,
-            "q1": q1_left,
-            "q3": q3_left,
-        },
-        "right": {
-            "statistic": stat_right,
-            "p_value": p_value_right,
-            "median": median_right,
-            "iqr": iqr_right,
-            "q1": q1_right,
-            "q3": q3_right,
-        },
-    }
-
-# Compare left vs right hands at the subject level using Wilcoxon signed-rank test on median Spearman correlations for durations and distances for each reach index
-def compare_left_vs_right_hands_reach_indices_by_index(results):
-    """
-    Compares the left and right hands at the subject level using the Wilcoxon signed-rank test
-    on median Spearman correlations for durations and distances.
-
-    Parameters:
-        results (dict): Results containing Spearman correlations for each subject and hand.
-
-    Returns:
-        dict: Results of the Wilcoxon signed-rank test, median correlations, and data points for left and right hands.
-    """
-    median_correlations_left = []
-    median_correlations_right = []
-
-
-    # Collect median correlation for each reach index
-    for reach_index in range(16):
-        correlations_left = []
-        correlations_right = []
-        for subject in results.keys():
-            if 'left' in results[subject]:
-                corr_left = results[subject]['left'].get(reach_index, {}).get("spearman_corr", np.nan)
-                if not np.isnan(corr_left):
-                    correlations_left.append(corr_left)
-            if 'right' in results[subject]:
-                corr_right = results[subject]['right'].get(reach_index, {}).get("spearman_corr", np.nan)
-                if not np.isnan(corr_right):
-                    correlations_right.append(corr_right)
-        if correlations_left:
-            median_correlations_left.append(np.median(correlations_left))
-        if correlations_right:
-            median_correlations_right.append(np.median(correlations_right))
-
-    # Perform Wilcoxon signed-rank test
-    stat, p_value = wilcoxon(median_correlations_left, median_correlations_right)
-
-    # Print the results of the Wilcoxon signed-rank test
-    print(f"Wilcoxon Signed-Rank Test Results Compare Left And Right:")
-    print(f"Spearman Correlations: Statistic = {stat:.2f}, P-value = {p_value:.4f}")
-    print(f"Data Points: Left Hand = {len(median_correlations_left)}, Right Hand = {len(median_correlations_right)}")
-
-    return {
-        "median_correlations_left": median_correlations_left,
-        "median_correlations_right": median_correlations_right,
-        "data_points_left": len(median_correlations_left),
-        "data_points_right": len(median_correlations_right),
-        "wilcoxon_statistic": stat,
-        "wilcoxon_p_value": p_value
-    }
 
 # -------------------------------------------------------------------------------------------------------------------
 ## correlations grouped by hand by subject 
 # -------------------------------------------------------------------------------------------------------------------
-# Box plot of Spearman correlations for each subject
-def plot_correlation_boxplot_reach_indices_by_subject(results, hand):
-    """
-    Plots a box plot of Spearman correlations for each subject.
-    X-axis represents subjects, and Y-axis represents Spearman correlations across all reach indices.
-    Displays the median value for each subject and the overall median.
-
-    Parameters:
-        results_all (dict): Results containing Spearman correlations for each subject and hand.
-        hand (str): Hand to plot ('right' or 'left').
-    """
-    subjects = list(results.keys())
-    correlation_data = {subject: [] for subject in subjects}
-
-    # Collect data for each subject
-    for subject in results.keys():
-        if hand in results[subject]:
-            for reach_index in range(16):
-                corr = results[subject][hand].get(reach_index, {}).get("spearman_corr", np.nan)
-                if not np.isnan(corr):
-                    correlation_data[subject].append(corr)
-
-    # Convert to DataFrame for box plot
-    correlation_df = pd.DataFrame(dict([(k, pd.Series(v)) for k, v in correlation_data.items()]))
-
-    # Calculate overall median
-    # overall_median = correlation_df.stack().median()
-    overall_median = correlation_df.median().median()
-
-
-    # Plot box plot
-    plt.figure(figsize=(8, 6))
-    sns.boxplot(data=correlation_df, palette="coolwarm", orient="h", showmeans=False, width=0.6)
-    plt.axvline(0, color='red', linestyle='--', label='Correlation = 0')  # Add vertical line at correlation 0
-    plt.axvline(overall_median, color='purple', linestyle='--', label=f'Overall Median: {overall_median:.2f}')  # Add overall median line
-    plt.title(f"Spearman Correlation Box Plot ({hand.capitalize()} Hand)")
-    plt.xlabel("Spearman Correlation")
-    plt.ylabel("Subjects")
-    plt.yticks(rotation=0)
-    plt.grid(alpha=0.5)
-
-    # Add median values to the plot
-    medians = correlation_df.median()
-    for i, median in enumerate(medians):
-        plt.text(median, i, f"{median:.2f}", verticalalignment='center', color='black', fontsize=8, horizontalalignment='right')
-    plt.legend()
-    plt.tight_layout()
-    plt.show()
-
 # Plot histograms for median Spearman correlations, overlaying hands, and report median, IQR, and Wilcoxon signed-rank test result by hand
 def plot_histogram_spearman_corr_with_stats_reach_indices_by_subject(results):
     """
     Plots histograms of median Spearman correlations for each subject,
-    overlaying left and right hands in different colors. Reports median, IQR, and Wilcoxon signed-rank test result by hand.
+    overlaying non_dominant and dominant hands in different colors. Reports median, IQR, and Wilcoxon signed-rank test result by hand.
 
     Parameters:
         results (dict): Results containing Spearman correlations for each subject and hand.
     """
-    median_correlations_left = []
-    median_correlations_right = []
+    median_correlations_non_dominant = []
+    median_correlations_dominant = []
 
     # Collect median correlation for each subject
     for subject in results.keys():
-        for hand in ['left', 'right']:
+        for hand in ['non_dominant', 'dominant']:
             if hand in results[subject]:
                 correlations = [
                     results[subject][hand].get(reach_index, {}).get("spearman_corr", np.nan)
@@ -1864,66 +1161,74 @@ def plot_histogram_spearman_corr_with_stats_reach_indices_by_subject(results):
                 ]
                 correlations = [corr for corr in correlations if not np.isnan(corr)]
                 if correlations:
-                    if hand == 'left':
-                        median_correlations_left.append(np.median(correlations))
-                    elif hand == 'right':
-                        median_correlations_right.append(np.median(correlations))
+                    if hand == 'non_dominant':
+                        median_correlations_non_dominant.append(np.median(correlations))
+                    elif hand == 'dominant':
+                        median_correlations_dominant.append(np.median(correlations))
 
 
     # Calculate statistics
-    median_left = np.median(median_correlations_left)
-    iqr_left = np.percentile(median_correlations_left, 75) - np.percentile(median_correlations_left, 25)
-    q1_left = np.percentile(median_correlations_left, 25)
-    q3_left = np.percentile(median_correlations_left, 75)
+    median_non_dominant = np.median(median_correlations_non_dominant)
+    iqr_non_dominant = np.percentile(median_correlations_non_dominant, 75) - np.percentile(median_correlations_non_dominant, 25)
+    q1_non_dominant = np.percentile(median_correlations_non_dominant, 25)
+    q3_non_dominant = np.percentile(median_correlations_non_dominant, 75)
 
-    median_right = np.median(median_correlations_right)
-    iqr_right = np.percentile(median_correlations_right, 75) - np.percentile(median_correlations_right, 25)
-    q1_right = np.percentile(median_correlations_right, 25)
-    q3_right = np.percentile(median_correlations_right, 75)
+    median_dominant = np.median(median_correlations_dominant)
+    iqr_dominant = np.percentile(median_correlations_dominant, 75) - np.percentile(median_correlations_dominant, 25)
+    q1_dominant = np.percentile(median_correlations_dominant, 25)
+    q3_dominant = np.percentile(median_correlations_dominant, 75)
 
     # Perform Wilcoxon signed-rank test for each hand separately
-    stat_left, p_value_left = wilcoxon(median_correlations_left)
-    stat_right, p_value_right = wilcoxon(median_correlations_right)
+    stat_non_dominant, p_value_non_dominant = wilcoxon(median_correlations_non_dominant)
+    stat_dominant, p_value_dominant = wilcoxon(median_correlations_dominant)
 
     # Plot histogram for median Spearman correlations
     plt.figure(figsize=(8, 6))
-    plt.hist(median_correlations_left, bins=15, color='orange', alpha=0.7, edgecolor='black', label='Left Hand')
-    plt.hist(median_correlations_right, bins=15, color='blue', alpha=0.7, edgecolor='black', label='Right Hand')
-    plt.axvline(median_left, color='orange', linestyle='--', label=f"Median Left: {median_left:.2f}")
-    plt.axvline(median_right, color='blue', linestyle='--', label=f"Median Right: {median_right:.2f}")
-    plt.axvspan(q1_left, q3_left, color='orange', alpha=0.2, label=f"IQR Left: {iqr_left:.2f}")
-    plt.axvspan(q1_right, q3_right, color='blue', alpha=0.2, label=f"IQR Right: {iqr_right:.2f}")
+    plt.hist(median_correlations_non_dominant, bins=15, color='orange', alpha=0.7, edgecolor='black', label='non dominant Hand')
+    plt.hist(median_correlations_dominant, bins=15, color='blue', alpha=0.7, edgecolor='black', label='dominant Hand')
+    plt.axvline(median_non_dominant, color='orange', linestyle='--', label=f"Median non dominant: {median_non_dominant:.2f}")
+    plt.axvline(median_dominant, color='blue', linestyle='--', label=f"Median dominant: {median_dominant:.2f}")
+    plt.axvspan(q1_non_dominant, q3_non_dominant, color='orange', alpha=0.2, label=f"IQR non dominant: {iqr_non_dominant:.2f}")
+    plt.axvspan(q1_dominant, q3_dominant, color='blue', alpha=0.2, label=f"IQR dominant: {iqr_dominant:.2f}")
     plt.title("Histogram of Median Spearman Correlations by Hand")
-    plt.xlabel("Median Spearman Correlation")
-    plt.ylabel("Frequency")
-    plt.legend()
+
+    # plt.hist(median_correlations_non_dominant, bins=15, color='orange', alpha=0.7, edgecolor='black', label='non dominant')
+    # plt.hist(median_correlations_dominant, bins=15, color='blue', alpha=0.7, edgecolor='black', label='dominant')
+    # plt.axvline(median_non_dominant, color='orange', linestyle='--', label="non dominant median")
+    # plt.axvline(median_dominant, color='blue', linestyle='--', label="dominant median")
+    # plt.axvspan(q1_non_dominant, q3_non_dominant, color='orange', alpha=0.2, label="non dominant IQR")
+    # plt.axvspan(q1_dominant, q3_dominant, color='blue', alpha=0.2, label="dominant IQR")
+    plt.xlabel("Median Spearman Correlation", fontsize=24)
+    plt.ylabel("Frequency", fontsize=24)
+    plt.legend(fontsize=16)
 
     plt.tight_layout()
     plt.show()
 
     # # Print statistics
-    # print(f"Left Hand: Median = {median_left:.2f}, IQR = {iqr_left:.2f}")
-    # print(f"Right Hand: Median = {median_right:.2f}, IQR = {iqr_right:.2f}")
-    # print(f"Wilcoxon Signed-Rank Test (Left Hand): Statistic = {stat_left:.2f}, P-value = {p_value_left:.4f}")
-    # print(f"Wilcoxon Signed-Rank Test (Right Hand): Statistic = {stat_right:.2f}, P-value = {p_value_right:.4f}")
+    # print(f"non_dominant Hand: Median = {median_non_dominant:.2f}, IQR = {iqr_non_dominant:.2f}")
+    # print(f"dominant Hand: Median = {median_dominant:.2f}, IQR = {iqr_dominant:.2f}")
+    # print(f"Wilcoxon Signed-Rank Test (non_dominant Hand): Statistic = {stat_non_dominant:.2f}, P-value = {p_value_non_dominant:.4f}")
+    # print(f"Wilcoxon Signed-Rank Test (dominant Hand): Statistic = {stat_dominant:.2f}, P-value = {p_value_dominant:.4f}")
 
-# Perform Wilcoxon signed-rank test on median Spearman correlation values for left and right hands separately
+# Perform Wilcoxon signed-rank test on median Spearman correlation values for non_dominant and dominant hands separately
 def wilcoxon_test_spearman_corr_separate_reach_indices_by_subject(results):
     """
-    Performs the Wilcoxon signed-rank test on median Spearman correlation values for left and right hands separately.
+    Performs the one-tailed Wilcoxon signed-rank test on median Spearman correlation values for non_dominant and dominant hands separately.
+    By default, the alternative hypothesis is that the true median is smaller than zero.
 
     Parameters:
         results (dict): Results containing Spearman correlations for each subject and hand.
 
     Returns:
-        dict: Test statistics, p-values, and median statistics for left and right hands.
+        dict: Test statistics, p-values, and median statistics for non_dominant and dominant hands.
     """
-    median_correlations_left = []
-    median_correlations_right = []
+    median_correlations_non_dominant = []
+    median_correlations_dominant = []
 
     # Collect median correlation for each subject
     for subject in results.keys():
-        for hand in ['left', 'right']:
+        for hand in ['non_dominant', 'dominant']:
             if hand in results[subject]:
                 correlations = [
                     results[subject][hand].get(reach_index, {}).get("spearman_corr", np.nan)
@@ -1931,68 +1236,70 @@ def wilcoxon_test_spearman_corr_separate_reach_indices_by_subject(results):
                 ]
                 correlations = [corr for corr in correlations if not np.isnan(corr)]
                 if correlations:
-                    if hand == 'left':
-                        median_correlations_left.append(np.median(correlations))
-                    elif hand == 'right':
-                        median_correlations_right.append(np.median(correlations))
+                    if hand == 'non_dominant':
+                        median_correlations_non_dominant.append(np.median(correlations))
+                    elif hand == 'dominant':
+                        median_correlations_dominant.append(np.median(correlations))
 
     # Calculate statistics
-    median_left = np.median(median_correlations_left)
-    iqr_left = np.percentile(median_correlations_left, 75) - np.percentile(median_correlations_left, 25)
-    q1_left = np.percentile(median_correlations_left, 25)
-    q3_left = np.percentile(median_correlations_left, 75)
+    median_non_dominant = np.median(median_correlations_non_dominant)
+    iqr_non_dominant = np.percentile(median_correlations_non_dominant, 75) - np.percentile(median_correlations_non_dominant, 25)
+    q1_non_dominant = np.percentile(median_correlations_non_dominant, 25)
+    q3_non_dominant = np.percentile(median_correlations_non_dominant, 75)
 
-    median_right = np.median(median_correlations_right)
-    iqr_right = np.percentile(median_correlations_right, 75) - np.percentile(median_correlations_right, 25)
-    q1_right = np.percentile(median_correlations_right, 25)
-    q3_right = np.percentile(median_correlations_right, 75)
+    median_dominant = np.median(median_correlations_dominant)
+    iqr_dominant = np.percentile(median_correlations_dominant, 75) - np.percentile(median_correlations_dominant, 25)
+    q1_dominant = np.percentile(median_correlations_dominant, 25)
+    q3_dominant = np.percentile(median_correlations_dominant, 75)
 
-    # Perform Wilcoxon signed-rank test for each hand separately
-    stat_left, p_value_left = wilcoxon(median_correlations_left)
-    stat_right, p_value_right = wilcoxon(median_correlations_right)
+    # Perform one-tailed Wilcoxon signed-rank test for each hand separately (alternative hypothesis: median < 0)
+    stat_non_dominant, p_value_non_dominant = wilcoxon(median_correlations_non_dominant, alternative='less')
+    stat_dominant, p_value_dominant = wilcoxon(median_correlations_dominant, alternative='less')
 
     # Print the results of the Wilcoxon signed-rank test
-    print(f"Wilcoxon Signed-Rank Test Results:")
-    print(f"Left Hand: Statistic = {stat_left:.2f}, P-value = {p_value_left:.4f}, Data Points = {len(median_correlations_left)}")
-    print(f"Right Hand: Statistic = {stat_right:.2f}, P-value = {p_value_right:.4f}, Data Points = {len(median_correlations_right)}")
+    print(f"Wilcoxon Signed-Rank Test Results (One-tailed):")
+    print(f"non dominant Hand: Statistic = {stat_non_dominant:.2f}, P-value = {p_value_non_dominant:.4f}, Data Points = {len(median_correlations_non_dominant)}")
+    print(f"dominant Hand: Statistic = {stat_dominant:.2f}, P-value = {p_value_dominant:.4f}, Data Points = {len(median_correlations_dominant)}")
 
     return {
-        "left": {
-            "statistic": stat_left,
-            "p_value": p_value_left,
-            "median": median_left,
-            "iqr": iqr_left,
-            "q1": q1_left,
-            "q3": q3_left,
+        "non_dominant": {
+            "statistic": stat_non_dominant,
+            "p_value": p_value_non_dominant,
+            "median": median_non_dominant,
+            "iqr": iqr_non_dominant,
+            "q1": q1_non_dominant,
+            "q3": q3_non_dominant,
         },
-        "right": {
-            "statistic": stat_right,
-            "p_value": p_value_right,
-            "median": median_right,
-            "iqr": iqr_right,
-            "q1": q1_right,
-            "q3": q3_right,
+        "dominant": {
+            "statistic": stat_dominant,
+            "p_value": p_value_dominant,
+            "median": median_dominant,
+            "iqr": iqr_dominant,
+            "q1": q1_dominant,
+            "q3": q3_dominant,
         },
     }
 
-# Compare left vs right hands using Wilcoxon signed-rank test on median Spearman correlations
-def compare_left_vs_right_hands_reach_indices_by_subject(results):
+# Compare non_dominant vs dominant hands using Wilcoxon signed-rank test on median Spearman correlations
+def compare_non_dominant_vs_dominant_hands_reach_indices_by_subject(results):
     """
-    Compares the left and right hands using the Wilcoxon signed-rank test
-    on median Spearman correlations for durations and distances.
+    Compares the non_dominant and dominant hands using a one-tailed Wilcoxon signed-rank test
+    on median Spearman correlations for durations and distances, predicting that the dominant hand
+    has a weaker negative SAT (i.e. less negative correlation).
 
     Parameters:
         results (dict): Results containing Spearman correlations for each subject and hand.
 
     Returns:
-        dict: Results of the Wilcoxon signed-rank test, median correlations, and data points for left and right hands.
+        dict: Results of the one-tailed Wilcoxon signed-rank test, median correlations, and 
+              data points for non_dominant and dominant hands.
     """
-    median_correlations_left = []
-    median_correlations_right = []
+    median_correlations_non_dominant = []
+    median_correlations_dominant = []
 
     # Collect median correlation for each subject
     for subject in results.keys():
-        for hand in ['left', 'right']:
+        for hand in ['non_dominant', 'dominant']:
             if hand in results[subject]:
                 correlations = [
                     results[subject][hand].get(reach_index, {}).get("spearman_corr", np.nan)
@@ -2000,24 +1307,28 @@ def compare_left_vs_right_hands_reach_indices_by_subject(results):
                 ]
                 correlations = [corr for corr in correlations if not np.isnan(corr)]
                 if correlations:
-                    if hand == 'left':
-                        median_correlations_left.append(np.median(correlations))
-                    elif hand == 'right':
-                        median_correlations_right.append(np.median(correlations))
+                    if hand == 'non_dominant':
+                        median_correlations_non_dominant.append(np.median(correlations))
+                    elif hand == 'dominant':
+                        median_correlations_dominant.append(np.median(correlations))
 
-    # Perform Wilcoxon signed-rank test
-    stat, p_value = wilcoxon(median_correlations_left, median_correlations_right)
+    # Perform one-tailed Wilcoxon signed-rank test 
+    # (alternative hypothesis: non_dominant - dominant < 0,
+    #  i.e. dominant correlations are less negative than non_dominant)
+    stat, p_value = wilcoxon(median_correlations_non_dominant,
+                             median_correlations_dominant,
+                             alternative='less')
 
     # Print the results of the Wilcoxon signed-rank test
-    print(f"Wilcoxon Signed-Rank Test Results Compare Left And Right:")
+    print(f"Wilcoxon Signed-Rank Test Results Compare non_dominant And dominant:")
     print(f"Spearman Correlations: Statistic = {stat:.2f}, P-value = {p_value:.4f}")
-    print(f"Data Points: Left Hand = {len(median_correlations_left)}, Right Hand = {len(median_correlations_right)}")
+    print(f"Data Points: non_dominant Hand = {len(median_correlations_non_dominant)}, dominant Hand = {len(median_correlations_dominant)}")
 
     return {
-        "median_correlations_left": median_correlations_left,
-        "median_correlations_right": median_correlations_right,
-        "data_points_left": len(median_correlations_left),
-        "data_points_right": len(median_correlations_right),
+        "median_correlations_non_dominant": median_correlations_non_dominant,
+        "median_correlations_dominant": median_correlations_dominant,
+        "data_points_non_dominant": len(median_correlations_non_dominant),
+        "data_points_dominant": len(median_correlations_dominant),
         "wilcoxon_statistic": stat,
         "wilcoxon_p_value": p_value
     }
@@ -2042,57 +1353,20 @@ def Check_SAT_in_reach_indices_by_index_or_subject(updated_metrics, sample_subje
     """
     # 1. Compute subject statistics from durations and distances
     subject_statistics = calculate_statistics_for_subjects(updated_metrics)
-    
-    # 2. Create scatter plots (without hyperbolic regression) for left and right hands
-    # (These functions display plots; you can comment them out if not needed)
-    scatter_by_reach_indices(updated_metrics, sample_subject, 'right', 'durations', 'distance', subject_statistics, show_all=False)
-    scatter_by_reach_indices(updated_metrics, sample_subject, 'left', 'durations', 'distance', subject_statistics, show_all=False)
-    
-    # 3. Optionally run overlay 16 hyperbolic regressions, intersections, and diagonal line in one figure
-    if hyperbolic:
-        R_hyper = overlay_hyperbolic_regressions_reach_indices(updated_metrics, sample_subject, 'right', 'durations', 'distance', subject_statistics)
-        L_hyper = overlay_hyperbolic_regressions_reach_indices(updated_metrics, sample_subject, 'left', 'durations', 'distance', subject_statistics)
-    else:
-        R_hyper = L_hyper = None
 
-    # 4. Calculate and return Spearman correlation, p-value, data points, and hyperbolic fit parameters (a, b) for durations vs distances for each subject, hand, and reach index
+    # 42. Calculate and return Spearman correlation, p-value, data points, and hyperbolic fit parameters (a, b) for durations vs distances for each subject, hand, and reach index
     results = calculate_duration_distance_reach_indices(updated_metrics)
 
-    # Plot heatmap for Spearman correlations for each reach indices (0 to 15) for each subject and hand
-    heatmap_spearman_correlation_reach_indices(results, "right")
-    heatmap_spearman_correlation_reach_indices(results, "left")
+    # Plot heatmap for Spearman correlations for each reach indices (1 to 16) for each subject and hand
+    medians = heatmap_spearman_correlation_reach_indices(results, hand="both", simplified=True, return_medians=True, overlay_median=True)
     
     analysis = {}
     # 5. Run analysis based on grouping parameter
-    if grouping == "hand":
-        # Group correlations by hand
-        # Plot histogram overlaying left and right hands
-        plot_histogram_spearman_corr_reach_indices(results)
-        # Run Wilcoxon tests by hand and compare hands at subject level
-        wilcoxon_by_hand = wilcoxon_test_spearman_corr_separate_reach_indices(results)
-        compare_hands = compare_left_vs_right_hands_reach_indices(results)
-        analysis = {
-            "wilcoxon_by_hand": wilcoxon_by_hand,
-            "compare_hands": compare_hands
-        }
-    elif grouping == "hand_by_index":
-        # Group correlations by reach index: boxplot, histogram and stats
-        plot_correlation_boxplot_reach_indices_by_index(results, "right")
-        plot_correlation_boxplot_reach_indices_by_index(results, "left")
-        plot_histogram_spearman_corr_with_stats_reach_indices_by_index(results)
-        wilcox_by_index = wilcoxon_test_spearman_corr_separate_reach_indices_by_index(results)
-        compare_hands_index = compare_left_vs_right_hands_reach_indices_by_index(results)
-        analysis = {
-            "wilcox_by_index": wilcox_by_index,
-            "compare_hands_index": compare_hands_index
-        }
-    elif grouping == "hand_by_subject":
-        # Group correlations by subject: boxplot and histogram by subject
-        plot_correlation_boxplot_reach_indices_by_subject(results, "right")
-        plot_correlation_boxplot_reach_indices_by_subject(results, "left")
+    if grouping == "hand_by_subject":
+
         plot_histogram_spearman_corr_with_stats_reach_indices_by_subject(results)
         wilcox_by_subject = wilcoxon_test_spearman_corr_separate_reach_indices_by_subject(results)
-        compare_hands_subject = compare_left_vs_right_hands_reach_indices_by_subject(results)
+        compare_hands_subject = compare_non_dominant_vs_dominant_hands_reach_indices_by_subject(results)
         analysis = {
             "wilcox_by_subject": wilcox_by_subject,
             "compare_hands_subject": compare_hands_subject
@@ -2100,4 +1374,221 @@ def Check_SAT_in_reach_indices_by_index_or_subject(updated_metrics, sample_subje
     else:
         raise ValueError("grouping must be one of 'hand', 'hand_by_index', 'hand_by_subject'")
     
-    return subject_statistics, results, analysis
+    return subject_statistics, results, analysis, medians
+
+
+# --------------------------------------------------------------------------------------------------------------------
+## bin
+def heatmap_spearman_correlation_reach_indices_signifcant(results, hand="both", simplified=False, return_medians=False, overlay_median=False):
+    """
+    Plots a heatmap of Spearman correlations for the specified hand(s) showing only significant correlations 
+    (p < 0.05). Non-significant correlations are masked (set to NaN) so that only the significant ones are shown.
+    Additionally, calculates and prints various statistics about the correlations.
+    
+    Statistics include:
+        - Total number and percentage of significant correlations (p < 0.05), divided into positive and negative.
+        - For positive correlations: number, percentage significant, and percentage non-significant.
+        - For negative correlations: number, percentage significant, and percentage non-significant.
+    
+    Parameters:
+        results (dict): Results containing Spearman correlations and p-values for each subject and hand.
+        hand (str): Which hand to plot; "non_dominant", "dominant", or "both". Default is "both".
+        simplified (bool): If True, plots a compact version with no annotations and no subject labels.
+                           When hand == "both", each hand is plotted as a subplot.
+        return_medians (bool): If True, returns a dictionary containing column and row medians.
+        overlay_median (bool): If True, overlays a green square on each row at the cell closest to the row median.
+        
+    Returns:
+        dict or None: If return_medians is True, returns a dictionary with keys corresponding to each hand 
+                      (or the chosen hand) and values as dictionaries with 'column_medians' and 'row_medians'.
+    """
+    import matplotlib.pyplot as plt
+    import matplotlib.patches as patches
+
+    reach_indices = list(range(16))
+    medians = {}
+    sig_threshold = 0.05  # significance threshold
+
+    def custom_annot(df):
+        return df.applymap(lambda x: f"{x:.2f}" if pd.notnull(x) else "")
+
+    if hand == "both":
+        if simplified:
+            fig, axes = plt.subplots(1, 2, figsize=(8, 4))
+        else:
+            fig, axes = plt.subplots(2, 1, figsize=(12, len(results) * 0.5))
+        
+        for idx, h in enumerate(["non_dominant", "dominant"]):
+            subjects = list(results.keys())
+            data_corr = []
+            data_p = []
+            for subject in subjects:
+                if h in results[subject]:
+                    correlations = []
+                    p_values = []
+                    for ri in reach_indices:
+                        d = results[subject][h].get(ri, {})
+                        correlations.append(d.get("spearman_corr", np.nan))
+                        p_values.append(d.get("p_value", np.nan))
+                    data_corr.append(correlations)
+                    data_p.append(p_values)
+            df = pd.DataFrame(data_corr, index=subjects, columns=reach_indices)
+            df_p = pd.DataFrame(data_p, index=subjects, columns=reach_indices)
+            
+            # Keep only significant correlations
+            df = df.where(df_p < sig_threshold)
+            mask = df.isna()
+            
+            annot_data = custom_annot(df) if not simplified else False
+            
+            ax = axes[idx] if isinstance(axes, (list, np.ndarray)) else axes
+            sns.heatmap(
+                df,
+                annot=annot_data,
+                fmt="",
+                cmap="coolwarm",
+                cbar=True,
+                mask=mask,
+                xticklabels=list(range(1, 17)),
+                yticklabels=[] if simplified else subjects,
+                vmin=-1,
+                vmax=1,
+                ax=ax
+            )
+            ax.set_title(f"{h.capitalize()} Hand", fontsize=18)
+            ax.set_xlabel("Reach Index", fontsize=18)
+            ax.set_xticklabels(range(1, 17), fontsize=10, rotation=0)
+            ax.set_ylabel("Subjects", fontsize=18)
+            if overlay_median:
+                for i, subject in enumerate(df.index):
+                    row_data = df.loc[subject].dropna()
+                    if row_data.empty:
+                        continue
+                    median_val = np.median(row_data.values)
+                    col_idx = np.argmin(np.abs(row_data.values - median_val))
+                    # ax.add_patch(patches.Rectangle((col_idx, i), 1, 1, fill=False, edgecolor='green', lw=2))
+            if return_medians:
+                medians[h] = {
+                    "column_medians": df.median(axis=0).to_dict(),
+                    "row_medians": df.median(axis=1).to_dict()
+                }
+            # Calculate statistics
+            total_count = df_p.notna().sum().sum()
+            sig_total = (df_p < sig_threshold).sum().sum()
+            pos_total = (df > 0).sum().sum()
+            neg_total = (df < 0).sum().sum()
+            pos_sig = (((df > 0) & (df_p < sig_threshold)).sum()).sum()
+            neg_sig = (((df < 0) & (df_p < sig_threshold)).sum()).sum()
+            pos_non_sig = ((df > 0) & (df_p >= sig_threshold)).sum().sum()
+            neg_non_sig = ((df < 0) & (df_p >= sig_threshold)).sum().sum()
+            percent_sig = (sig_total / total_count * 100) if total_count > 0 else np.nan
+            percent_pos_overall = (pos_total / total_count * 100) if total_count > 0 else np.nan
+            percent_neg_overall = (neg_total / total_count * 100) if total_count > 0 else np.nan
+            percent_pos_sig = (pos_sig / pos_total * 100) if pos_total > 0 else np.nan
+            percent_pos_non_sig = (pos_non_sig / pos_total * 100) if pos_total > 0 else np.nan
+            percent_neg_sig = (neg_sig / neg_total * 100) if neg_total > 0 else np.nan
+            percent_neg_non_sig = (neg_non_sig / neg_total * 100) if neg_total > 0 else np.nan
+            if sig_total > 0:
+                perc_pos_in_sig = pos_sig / sig_total * 100
+                perc_neg_in_sig = neg_sig / sig_total * 100
+            else:
+                perc_pos_in_sig = perc_neg_in_sig = np.nan
+            
+            print(f"{h.capitalize()} Hand Statistics (Only Significant Correlations):")
+            print(f"  Total correlations (all): {total_count}")
+            print(f"  Significant correlations (p < {sig_threshold}): {sig_total} ({percent_sig:.2f}%)")
+            print(f"    Among significant correlations: {pos_sig} positive ({perc_pos_in_sig:.2f}%), {neg_sig} negative ({perc_neg_in_sig:.2f}%)")
+            print(f"  Positive correlations (significant only): {pos_sig} ({percent_pos_sig:.2f}%)")
+            print(f"  Negative correlations (significant only): {neg_sig} ({percent_neg_sig:.2f}%)")
+        
+        plt.tight_layout()
+        plt.show()
+    
+    else:
+        subjects = list(results.keys())
+        data_corr = []
+        data_p = []
+        for subject in subjects:
+            if hand in results[subject]:
+                correlations = []
+                p_values = []
+                for ri in reach_indices:
+                    d = results[subject][hand].get(ri, {})
+                    correlations.append(d.get("spearman_corr", np.nan))
+                    p_values.append(d.get("p_value", np.nan))
+                data_corr.append(correlations)
+                data_p.append(p_values)
+        df = pd.DataFrame(data_corr, index=subjects, columns=reach_indices)
+        df_p = pd.DataFrame(data_p, index=subjects, columns=reach_indices)
+        
+        # Keep only significant correlations
+        df = df.where(df_p < sig_threshold)
+        mask = df.isna()
+        
+        annot_data = custom_annot(df) if not simplified else False
+        fig, ax = plt.subplots(figsize=(8, 4) if simplified else (12, len(subjects) * 0.5))
+        sns.heatmap(
+            df,
+            annot=annot_data,
+            fmt="",
+            cmap="coolwarm",
+            cbar=True,
+            mask=mask,
+            xticklabels=list(range(1, 17)),
+            yticklabels=[] if simplified else subjects,
+            vmin=-1,
+            vmax=1,
+            ax=ax
+        )
+        ax.set_title(f"{hand.capitalize()} Hand (Only Significant Correlations)")
+        ax.set_xlabel("Reach Index")
+        ax.set_xticklabels(range(1, 17), fontsize=10, rotation=0)
+        ax.set_ylabel("Subjects")
+        ax.set_yticklabels([] if simplified else ax.get_yticklabels())
+        if overlay_median:
+            for i, subject in enumerate(df.index):
+                row_data = df.loc[subject].dropna()
+                if row_data.empty:
+                    continue
+                median_val = np.median(row_data.values)
+                col_idx = np.argmin(np.abs(row_data.values - median_val))
+                # ax.add_patch(patches.Rectangle((col_idx, i), 1, 1, fill=False, edgecolor='green', lw=2))
+        # Calculate statistics
+        total_count = df_p.notna().sum().sum()
+        sig_total = (df_p < sig_threshold).sum().sum()
+        pos_total = (df > 0).sum().sum()
+        neg_total = (df < 0).sum().sum()
+        pos_sig = (((df > 0) & (df_p < sig_threshold)).sum()).sum()
+        neg_sig = (((df < 0) & (df_p < sig_threshold)).sum()).sum()
+        pos_non_sig = ((df > 0) & (df_p >= sig_threshold)).sum().sum()
+        neg_non_sig = ((df < 0) & (df_p >= sig_threshold)).sum().sum()
+        percent_sig = (sig_total / total_count * 100) if total_count > 0 else np.nan
+        percent_pos_overall = (pos_total / total_count * 100) if total_count > 0 else np.nan
+        percent_neg_overall = (neg_total / total_count * 100) if total_count > 0 else np.nan
+        percent_pos_sig = (pos_sig / pos_total * 100) if pos_total > 0 else np.nan
+        percent_pos_non_sig = (pos_non_sig / pos_total * 100) if pos_total > 0 else np.nan
+        percent_neg_sig = (neg_sig / neg_total * 100) if neg_total > 0 else np.nan
+        percent_neg_non_sig = (neg_non_sig / neg_total * 100) if neg_total > 0 else np.nan
+        if sig_total > 0:
+            perc_pos_in_sig = pos_sig / sig_total * 100
+            perc_neg_in_sig = neg_sig / sig_total * 100
+        else:
+            perc_pos_in_sig = perc_neg_in_sig = np.nan
+        
+        print(f"{hand.capitalize()} Hand Statistics (Only Significant Correlations):")
+        print(f"  Total correlations (all): {total_count}")
+        print(f"  Significant correlations (p < {sig_threshold}): {sig_total} ({percent_sig:.2f}%)")
+        print(f"    Among significant correlations: {pos_sig} positive ({perc_pos_in_sig:.2f}%), {neg_sig} negative ({perc_neg_in_sig:.2f}%)")
+        print(f"  Positive correlations (significant only): {pos_sig} ({percent_pos_sig:.2f}%)")
+        print(f"  Negative correlations (significant only): {neg_sig} ({percent_neg_sig:.2f}%)")
+        
+        plt.tight_layout()
+        plt.show()
+        if return_medians:
+            medians[hand] = {
+                "column_medians": df.median(axis=0).to_dict(),
+                "row_medians": df.median(axis=1).to_dict()
+            }
+    
+    if return_medians:
+        return medians

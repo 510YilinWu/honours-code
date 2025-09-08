@@ -4,6 +4,7 @@ import numpy as np
 import pandas as pd
 
 
+
 # --- UPDATE BLOCK DISTANCE KEYS TO MATCH FILENAMES IN REACH METRICS ---
 def update_block_distance_keys(Block_Distance, reach_metrics, reach_sparc_test_windows_1, reach_TW_metrics):
     """
@@ -159,6 +160,33 @@ def process_and_save_combined_metrics(Block_Distance, reach_metrics, reach_sparc
     # Step 4: Save combined metrics per subject
     save_combined_metrics_per_subject(all_combined_metrics, DataProcess_folder)
 
+# Swap left/right metrics for specific subjects and rename keys as 'non_dominant' and 'dominant'
+def swap_and_rename_metrics(all_combined_metrics, all_dates):
+    # Subjects for which left/right metrics should be swapped
+    subjects_to_swap = {all_dates[20], all_dates[22]}
+    # Create swapped copy
+    for subj, metrics in all_combined_metrics.items():
+        if subj in subjects_to_swap:
+            swapped_metrics = {**metrics}
+            swapped_metrics['left'], swapped_metrics['right'] = metrics.get('right'), metrics.get('left')
+            all_combined_metrics[subj] = swapped_metrics
+        else:
+            all_combined_metrics[subj] = metrics
+
+    # Rename keys for each subject: 'left' --> 'non_dominant', 'right' --> 'dominant'
+    for subj, metrics in all_combined_metrics.items():
+        rename_metrics = {}
+        for hand, value in metrics.items():
+            if hand == 'left':
+                rename_metrics['non_dominant'] = value
+            elif hand == 'right':
+                rename_metrics['dominant'] = value
+            else:
+                rename_metrics[hand] = value
+        all_combined_metrics[subj] = rename_metrics
+
+    return all_combined_metrics
+
 # Filter all_combined_metrics based on distance
 def filter_combined_metrics_and_count_nan(all_combined_metrics):
     """
@@ -268,6 +296,7 @@ def update_filtered_metrics_and_count(filtered_metrics, distance_threshold=15, d
     print(f"Percentage of NaN values: {nan_percentage:.2f}%")
 
     return filtered_metrics, counts_per_subject_per_hand, counts_per_index, total_nan_per_subject_hand
+
 
 # -------------------------------------------------------------------------------------------------------------------
 # -------------------------------------------------------------------------------------------------------------------

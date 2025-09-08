@@ -307,12 +307,13 @@ def get_reach_segements(file_paths, BoxRange, prominence_threshold_speed, promin
         for file_path, data in candidate_data.items()
     }
 
+
     # --- FILTER BY BOX RANGE ---
     filtered_indices_final = {
         file_path: [
             idx for idx in indices
             if (BoxRange[1] > cached_data[file_path]["traj_data"][f"{marker_name}_X"][idx] > BoxRange[2]) or
-               (BoxRange[0] > cached_data[file_path]["traj_data"][f"{marker_name}_X"][idx] > BoxRange[1])
+               (BoxRange[0]+10 > cached_data[file_path]["traj_data"][f"{marker_name}_X"][idx] > BoxRange[1])
         ]
         for file_path, indices in filtered_indices.items()
     }
@@ -321,9 +322,9 @@ def get_reach_segements(file_paths, BoxRange, prominence_threshold_speed, promin
     def classify(x, hand):
         if hand == "right":
             if BoxRange[1] > x > BoxRange[2]: return 'start'
-            if BoxRange[0] > x > BoxRange[1]: return 'end'
+            if BoxRange[0]+10 > x > BoxRange[1]: return 'end'
         elif hand == "left":
-            if BoxRange[0] > x > BoxRange[1]: return 'start'
+            if BoxRange[0]+10 > x > BoxRange[1]: return 'start'
             if BoxRange[1] > x > BoxRange[2]: return 'end'
         return None
 
@@ -419,11 +420,13 @@ def plot_Filtered_Trajectory_Components(file_paths, cached_data, final_selected_
             for idx, x in zip(filtered_indices, x_vals):
                 if BoxRange[1] > x > BoxRange[2]:
                     ax.scatter(idx, data[idx], color="red", alpha=0.7)
-                elif BoxRange[0] > x > BoxRange[1]:
+                elif BoxRange[0]+10 > x > BoxRange[1]:
                     ax.scatter(idx, data[idx], color="green", alpha=0.7)
 
         axes[-1].set_xlabel("Frame")
+
         plt.tight_layout()
+        plt.title(f"Marker: {marker_name}")
         plt.subplots_adjust(top=0.9)
         plt.savefig(os.path.join(plot_save_path, f"{os.path.basename(file_path)}_Filtered_Trajectory_Components.png"))
         plt.close()

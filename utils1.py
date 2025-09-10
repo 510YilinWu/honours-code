@@ -481,7 +481,7 @@ def process_single_subject(date, traj_folder, Box_Traj_folder, figure_folder, Da
         processed_single_subject_data[hand] = (final_selected_indices, cached_data)
 
     # --- PLOT RESULTS ---    
-        # plot_Filtered_Trajectory_Components(file_paths, cached_data, final_selected_indices, box_range, plot_save_path, hand=hand)
+        plot_Filtered_Trajectory_Components(file_paths, cached_data, final_selected_indices, box_range, plot_save_path, hand=hand)
 
     # --- Save indices to CSV ---
     save_indices_to_single_csv(
@@ -602,4 +602,7 @@ def load_selected_subject_results(All_dates, DataProcess_folder):
         except FileNotFoundError:
             print(f"Warning: Results file for {date} not found. Skipping.")
     return results
+
+
+
 

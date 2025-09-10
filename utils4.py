@@ -454,13 +454,13 @@ def process_all_subjects_images(All_dates, tBBT_Image_folder, DataProcess_folder
                 print(f"Processing completed successfully for date: {date}, subject: {subject}, hand: {hand}")
             except Exception as e:
                 print(f"An error occurred while processing date: {date}, subject: {subject}, hand: {hand}: {e}")
+
+    # # Extract ordered distances and save them
+    # extract_ordered_distances(All_Subject_tBBTs_errors, DataProcess_folder)
     
-    # Extract ordered distances and save them
-    extract_ordered_distances(All_Subject_tBBTs_errors, DataProcess_folder)
-    
-    output_file_path = os.path.join(DataProcess_folder, "All_Subject_tBBTs_errors.pkl")
-    with open(output_file_path, 'wb') as f:
-        pickle.dump(All_Subject_tBBTs_errors, f)
+    # output_file_path = os.path.join(DataProcess_folder, "All_Subject_tBBTs_errors.pkl")
+    # with open(output_file_path, 'wb') as f:
+    #     pickle.dump(All_Subject_tBBTs_errors, f)
     return All_Subject_tBBTs_errors
 
 # This function loads the processed errors for selected subjects and aggregates them into a single dictionary.

@@ -154,9 +154,6 @@ def process_and_save_combined_metrics(Block_Distance, reach_metrics, reach_sparc
         reach_metrics, reach_sparc_test_windows_1, reach_TW_metrics, Block_Distance, All_dates
     )
 
-    # Step 3: Calculate motor acuity for all reaches
-    # all_combined_metrics = calculate_motor_acuity_for_all(all_combined_metrics)
-
     # Step 4: Save combined metrics per subject
     save_combined_metrics_per_subject(all_combined_metrics, DataProcess_folder)
 
@@ -296,6 +293,135 @@ def update_filtered_metrics_and_count(filtered_metrics, distance_threshold=15, d
     print(f"Percentage of NaN values: {nan_percentage:.2f}%")
 
     return filtered_metrics, counts_per_subject_per_hand, counts_per_index, total_nan_per_subject_hand
+
+
+
+
+# --- COMBINE DURATIONS, SPARC, LDLJ, AND DISTANCE, CALCULATED SPEED AND ACCURACY FOR ALL DATES ---
+def combine_metrics_for_all_dates_acorss_TWs(reach_metrics, reach_sparc_test_windows_1_Normalizing, reach_sparc_test_windows_3_Normalizing, reach_TW_metrics_test_windows_1, reach_TW_metrics_test_windows_3, Block_Distance, all_dates):
+    """
+    Combines reach durations, SPARC, LDLJ, and distance metrics into a single dictionary for all dates and hands.
+    Args:   
+        reach_metrics (dict): Dictionary containing reach durations.
+        reach_sparc_test_windows_1_Normalizing (dict): Dictionary containing SPARC metrics for test window 1.
+        reach_sparc_test_windows_3_Normalizing (dict): Dictionary containing SPARC metrics for test window 3.
+        reach_TW_metrics_test_windows_1 (dict): Dictionary containing LDLJ metrics for test window 1.
+        reach_TW_metrics_test_windows_3 (dict): Dictionary containing LDLJ metrics for test window 3.
+        Block_Distance (dict): Dictionary containing distance metrics.
+        all_dates (list): List of all dates to process.
+    Returns:
+        dict: Combined metrics for all dates and hands.
+    """
+    combined_metrics = {}
+
+    for date in all_dates:
+        combined_metrics[date] = {}
+        for hand in ['left', 'right']:
+            if all([
+                date in reach_metrics['reach_durations'] and hand in reach_metrics['reach_durations'][date],
+                date in reach_sparc_test_windows_1_Normalizing and hand in reach_sparc_test_windows_1_Normalizing[date],
+                date in reach_sparc_test_windows_3_Normalizing and hand in reach_sparc_test_windows_3_Normalizing[date],
+                date in reach_TW_metrics_test_windows_1['reach_LDLJ'] and hand in reach_TW_metrics_test_windows_1['reach_LDLJ'][date],
+                date in reach_TW_metrics_test_windows_3['reach_LDLJ'] and hand in reach_TW_metrics_test_windows_3['reach_LDLJ'][date],
+                date in Block_Distance and hand in Block_Distance[date]
+            ]):
+                combined_metrics[date][hand] = {
+                    "durations": {k: np.float64(v) for k, v in reach_metrics['reach_durations'][date][hand].items()},
+                    "cartesian_distances": {k: np.float64(v) for k, v in reach_metrics['reach_cartesian_distances'][date][hand].items()},
+                    "path_distances": {k: np.float64(v) for k, v in reach_metrics['reach_path_distances'][date][hand].items()},
+                    "v_peaks": {k: np.float64(v) for k, v in reach_metrics['reach_v_peaks'][date][hand].items()},
+                    "v_peak_indices": {k: np.float64(v) for k, v in reach_metrics['reach_v_peak_indices'][date][hand].items()},
+                    "TW1_acc_peaks": {k: np.float64(v) for k, v in reach_TW_metrics_test_windows_1['reach_acc_peaks'][date][hand].items()},
+                    "TW1_jerk_peaks": {k: np.float64(v) for k, v in reach_TW_metrics_test_windows_1['reach_jerk_peaks'][date][hand].items()},
+                    "TW1_LDLJ": {k: np.float64(v) for k, v in reach_TW_metrics_test_windows_1['reach_LDLJ'][date][hand].items()},
+                    "TW3_acc_peaks": {k: np.float64(v) for k, v in reach_TW_metrics_test_windows_3['reach_acc_peaks'][date][hand].items()},
+                    "TW3_jerk_peaks": {k: np.float64(v) for k, v in reach_TW_metrics_test_windows_3['reach_jerk_peaks'][date][hand].items()},
+                    "TW3_LDLJ": {k: np.float64(v) for k, v in reach_TW_metrics_test_windows_3['reach_LDLJ'][date][hand].items()},
+                    "TW1_sparc": {k: np.float64(v) for k, v in reach_sparc_test_windows_1_Normalizing[date][hand].items()},
+                    "TW3_sparc": {k: np.float64(v) for k, v in reach_sparc_test_windows_3_Normalizing[date][hand].items()},
+                    "distance": {k: np.float64(v) for k, v in Block_Distance[date][hand].items()}
+                }
+
+    return combined_metrics
+
+# --- SAVE ALL COMBINED METRICS PER SUBJECT AS PICKLE FILE ---
+def save_combined_metrics_per_subject_acorss_TWs(all_combined_metrics_acorss_TWs, output_folder):
+    """
+    Saves the combined metrics dictionary as separate pickle files for each subject.
+
+    Args:
+        all_combined_metrics_acorss_TWs (dict): The combined metrics to save.
+        output_folder (str): The folder where the pickle files will be saved.
+
+    Returns:
+        None
+    """
+
+    # Ensure the output folder exists
+    os.makedirs(output_folder, exist_ok=True)
+
+    for subject, metrics in all_combined_metrics_acorss_TWs.items():
+        # Replace slashes in subject names to create valid file paths
+        sanitized_subject = subject.replace("/", "_")
+        output_file = f"{output_folder}/{sanitized_subject}_combined_metrics_acorss_TWs.pkl"
+        with open(output_file, 'wb') as f:
+            pickle.dump(metrics, f)
+        print(f"Combined metrics for subject {subject} saved to {output_file}")
+
+
+# --- PROCESS AND SAVE COMBINED METRICS FOR ALL SUBJECTS ---
+def process_and_save_combined_metrics_acorss_TWs(Block_Distance, reach_metrics,
+                                                    reach_sparc_test_windows_1_Normalizing, reach_TW_metrics_test_windows_1,
+                                                    reach_sparc_test_windows_3_Normalizing, reach_TW_metrics_test_windows_3,
+                                                    All_dates, DataProcess_folder):
+    """
+    Combines multiple processing steps into one function:
+    1. Updates Block_Distance keys to match filenames in reach_metrics.
+    2. Combines durations, SPARC, LDLJ, and distance, and calculates speed and accuracy for all dates.
+    3. Saves all combined metrics per subject as pickle files.
+
+    Args:
+
+
+    Returns:
+        None
+    """
+    # Step 1: Update Block_Distance keys
+    update_block_distance_keys(Block_Distance, reach_metrics, reach_sparc_test_windows_1_Normalizing, reach_TW_metrics_test_windows_1)
+
+    # Step 2: Combine metrics for all dates
+    all_combined_metrics_acorss_TWs = combine_metrics_for_all_dates_acorss_TWs(reach_metrics, reach_sparc_test_windows_1_Normalizing, reach_sparc_test_windows_3_Normalizing, reach_TW_metrics_test_windows_1, reach_TW_metrics_test_windows_3, Block_Distance, All_dates)
+
+    # Step 4: Save combined metrics per subject
+    save_combined_metrics_per_subject_acorss_TWs(all_combined_metrics_acorss_TWs, DataProcess_folder)
+
+def load_selected_subject_results_acorss_TWs(selected_subjects, DataProcess_folder):
+    """
+    Loads the processed results for selected subjects and aggregates them into a single dictionary.
+
+    Args:
+        selected_subjects (list): List of subjects to load results for.
+        DataProcess_folder (str): Path to the data processing folder.
+
+    Returns:
+        dict: A dictionary containing the aggregated results for all selected subjects.
+    """
+    results = {}
+    for subject in selected_subjects:
+        subject_filename = f"{subject.replace('/', '_')}_combined_metrics_acorss_TWs.pkl"
+        try:
+            file_path = os.path.join(DataProcess_folder, subject_filename)
+            with open(file_path, 'rb') as f:
+                results[subject] = pickle.load(f)
+            print(f"Results for subject {subject} loaded from {file_path}")
+        except FileNotFoundError:
+            print(f"Warning: Results file for {subject} not found. Skipping.")
+    return results
+
+
+
+
+
 
 
 # -------------------------------------------------------------------------------------------------------------------

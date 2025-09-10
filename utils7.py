@@ -125,9 +125,9 @@ def update_overall_h_total_weighted(MotorExperiences):
         overall = physical + musical + digital
         MotorExperiences[subject]['overall_h_total_weighted'] = overall
 
-    print("Updated MotorExperiences with overall_h_total_weighted:")
-    for subject, metrics in MotorExperiences.items():
-        print(f"{subject}: {metrics.get('overall_h_total_weighted')}")
+    # print("Updated MotorExperiences with overall_h_total_weighted:")
+    # for subject, metrics in MotorExperiences.items():
+    #     print(f"{subject}: {metrics.get('overall_h_total_weighted')}")
 
 # Examine correlations between motor experience metrics and sBBT scores by extracting the highest score for each hand
 def analyze_motor_experience_correlations(motor_keys, score_columns, sbbt_df, MotorExperiences):

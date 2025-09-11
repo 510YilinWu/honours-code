@@ -139,6 +139,7 @@ All_dates = sorted(utils1.get_subfolders_with_depth(Traj_folder, depth=3))
 
 # process_all_block_errors(All_Subject_tBBTs_errors, DataProcess_folder)
 # # # -------------------------------------------------------------------------------------------------------------------
+# # # -------------------------------------------------------------------------------------------------------------------
 
 # PART 1: CHECK IF DATA PROCESSING IS DONE AND LOAD RESULTS
 # --- CHECK CALIBRATION FOLDERS FOR PICKLE FILES ---
@@ -149,6 +150,60 @@ Block_Distance = utils4.load_selected_subject_errors(All_dates, DataProcess_fold
 
 # --- LOAD RESULTS FROM PICKLE FILE "processed_results.pkl" ---
 results = utils1.load_selected_subject_results(All_dates, DataProcess_folder)
+
+# # # -------------------------------------------------------------------------------------------------------------------
+
+# Specify the path to the pickle file
+pickle_file = "/Users/yilinwu/Desktop/honours data/DataProcess/All_Subject_tBBTs_errors.pkl"
+cmap_choice = LinearSegmentedColormap.from_list("GreenWhiteBlue", ["green", "white", "blue"], N=256)
+
+# Load the pickle file without using a function
+with open(pickle_file, "rb") as file:
+    All_Subject_tBBTs_errors = pickle.load(file)
+
+### Separate data by hand and plot 3D scatter plots for each hand
+utils4.plot_xy_density_for_each_hand(All_Subject_tBBTs_errors, cmap_choice)
+
+### Combine data from both hands and plot combined density heatmap with grid markers
+utils4.plot_combined_xy_density(All_Subject_tBBTs_errors, cmap_choice)
+
+### Combine 16 blocks data into one for each subject and hand
+Combine_blocks = utils4.Combine_16_blocks(All_Subject_tBBTs_errors)
+
+### Plot left and right hand 16 blocks as one density histograms with 0.0 at the center of the view
+utils4.plot_left_right_hand_new_coordinates_density(Combine_blocks, cmap_choice)
+
+### Plot left and right hand 16 blocks as one polar histograms (rose diagrams)
+utils4.plot_left_right_hand_polar_histogram(Combine_blocks, cmap_choice)
+
+
+subject = '07/22/HW'
+hand = 'right'
+target_file = '/Users/yilinwu/Desktop/Yilin-Honours/Subject/Traj/2025/07/22/HW/HW_tBBT63.csv'
+
+# Get all file keys in the trial dictionary (results[subject][hand][1])
+file_keys = list(results[subject][hand][1].keys())
+
+# Find the index of the target file in the file keys list
+target_index = file_keys.index(target_file)
+print("Index of target file:", target_index)
+
+### Plot p3_box2 and p3_block2 coordinates in a 3D scatter plot for a specific subject, hand, and trial
+utils4.plot_p3_coordinates(All_Subject_tBBTs_errors, subject='07/22/HW', hand='right', trial_index=31)
+
+### Plot hand trajectory with velocity-coded coloring and highlighted segments
+utils4.plot_trajectory(results, subject='07/22/HW', hand='right', trial=1,
+                file_path='/Users/yilinwu/Desktop/Yilin-Honours/Subject/Traj/2025/07/22/HW/HW_tBBT63.csv',
+                overlay_trial=0, velocity_segment_only=True, plot_mode='segment')
+
+### Combine hand trajectory and error coordinates in a single 3D plot
+utils4.combined_plot_trajectory_and_errors(results, All_Subject_tBBTs_errors,
+                                      subject='07/22/HW', hand='right',
+                                      trial=1, trial_index=31,
+                                      file_path='/Users/yilinwu/Desktop/Yilin-Honours/Subject/Traj/2025/07/22/HW/HW_tBBT63.csv',
+                                      overlay_trial=0, velocity_segment_only=True, plot_mode='segment')
+
+# # # -------------------------------------------------------------------------------------------------------------------
 
 # -------------------------------------------------------------------------------------------------------------------
 # PART 2: Reach Metrics Calculation
@@ -167,23 +222,36 @@ reach_metrics = utils2.calculate_reach_metrics(reach_speed_segments, results, fs
 
 # --- DEFINE TIME WINDOWS BASED ON SELECTED METHOD ---
 # test_windows_1: Original full reach segments (start to end of movement)
-# test_windows_2: From movement start to velocity peak (focuses on movement buildup)
+# test_windows_2_1: From movement start to velocity peak (focuses on movement buildup)
+# test_windows_2_2: From velocity peak to movement end (focuses on movement deceleration)
 # test_windows_3: Symmetric window around velocity peak (captures activity before and after peak) (500 ms total)
 # test_windows_4: 100 ms before velocity peak (captures lead-up dynamics)
 # test_windows_5: 100 ms after velocity peak (captures immediate post-peak activity)
 # test_windows_6: Custom time window centered around the midpoint of each segment 
-test_windows_1, test_windows_2, test_windows_3, test_windows_4, test_windows_5, test_windows_6 = utils2.define_time_windows(reach_speed_segments, reach_metrics, fs=200, window_size=0.25)
+test_windows_1, test_windows_2_1, test_windows_2_2, test_windows_3, test_windows_4, test_windows_5, test_windows_6 = utils2.define_time_windows(reach_speed_segments, reach_metrics, fs=200, window_size=0.25)
+
+
 
 # --- CALCULATE REACH METRICS SPECIFIC TO TIME WINDOW ---
 # reach_acc_peaks
 # reach_jerk_peaks
 # reach_LDLJ
 reach_TW_metrics_test_windows_1 = utils2.calculate_reach_metrics_for_time_windows_Normalizing(test_windows_1, results)
+reach_TW_metrics_test_windows_2_1 = utils2.calculate_reach_metrics_for_time_windows_Normalizing(test_windows_2_1, results)
+reach_TW_metrics_test_windows_2_2 = utils2.calculate_reach_metrics_for_time_windows_Normalizing(test_windows_2_2, results)
 reach_TW_metrics_test_windows_3 = utils2.calculate_reach_metrics_for_time_windows_Normalizing(test_windows_3, results)
+reach_TW_metrics_test_windows_4 = utils2.calculate_reach_metrics_for_time_windows_Normalizing(test_windows_4, results)
+reach_TW_metrics_test_windows_5 = utils2.calculate_reach_metrics_for_time_windows_Normalizing(test_windows_5, results)
+reach_TW_metrics_test_windows_6 = utils2.calculate_reach_metrics_for_time_windows_Normalizing(test_windows_6, results)
 
 # --- CALCULATE SPARC FOR EACH TEST WINDOW FOR ALL DATES, HANDS, AND TRIALS ---
 reach_sparc_test_windows_1_Normalizing = utils2.calculate_reach_sparc_Normalizing(test_windows_1, results)
+reach_sparc_test_windows_2_1_Normalizing = utils2.calculate_reach_sparc_Normalizing(test_windows_2_1, results)
+reach_sparc_test_windows_2_2_Normalizing = utils2.calculate_reach_sparc_Normalizing(test_windows_2_2, results)
 reach_sparc_test_windows_3_Normalizing = utils2.calculate_reach_sparc_Normalizing(test_windows_3, results)
+reach_sparc_test_windows_4_Normalizing = utils2.calculate_reach_sparc_Normalizing(test_windows_4, results)
+reach_sparc_test_windows_5_Normalizing = utils2.calculate_reach_sparc_Normalizing(test_windows_5, results)
+reach_sparc_test_windows_6_Normalizing = utils2.calculate_reach_sparc_Normalizing(test_windows_6, results)
 
 # # --- Save ALL LDLJ VALUES BY SUBJECT, HAND, AND TRIAL ---
 # utils2.save_ldlj_values(reach_TW_metrics_test_windows_1, DataProcess_folder)
@@ -210,6 +278,11 @@ sBBTResult = utils8.load_and_compute_sbbt_result()
 # Swap and rename sBBTResult scores for specific subjects
 sBBTResult = utils8.swap_and_rename_sbbt_result(sBBTResult)
 sBBTResult_stats = utils8.compute_sbbt_result_stats(sBBTResult)
+
+# # Get the value from the "non_dominant" column for the row where Subject is 'CZ'
+# value = sBBTResult.loc[sBBTResult["Subject"] == "CZ", "non_dominant"].values
+# print("Value:", value)
+
 
 # -------------------------------------------------------------------------------------------------------------------
 # Examine correlations between motor experience metrics and sBBT scores by extracting the highest score for each hand
@@ -716,28 +789,41 @@ plot_tw_comparison_subplots(reach_TW_metrics_test_windows_1,
 # # # # -------------------------------------------------------------------------------------------------------------------
 # PART 3: Combine Metrics and Save Results
 # --- PROCESS AND SAVE COMBINED METRICS [DURATIONS, SPARC, LDLJ, AND DISTANCE, CALCULATED SPEED AND ACCURACY FOR ALL DATES]---
-utils5.process_and_save_combined_metrics(Block_Distance, reach_metrics, reach_sparc_test_windows_1_Normalizing, reach_TW_metrics_test_windows_1, All_dates, DataProcess_folder)
+# utils5.process_and_save_combined_metrics_acorss_TWs(Block_Distance, reach_metrics,
+#                                                     reach_sparc_test_windows_1_Normalizing, reach_TW_metrics_test_windows_1,
+#                                                     reach_sparc_test_windows_3_Normalizing, reach_TW_metrics_test_windows_3,
+#                                                     All_dates, DataProcess_folder)
 
-utils5.process_and_save_combined_metrics_acorss_TWs(Block_Distance, reach_metrics,
-                                                    reach_sparc_test_windows_1_Normalizing, reach_TW_metrics_test_windows_1,
-                                                    reach_sparc_test_windows_3_Normalizing, reach_TW_metrics_test_windows_3,
-                                                    All_dates, DataProcess_folder)
+utils5.process_and_save_combined_metrics_acorss_TWs(
+    Block_Distance, reach_metrics,
+    reach_sparc_test_windows_1_Normalizing,
+    reach_sparc_test_windows_2_1_Normalizing,
+    reach_sparc_test_windows_2_2_Normalizing,
+    reach_sparc_test_windows_3_Normalizing,
+    reach_sparc_test_windows_4_Normalizing,
+    reach_sparc_test_windows_5_Normalizing,
+    reach_sparc_test_windows_6_Normalizing,
+    reach_TW_metrics_test_windows_1,
+    reach_TW_metrics_test_windows_2_1,
+    reach_TW_metrics_test_windows_2_2,
+    reach_TW_metrics_test_windows_3,
+    reach_TW_metrics_test_windows_4,
+    reach_TW_metrics_test_windows_5,
+    reach_TW_metrics_test_windows_6,
+    All_dates, DataProcess_folder)
+
 # # -------------------------------------------------------------------------------------------------------------------
-# --- LOAD ALL COMBINED METRICS PER SUBJECT FROM PICKLE FILE ---
-all_combined_metrics = utils5.load_selected_subject_results(All_dates, DataProcess_folder)
-# Swap and rename metrics for consistency
-all_combined_metrics = utils5.swap_and_rename_metrics(all_combined_metrics, All_dates)
-# Filter all_combined_metrics based on distance and count NaNs
-filtered_metrics, total_nan, Nan_counts_per_subject_per_hand, Nan_counts_per_index = utils5.filter_combined_metrics_and_count_nan(all_combined_metrics)
-# Update filtered metrics and count NaN replacements based on distance and duration thresholds: distance_threshold=15, duration_threshold=1.6
-updated_metrics, Cutoff_counts_per_subject_per_hand, Cutoff_counts_per_index, total_nan_per_subject_hand = utils5.update_filtered_metrics_and_count(filtered_metrics)
-
 # # ------------------------------------------------------------------------------------------------------------------- 
+# --- LOAD ALL COMBINED METRICS PER SUBJECT FROM PICKLE FILE ---
 all_combined_metrics_acorss_TWs = utils5.load_selected_subject_results_acorss_TWs(All_dates, DataProcess_folder)
+
+# Swap and rename metrics for consistency
 all_combined_metrics_acorss_TWs = utils5.swap_and_rename_metrics(all_combined_metrics_acorss_TWs, All_dates)
+
+# Filter all_combined_metrics based on distance and count NaNs
 filtered_metrics_acorss_TWs, total_nan_acorss_TWs, Nan_counts_per_subject_per_hand_acorss_TWs, Nan_counts_per_index_acorss_TWs = utils5.filter_combined_metrics_and_count_nan(all_combined_metrics_acorss_TWs)
-updated_metrics_acorss_TWs, Cutoff_counts_per_subject_per_hand_acorss_TWs, Cutoff_counts_per_index_acorss_TWs, total_nan_per_subject_hand_acorss_TWs = utils5.update_filtered_metrics_and_count(filtered_metrics_acorss_TWs)
-# # -------------------------------------------------------------------------------------------------------------------
+
+# Plot histograms and identify outliers
 def plot_histograms(filtered_metrics, sd_multiplier=5, overlay_median=True, overlay_sd=True, overlay_iqr=True):
     """
     Plots histograms for all durations and distances stored in filtered_metrics.
@@ -962,84 +1048,11 @@ def plot_histograms(filtered_metrics, sd_multiplier=5, overlay_median=True, over
     return {"duration": outlier_reaches_duration, "distance": outlier_reaches_distance}
 
 # Example call to plot histograms and get outlier reach indices
-outliers = plot_histograms(filtered_metrics, sd_multiplier=4, overlay_median=True, overlay_sd=False, overlay_iqr=True)
-# -------------------------------------------------------------------------------------------------------------------
-def create_metrics_dataframe(updated_metrics_acorss_TWs):
-    """
-    Creates a DataFrame from the combined metrics stored in the updated_metrics_acorss_TWs dictionary.
-    It loops over each subject, hand, trial, and location (assumed to be 16) and collects the available
-    metrics into a list of dictionaries. If a 'durations' value is NaN, a message is printed and that record
-    is skipped.
+outliers = plot_histograms(filtered_metrics_acorss_TWs, sd_multiplier=4, overlay_median=True, overlay_sd=False, overlay_iqr=True)
 
-    Parameters:
-        updated_metrics_acorss_TWs (dict): A nested dictionary that contains metrics per subject, hand, and trial.
-
-    Returns:
-        df (DataFrame): A pandas DataFrame with columns:
-            ['Subject', 'Hand', 'Trial', 'Location', 'durations', 
-            'cartesian_distances', 'path_distances', 'v_peaks', 
-            'TW1_acc_peaks', 'TW1_jerk_peaks', 'TW1_LDLJ', 
-            'TW3_acc_peaks', 'TW3_jerk_peaks', 'TW3_LDLJ', 
-            'TW1_sparc', 'TW3_sparc', 'distance']
-    """
-    rows = []
-    for subject in updated_metrics_acorss_TWs:
-        for hand in updated_metrics_acorss_TWs[subject]:
-            for trial in updated_metrics_acorss_TWs[subject][hand]['durations']:
-                for loc in range(16):
-                    duration_val = updated_metrics_acorss_TWs[subject][hand]['durations'][trial][loc]
-                    if not np.isnan(duration_val):
-                        rows.append({
-                            'Subject': subject,
-                            'Hand': hand,
-                            'Trial': trial,
-                            'Location': loc + 1,  # Location index (1 to 16)
-                            'durations': duration_val,
-                            'cartesian_distances': updated_metrics_acorss_TWs[subject][hand]['cartesian_distances'][trial][loc],
-                            'path_distances': updated_metrics_acorss_TWs[subject][hand]['path_distances'][trial][loc],
-                            'v_peaks': updated_metrics_acorss_TWs[subject][hand]['v_peaks'][trial][loc],
-                            'TW1_acc_peaks': updated_metrics_acorss_TWs[subject][hand]['TW1_acc_peaks'][trial][loc],
-                            'TW1_jerk_peaks': updated_metrics_acorss_TWs[subject][hand]['TW1_jerk_peaks'][trial][loc],
-                            'TW1_LDLJ': updated_metrics_acorss_TWs[subject][hand]['TW1_LDLJ'][trial][loc],
-                            'TW3_acc_peaks': updated_metrics_acorss_TWs[subject][hand]['TW3_acc_peaks'][trial][loc],
-                            'TW3_jerk_peaks': updated_metrics_acorss_TWs[subject][hand]['TW3_jerk_peaks'][trial][loc],
-                            'TW3_LDLJ': updated_metrics_acorss_TWs[subject][hand]['TW3_LDLJ'][trial][loc],
-                            'TW1_sparc': updated_metrics_acorss_TWs[subject][hand]['TW1_sparc'][trial][loc],
-                            'TW3_sparc': updated_metrics_acorss_TWs[subject][hand]['TW3_sparc'][trial][loc],
-                            'distance': updated_metrics_acorss_TWs[subject][hand]['distance'][trial][loc]
-                        })
-                    else:
-                        print(f"Skipping NaN for Subject: {subject}, Hand: {hand}, Trial: {trial}, Location: {loc+1}")
-            
-    df = pd.DataFrame(rows)
-    print("Data sample:")
-    print(df.head())
-    return df
-
-# Create DataFrame from updated metrics across test windows
-df = create_metrics_dataframe(updated_metrics_acorss_TWs)
-# -------------------------------------------------------------------------------------------------------------------
-
-# Run ANOVA 
-model = smf.ols('durations ~ C(Hand) + TW1_acc_peaks + TW1_jerk_peaks + TW1_LDLJ + TW1_sparc + C(Location)', data=df).fit()
-model = smf.ols('distance ~ C(Hand) + TW1_acc_peaks + TW1_jerk_peaks + TW1_LDLJ + TW1_sparc + C(Location)', data=df).fit()
-model = smf.ols('durations ~ C(Hand) + TW1_acc_peaks + TW1_jerk_peaks + TW1_LDLJ + TW1_sparc + + TW3_acc_peaks + TW3_jerk_peaks + TW3_LDLJ + TW3_sparc + cartesian_distances + C(Location) + v_peaks', data=df).fit()
-
-anova_table = sm.stats.anova_lm(model, typ=2)
-print("\nANOVA results:")
-print(anova_table)
-
-# Mixed-effects model with Subject as a random effect
-model_mixed = smf.mixedlm("durations ~ C(Hand) + TW1_acc_peaks + TW1_jerk_peaks + TW1_LDLJ + TW1_sparc + C(Location)", df, groups=df["Subject"])
-model_mixed = smf.mixedlm("distance ~ C(Hand) + TW1_acc_peaks + TW1_jerk_peaks + TW1_LDLJ + TW1_sparc + C(Location)", df, groups=df["Subject"])
-model_mixed = smf.mixedlm("durations ~ C(Hand) + TW1_acc_peaks + TW1_jerk_peaks + TW1_LDLJ + TW1_sparc + + TW3_acc_peaks + TW3_jerk_peaks + TW3_LDLJ + TW3_sparc + cartesian_distances + C(Location) + v_peaks", df, groups=df["Subject"])
-
-result_mixed = model_mixed.fit()
-print("\nMixed-effects results:")
-print(result_mixed.summary())
-
-
-# -------------------------------------------------------------------------------------------------------------------
+# Update filtered metrics and count NaN replacements based on distance and duration thresholds: distance_threshold=15, duration_threshold=1.6
+updated_metrics_acorss_TWs, Cutoff_counts_per_subject_per_hand_acorss_TWs, Cutoff_counts_per_index_acorss_TWs, total_nan_per_subject_hand_acorss_TWs = utils5.update_filtered_metrics_and_count(filtered_metrics_acorss_TWs)
+# # -------------------------------------------------------------------------------------------------------------------
 def plot_metric_boxplots(updated_metrics_acorss_TWs, metrics=["TW3_LDLJ", "TW3_sparc", "durations", "distance"], use_median=False):
     import matplotlib.pyplot as plt
 
@@ -1118,91 +1131,10 @@ def plot_metric_boxplots(updated_metrics_acorss_TWs, metrics=["TW3_LDLJ", "TW3_s
 
 # Call the function to plot boxplots for all four metrics in a 2x2 grid,
 # using the median and IQR instead of mean and std.
-plot_metric_boxplots(updated_metrics_acorss_TWs, metrics=["TW3_LDLJ", "TW3_sparc", "durations", "distance"], use_median=True)
+# plot_metric_boxplots(updated_metrics_acorss_TWs, metrics=["TW1_LDLJ", "TW1_sparc", "TW3_LDLJ", "TW3_sparc"], use_median=True)
+plot_metric_boxplots(updated_metrics_acorss_TWs, metrics=["TW2_1_LDLJ", "TW2_2_LDLJ", "durations", "distance"], use_median=True)
 
-
-def plot_scatter_correlations(updated_metrics_acorss_TWs, use_zscore=False, selected_indep=None):
-    """
-    For each hand, plots scatter plots for the selected independent metrics (ldlj and/or sparc)
-    versus durations and distance from updated_metrics_acorss_TWs.
-
-    Parameters:
-        updated_metrics_acorss_TWs (dict): Dictionary containing combined metrics across test windows.
-        use_zscore (bool): If True, the data is z-scored before plotting.
-        selected_indep (list or None): List of independent metric keys to plot. If None, defaults to ['ldlj', 'sparc'].
-
-    For each selected independent metric, plots:
-      - independent metric vs durations
-      - independent metric vs distance
-
-    Computes the Spearman correlation for each pairing and displays the results on the plots.
-    """
-    # Default selection if not provided.
-    if selected_indep is None:
-        selected_indep = ['ldlj', 'sparc']
-    
-    # Create pairings for each selected independent metric.
-    pairings = []
-    for metric in selected_indep:
-        pairings.append((metric, 'durations'))
-        pairings.append((metric, 'distance'))
-    
-    hands = ['non_dominant', 'dominant']
-    
-    for hand in hands:
-        fig, axs = plt.subplots(2, 2, figsize=(12, 10))
-        axs = axs.flatten()
-        for i, (metric_x, metric_y) in enumerate(pairings):
-            x_vals = []
-            y_vals = []
-            # Collect data from all subjects and trials from updated_metrics_acorss_TWs for the given hand.
-            for subject, subject_data in updated_metrics_acorss_TWs.items():
-                if hand in subject_data:
-                    hand_data = subject_data[hand]
-                    if metric_x in hand_data and metric_y in hand_data:
-                        for trial, vals_x in hand_data[metric_x].items():
-                            vals_y = hand_data[metric_y].get(trial, [])
-                            # Ensure both lists are of equal length.
-                            if len(vals_x) == len(vals_y):
-                                x_vals.extend(vals_x)
-                                y_vals.extend(vals_y)
-            x_arr = np.array(x_vals)
-            y_arr = np.array(y_vals)
-            # Remove NaN values.
-            valid = ~np.isnan(x_arr) & ~np.isnan(y_arr)
-            x_arr = x_arr[valid]
-            y_arr = y_arr[valid]
-            if len(x_arr) == 0:
-                continue
-            # Optionally z-score the arrays.
-            if use_zscore:
-                x_arr = zscore(x_arr)
-                y_arr = zscore(y_arr)
-                xlabel = metric_x.upper() + " (Z-scored)"
-                ylabel = metric_y.upper() + " (Z-scored)"
-            else:
-                xlabel = metric_x.upper()
-                ylabel = metric_y.upper()
-
-            corr, p_val = spearmanr(x_arr, y_arr)
-            ax = axs[i]
-            ax.scatter(x_arr, y_arr, color='blue', alpha=0.6)
-            ax.set_xlabel(xlabel)
-            ax.set_ylabel(ylabel)
-            ax.set_title(f"{hand.capitalize()} {metric_x.upper()} vs {metric_y.upper()}\n"
-                         f"Spearman: {corr:.2f}, p: {p_val:.3f}")
-            ax.grid(True)
-        plt.tight_layout()
-        plt.show()
-
-# Plot using raw values / z-scored
-plot_scatter_correlations(updated_metrics_acorss_TWs, use_zscore=False, selected_indep=['TW3_LDLJ', 'TW3_sparc'])
-plot_scatter_correlations(updated_metrics_acorss_TWs, use_zscore=False, selected_indep=['TW1_LDLJ', 'TW1_sparc'])
-
-
-# -------------------------------------------------------------------------------------------------------------------
-# PART 4: Data Analysis and Visualization
-# -------------------------------------------------------------------------------------------------------------------
+## -------------------------------------------------------------------------------------------------------------------
 # Do reach types that are faster on average also tend to be less accurate on average?
 result_Check_SAT_in_trials_mean_median_of_reach_indices = utils6.Check_SAT_in_trials_mean_median_of_reach_indices(updated_metrics_acorss_TWs, '07/22/HW', 'durations', 'distance', stat_type="median")
 
@@ -1211,59 +1143,8 @@ utils6.scatter_plot_duration_distance_by_choice(updated_metrics_acorss_TWs, over
 _, corr_results, result_Check_SAT_in_reach_indices_by_hand_by_subject, heatmap_medians = utils6.Check_SAT_in_reach_indices_by_index_or_subject(updated_metrics_acorss_TWs, '07/22/HW', grouping="hand_by_subject", hyperbolic=False)
 
 utils6.heatmap_spearman_correlation_reach_indices_signifcant(corr_results, hand="both", simplified=False, return_medians=True, overlay_median=True)
-# -------------------------------------------------------------------------------------------------------------------
-# Specify the path to the pickle file
-pickle_file = "/Users/yilinwu/Desktop/honours data/DataProcess/All_Subject_tBBTs_errors.pkl"
-cmap_choice = LinearSegmentedColormap.from_list("GreenWhiteBlue", ["green", "white", "blue"], N=256)
-
-# Load the pickle file without using a function
-with open(pickle_file, "rb") as file:
-    All_Subject_tBBTs_errors = pickle.load(file)
-
-### Separate data by hand and plot 3D scatter plots for each hand
-utils4.plot_xy_density_for_each_hand(All_Subject_tBBTs_errors, cmap_choice)
-
-### Combine data from both hands and plot combined density heatmap with grid markers
-utils4.plot_combined_xy_density(All_Subject_tBBTs_errors, cmap_choice)
-
-### Combine 16 blocks data into one for each subject and hand
-Combine_blocks = utils4.Combine_16_blocks(All_Subject_tBBTs_errors)
-
-### Plot left and right hand 16 blocks as one density histograms with 0.0 at the center of the view
-utils4.plot_left_right_hand_new_coordinates_density(Combine_blocks, cmap_choice)
-
-### Plot left and right hand 16 blocks as one polar histograms (rose diagrams)
-utils4.plot_left_right_hand_polar_histogram(Combine_blocks, cmap_choice)
-
-
-subject = '07/22/HW'
-hand = 'right'
-target_file = '/Users/yilinwu/Desktop/Yilin-Honours/Subject/Traj/2025/07/22/HW/HW_tBBT63.csv'
-
-# Get all file keys in the trial dictionary (results[subject][hand][1])
-file_keys = list(results[subject][hand][1].keys())
-
-# Find the index of the target file in the file keys list
-target_index = file_keys.index(target_file)
-print("Index of target file:", target_index)
-
-### Plot p3_box2 and p3_block2 coordinates in a 3D scatter plot for a specific subject, hand, and trial
-utils4.plot_p3_coordinates(All_Subject_tBBTs_errors, subject='07/22/HW', hand='right', trial_index=31)
-
-### Plot hand trajectory with velocity-coded coloring and highlighted segments
-utils4.plot_trajectory(results, subject='07/22/HW', hand='right', trial=1,
-                file_path='/Users/yilinwu/Desktop/Yilin-Honours/Subject/Traj/2025/07/22/HW/HW_tBBT63.csv',
-                overlay_trial=0, velocity_segment_only=True, plot_mode='segment')
-
-### Combine hand trajectory and error coordinates in a single 3D plot
-utils4.combined_plot_trajectory_and_errors(results, All_Subject_tBBTs_errors,
-                                      subject='07/22/HW', hand='right',
-                                      trial=1, trial_index=31,
-                                      file_path='/Users/yilinwu/Desktop/Yilin-Honours/Subject/Traj/2025/07/22/HW/HW_tBBT63.csv',
-                                      overlay_trial=0, velocity_segment_only=True, plot_mode='segment')
-# # -------------------------------------------------------------------------------------------------------------------
 ## -------------------------------------------------------------------------------------------------------------------
-mean_stats, median_stats = utils6.calculate_trials_mean_median_of_reach_indices(updated_metrics, 'durations', 'distance')
+mean_stats, median_stats = utils6.calculate_trials_mean_median_of_reach_indices(updated_metrics_acorss_TWs, 'durations', 'distance')
 
 def plot_duration_vs_distance(mean_stats, reach_index=1, hand='non_dominant'):
     """
@@ -1304,7 +1185,6 @@ def plot_duration_vs_distance(mean_stats, reach_index=1, hand='non_dominant'):
     plt.show()
 
 plot_duration_vs_distance(mean_stats, reach_index=1, hand='non_dominant')
-
 
 def Get_SAT_Z_MotorAcuity(stats_data, hand='non_dominant', plot_type='raw', return_distances=False):
     """
@@ -1429,20 +1309,9 @@ def Get_SAT_Z_MotorAcuity(stats_data, hand='non_dominant', plot_type='raw', retu
     if plot_type == 'distance' and return_distances:
         return distances_dict
 
-# Plot raw data using mean_stats.
-Get_SAT_Z_MotorAcuity(mean_stats, hand='non_dominant', plot_type='raw')
-
-# Plot z-scored data using mean_stats.
-Get_SAT_Z_MotorAcuity(mean_stats, hand='non_dominant', plot_type='zscore')
-
-# Plot distance data and get computed MotorAcuity using mean_stats.
-MotorAcuity = Get_SAT_Z_MotorAcuity(mean_stats, hand='non_dominant', plot_type='distance', return_distances=True)
-
-Get_SAT_Z_MotorAcuity(median_stats, hand='non_dominant', plot_type='raw')
-
 # zscore acorss subjects for median_stats.
 MotorAcuity_Mean = {}
-# Plot distance data and get computed MotorAcuity.
+# Plot distance data and get computed MotorAcuity. plot_type = 'distance' / 'zscore' / 'raw'
 MotorAcuity_Mean['non_dominant'] = Get_SAT_Z_MotorAcuity(mean_stats, hand='non_dominant', plot_type='distance', return_distances=True)
 MotorAcuity_Mean['dominant'] = Get_SAT_Z_MotorAcuity(mean_stats, hand='dominant', plot_type='distance', return_distances=True)
 
@@ -1450,7 +1319,6 @@ MotorAcuity_Median = {}
 # Plot distance data and get computed MotorAcuity.
 MotorAcuity_Median['non_dominant'] = Get_SAT_Z_MotorAcuity(median_stats, hand='non_dominant', plot_type='distance', return_distances=True)
 MotorAcuity_Median['dominant'] = Get_SAT_Z_MotorAcuity(median_stats, hand='dominant', plot_type='distance', return_distances=True)
-
 ## -------------------------------------------------------------------------------------------------------------------
 # Global dictionary to store the z-scored data.
 updated_metrics_zscore = {}
@@ -1562,8 +1430,194 @@ def get_updated_metrics_zscore(updated_metrics, show_plots=True):
     return updated_metrics_zscore
 
 # Call the function and return the complete updated_metrics_zscore.
-updated_metrics_zscore = get_updated_metrics_zscore(updated_metrics, show_plots=False)
+updated_metrics_zscore = get_updated_metrics_zscore(updated_metrics_acorss_TWs, show_plots=False)
 
+## -------------------------------------------------------------------------------------------------------------------
+
+updated_metrics_zscore_by_trial = {}
+
+def process_and_plot_scatter_for_subject_hand(updated_metrics, subject, hand, show_plots=True):
+    global updated_metrics_zscore_by_trial
+
+    # Get the data dictionaries for the specified subject and hand.
+    durations_dict = updated_metrics[subject][hand]['durations']
+    distance_dict = updated_metrics[subject][hand]['distance']
+
+    # Get sorted trial keys for consistent ordering.
+    trial_keys = sorted(durations_dict.keys())
+    num_reaches = len(durations_dict[trial_keys[0]])
+
+    # Create matrices of shape (num_trials, num_reaches)
+    durations_matrix = np.array([durations_dict[trial] for trial in trial_keys])
+    distance_matrix  = np.array([distance_dict[trial] for trial in trial_keys])
+
+    # --- Original Scatter Plots Per Reach Index ---
+    rows = math.ceil(math.sqrt(num_reaches))
+    cols = math.ceil(num_reaches / rows)
+    if show_plots:
+        fig, axs = plt.subplots(rows, cols, figsize=(cols * 4, rows * 4), squeeze=False)
+        for i in range(num_reaches):
+            ax = axs[i // cols][i % cols]
+            ax.scatter(durations_matrix[:, i], distance_matrix[:, i], color='blue')
+            ax.set_title(f"Reach {i + 1}")
+            ax.set_xlabel("Duration")
+            ax.set_ylabel("Distance")
+            ax.grid(True)
+        fig.suptitle(f"{subject} - {hand.capitalize()}: Original Duration vs Distance", fontsize=16)
+        plt.tight_layout(rect=[0, 0.03, 1, 0.95])
+        plt.show()
+
+    # --- Z-score Computation using nanmean and nanstd ---
+    z_durations_matrix = (durations_matrix - np.nanmean(durations_matrix, axis=0)) / np.nanstd(durations_matrix, axis=0, ddof=0)
+    z_distance_matrix  = (distance_matrix - np.nanmean(distance_matrix, axis=0)) / np.nanstd(distance_matrix, axis=0, ddof=0)
+
+    # --- Z-scored Scatter Plots Per Reach Index with Diagonal and Perpendicular Distances ---
+    # For plotting we keep the per-reach approach
+    if show_plots:
+        fig, axs = plt.subplots(rows, cols, figsize=(cols * 4, rows * 4), squeeze=False)
+        for i in range(num_reaches):
+            ax = axs[i // cols][i % cols]
+            ax.scatter(z_durations_matrix[:, i], z_distance_matrix[:, i], color='purple')
+            ax.set_title(f"Reach {i + 1}")
+            ax.set_xlabel("Z-scored Duration")
+            ax.set_ylabel("Z-scored Distance")
+            ax.axhline(y=0, color='red', linestyle='--', linewidth=0.8)
+            ax.axvline(x=0, color='red', linestyle='--', linewidth=0.8)
+            
+            # Plot the 45° diagonal line using current axis limits
+            xlims = ax.get_xlim()
+            ylims = ax.get_ylim()
+            min_lim = min(xlims[0], ylims[0])
+            max_lim = max(xlims[1], ylims[1])
+            x_vals = np.linspace(min_lim, max_lim, 100)
+            ax.plot(x_vals, x_vals, color='green', linestyle='--', label='45° line')
+            
+            # For each dot, compute and overlay signed perpendicular distance to the line x=y.
+            for j, (x_val, y_val) in enumerate(zip(z_durations_matrix[:, i], z_distance_matrix[:, i])):
+                proj = ((x_val + y_val) / 2, (x_val + y_val) / 2)
+                ax.plot([x_val, proj[0]], [y_val, proj[1]], color='magenta', linestyle=':', linewidth=0.8)
+            ax.legend()
+            ax.grid(True)
+        fig.suptitle(f"{subject} - {hand.capitalize()}: Z-scored Duration vs Distance", fontsize=16)
+        plt.tight_layout(rect=[0, 0.03, 1, 0.95])
+        plt.show()
+
+    # --- Reassemble the z-scored results into a structure by trial (same as updated_metrics_acorss_TWs) ---
+    zscore_durations_per_trial = {}
+    zscore_distance_per_trial = {}
+    zscore_motorAcuity_per_trial = {}
+
+    for k, trial in enumerate(trial_keys):
+        # Save z-scored durations and distances for each trial as lists
+        zscore_durations_per_trial[trial] = z_durations_matrix[k, :].tolist()
+        zscore_distance_per_trial[trial] = z_distance_matrix[k, :].tolist()
+        # Compute the signed perpendicular distances (MotorAcuity) for each reach in the trial
+        zscore_motorAcuity_per_trial[trial] = [
+            (z_distance_matrix[k, i] - z_durations_matrix[k, i]) / math.sqrt(2)
+            for i in range(num_reaches)
+        ]
+
+    # Save the reassembled dictionaries in the global structure
+    if subject not in updated_metrics_zscore_by_trial:
+        updated_metrics_zscore_by_trial[subject] = {}
+    updated_metrics_zscore_by_trial[subject][hand] = {
+        'durations': zscore_durations_per_trial,
+        'distance': zscore_distance_per_trial,
+        'MotorAcuity': zscore_motorAcuity_per_trial
+    }
+
+def get_updated_metrics_zscore(updated_metrics, show_plots=True):
+    global updated_metrics_zscore_by_trial
+    # Loop over all subjects and all hands to process the z-scored metrics.
+    for subject in updated_metrics:
+        for hand in updated_metrics[subject]:
+            process_and_plot_scatter_for_subject_hand(updated_metrics, subject, hand, show_plots=show_plots)
+    return updated_metrics_zscore_by_trial
+
+# Call the function and return the complete updated_metrics_zscore.
+updated_metrics_zscore_by_trial = get_updated_metrics_zscore(updated_metrics_acorss_TWs, show_plots=False)
+
+# # -------------------------------------------------------------------------------------------------------------------
+# Scatter plots for independent metrics (ldlj and sparc) versus durations and distance
+def plot_scatter_correlations(updated_metrics_acorss_TWs, use_zscore=False, selected_indep=None):
+    """
+    For each hand, plots scatter plots for the selected independent metrics (ldlj and/or sparc)
+    versus durations and distance from updated_metrics_acorss_TWs.
+
+    Parameters:
+        updated_metrics_acorss_TWs (dict): Dictionary containing combined metrics across test windows.
+        use_zscore (bool): If True, the data is z-scored before plotting.
+        selected_indep (list or None): List of independent metric keys to plot. If None, defaults to ['ldlj', 'sparc'].
+
+    For each selected independent metric, plots:
+      - independent metric vs durations
+      - independent metric vs distance
+
+    Computes the Spearman correlation for each pairing and displays the results on the plots.
+    """
+    # Default selection if not provided.
+    if selected_indep is None:
+        selected_indep = ['ldlj', 'sparc']
+    
+    # Create pairings for each selected independent metric.
+    pairings = []
+    for metric in selected_indep:
+        pairings.append((metric, 'durations'))
+        pairings.append((metric, 'distance'))
+    
+    hands = ['non_dominant', 'dominant']
+    
+    for hand in hands:
+        fig, axs = plt.subplots(2, 2, figsize=(12, 10))
+        axs = axs.flatten()
+        for i, (metric_x, metric_y) in enumerate(pairings):
+            x_vals = []
+            y_vals = []
+            # Collect data from all subjects and trials from updated_metrics_acorss_TWs for the given hand.
+            for subject, subject_data in updated_metrics_acorss_TWs.items():
+                if hand in subject_data:
+                    hand_data = subject_data[hand]
+                    if metric_x in hand_data and metric_y in hand_data:
+                        for trial, vals_x in hand_data[metric_x].items():
+                            vals_y = hand_data[metric_y].get(trial, [])
+                            # Ensure both lists are of equal length.
+                            if len(vals_x) == len(vals_y):
+                                x_vals.extend(vals_x)
+                                y_vals.extend(vals_y)
+            x_arr = np.array(x_vals)
+            y_arr = np.array(y_vals)
+            # Remove NaN values.
+            valid = ~np.isnan(x_arr) & ~np.isnan(y_arr)
+            x_arr = x_arr[valid]
+            y_arr = y_arr[valid]
+            if len(x_arr) == 0:
+                continue
+            # Optionally z-score the arrays.
+            if use_zscore:
+                x_arr = zscore(x_arr)
+                y_arr = zscore(y_arr)
+                xlabel = metric_x.upper() + " (Z-scored)"
+                ylabel = metric_y.upper() + " (Z-scored)"
+            else:
+                xlabel = metric_x.upper()
+                ylabel = metric_y.upper()
+
+            corr, p_val = spearmanr(x_arr, y_arr)
+            ax = axs[i]
+            ax.scatter(x_arr, y_arr, color='blue', alpha=0.6)
+            ax.set_xlabel(xlabel)
+            ax.set_ylabel(ylabel)
+            ax.set_title(f"{hand.capitalize()} {metric_x.upper()} vs {metric_y.upper()}\n"
+                         f"Spearman: {corr:.2f}, p: {p_val:.3f}")
+            ax.grid(True)
+        plt.tight_layout()
+        plt.show()
+
+# Plot using raw values / z-scored
+plot_scatter_correlations(updated_metrics_acorss_TWs, use_zscore=False, selected_indep=['TW3_LDLJ', 'TW3_sparc'])
+plot_scatter_correlations(updated_metrics_acorss_TWs, use_zscore=False, selected_indep=['TW1_LDLJ', 'TW1_sparc'])
+
+# # -------------------------------------------------------------------------------------------------------------------
 ## -------------------------------------------------------------------------------------------------------------------
 def plot_indep_dep_scatter(updated_metrics, updated_metrics_zscore, subject, hand='non_dominant',
                            indep_var='ldlj', dep_var='MotorAcuity', cols=4):
@@ -1784,11 +1838,19 @@ def plot_histogram_spearman_corr_with_stats_reach_indices_by_subject(heatmap_res
     """
     Plots histograms of median Spearman correlations for each subject,
     overlaying non_dominant and dominant hands in different colors. Reports median, IQR,
-    and Wilcoxon signed-rank test result by hand.
+    and Wilcoxon signed-rank test result by hand, and returns these statistics as a dictionary.
 
     Parameters:
         heatmap_results (dict): Heatmap results containing medians with keys 'non_dominant' and 'dominant'.
         show_value_on_legend (bool): If True, numerical values are shown in the legend.
+
+    Returns:
+        dict: Dictionary containing statistics for both non dominant and dominant hands.
+              Example:
+              {
+                "non_dominant": {"median": ..., "iqr": ..., "wilcoxon_stat": ..., "p_value": ... },
+                "dominant": {"median": ..., "iqr": ..., "wilcoxon_stat": ..., "p_value": ... }
+              }
     """
     import matplotlib.pyplot as plt
 
@@ -1835,119 +1897,122 @@ def plot_histogram_spearman_corr_with_stats_reach_indices_by_subject(heatmap_res
     print(f"Non-dominant Hand: Median = {median_non_dominant:.2f}, IQR = {iqr_non_dominant:.2f}, Wilcoxon stat = {stat_non_dominant:.2f}, p-value = {p_value_non_dominant:.4f}")
     print(f"Dominant Hand: Median = {median_dominant:.2f}, IQR = {iqr_dominant:.2f}, Wilcoxon stat = {stat_dominant:.2f}, p-value = {p_value_dominant:.4f}")
 
-## -------------------------------------------------------------------------------------------------------------------
-# independent variable: ldlj or sparc
-# dependent variable: durations, distance, or MotorAcuity
+    # Return statistics as a dictionary.
+    return {
+        "non_dominant": {
+            "median": median_non_dominant,
+            "iqr": iqr_non_dominant,
+            "wilcoxon_stat": stat_non_dominant,
+            "p_value": p_value_non_dominant
+        },
+        "dominant": {
+            "median": median_dominant,
+            "iqr": iqr_dominant,
+            "wilcoxon_stat": stat_dominant,
+            "p_value": p_value_dominant
+        }
+    }
 
 ## -------------------------------------------------------------------------------------------------------------------
-## -------------------- LDLJ ---------------------------------
-## -------------------------------------------------------------------------------------------------------------------
-# 1. indep_var='ldlj', dep_var='durations'
-# Example call: using 'ldlj' as independent variable and 'durations' as dependent variable
-correlation_results = plot_indep_dep_scatter(updated_metrics, updated_metrics_zscore,
-                                             subject='07/22/HW', hand='non_dominant',
-                                             indep_var='ldlj', dep_var='durations', cols=4)
+
+# reach metrics available:
+# 'cartesian_distances', 'path_distances', 'v_peaks', 'v_peak_indices', 
+
+# time window metrics available:
+# 'TW1_acc_peaks', 'TW1_jerk_peaks', 
+# 'TW2_1_acc_peaks', 'TW2_1_jerk_peaks', 
+# 'TW2_2_acc_peaks', 'TW2_2_jerk_peaks',
+# 'TW3_acc_peaks', 'TW3_jerk_peaks'
+# 'TW4_acc_peaks', 'TW4_jerk_peaks'
+# 'TW5_acc_peaks', 'TW5_jerk_peaks'
+# 'TW6_acc_peaks', 'TW6_jerk_peaks'
+
+# dependent variable: 
+#'durations', 'distance', MotorAcuity
+
+# independent variable:
+# 'TW1_LDLJ', 
+# 'TW2_1_LDLJ'
+# 'TW2_2_LDLJ'
+# 'TW3_LDLJ'
+# 'TW4_LDLJ'
+# 'TW5_LDLJ'
+# 'TW6_LDLJ'
+# 
+# 'TW1_sparc'
+# 'TW2_1_sparc'
+# 'TW2_2_sparc'
+# 'TW3_sparc'
+# 'TW4_sparc'
+# 'TW5_sparc'
+# 'TW6_sparc'
+
+saved_heatmaps = {}
+saved_medians = {}
+
+for var in ['TW1_LDLJ', 'TW2_1_LDLJ', 'TW2_2_LDLJ', 'TW3_LDLJ', 'TW4_LDLJ', 'TW5_LDLJ', 'TW6_LDLJ',
+            'TW1_sparc', 'TW2_1_sparc', 'TW2_2_sparc', 'TW3_sparc', 'TW4_sparc', 'TW5_sparc', 'TW6_sparc']:
+    indep_var = var
+    for dep_var in ['durations', 'distance', 'MotorAcuity']:
+        print(f"Processing {indep_var} vs {dep_var}")
+        
+        # Example call: using independent variable and dependent variable for a specific subject/hand
+        correlation_results = plot_indep_dep_scatter(
+            updated_metrics_acorss_TWs, updated_metrics_zscore,
+            subject='07/22/HW', hand='non_dominant',
+            indep_var=indep_var, dep_var=dep_var, cols=4
+        )
+        
+        # Example call: using independent variable and dependent variable for both hands
+        heatmap_results = heatmap_spearman_correlation_all_subjects(
+            updated_metrics_acorss_TWs, updated_metrics_zscore, hand="both",
+            indep_var=indep_var, dep_var=dep_var,
+            simplified=True, return_medians=True, overlay_median=True
+        )
+        
+        # Example call: plot histogram with statistics and capture the median result
+        median_of_median = plot_histogram_spearman_corr_with_stats_reach_indices_by_subject(
+            heatmap_results, show_value_on_legend=True
+        )
+        
+        # Save the outputs for later use
+        saved_heatmaps[(indep_var, dep_var)] = heatmap_results
+        saved_medians[(indep_var, dep_var)] = median_of_median
 
 
-# Example call: using 'ldlj' as independent variable and 'durations' as dependent variable for both hands
-heatmap_results = heatmap_spearman_correlation_all_subjects(
-    updated_metrics, updated_metrics_zscore, hand="both",
-    indep_var='ldlj', dep_var='durations',
-    simplified=True, return_medians=True, overlay_median=True
-)
-# Example call to plot histogram with statistics
-plot_histogram_spearman_corr_with_stats_reach_indices_by_subject(heatmap_results, show_value_on_legend=True)
-## -------------------------------------------------------------------------------------------------------------------
+
+
+# Convert saved_medians dictionary to a list of records
+records = []
+for (indep_var, dep_var), medians in saved_medians.items():
+    record = {
+        "Independent Variable": indep_var,
+        "Dependent Variable": dep_var
+    }
+    # Flatten the medians dictionary (which holds summary statistics for non_dominant and dominant)
+    for hand in medians:
+        for stat, value in medians[hand].items():
+            record[f"{hand}_{stat}"] = value
+    records.append(record)
+
+# Create DataFrame and display it
+df_saved_medians = pd.DataFrame(records)
+print(df_saved_medians)
+
+
 
 ## -------------------------------------------------------------------------------------------------------------------
-# 2. indep_var='ldlj', dep_var='distance'
-# Example call: using 'ldlj' as independent variable and 'distance' as dependent variable
-correlation_results = plot_indep_dep_scatter(updated_metrics, updated_metrics_zscore,
-                                             subject='07/22/HW', hand='non_dominant',
-                                             indep_var='ldlj', dep_var='distance', cols=4)
-# Example call: using 'ldlj' as independent variable and 'distance' as dependent variable for both hands
-heatmap_results = heatmap_spearman_correlation_all_subjects(
-    updated_metrics, updated_metrics_zscore, hand="both",
-    indep_var='ldlj', dep_var='distance',
-    simplified=True, return_medians=True, overlay_median=True
-)
-# Example call to plot histogram with statistics
-plot_histogram_spearman_corr_with_stats_reach_indices_by_subject(heatmap_results, show_value_on_legend=True)
+## -------------------------------------------------------------------------------------------------------------------
+## -------------------------------------------------------------------------------------------------------------------
+## cross-check ldlj vs sparc for a single subject and hand within reach index
 ## -------------------------------------------------------------------------------------------------------------------
 
-## -------------------------------------------------------------------------------------------------------------------
-# 3. indep_var='ldlj', dep_var='MotorAcuity'
-# Example call: using 'ldlj' as independent variable and 'MotorAcuity' as dependent variable
-correlation_results = plot_indep_dep_scatter(updated_metrics, updated_metrics_zscore,
-                                             subject='07/22/HW', hand='non_dominant',
-                                             indep_var='ldlj', dep_var='MotorAcuity', cols=4)
-
-# Example call: using 'ldlj' as independent variable and 'MotorAcuity' as dependent variable for both hands
-heatmap_results = heatmap_spearman_correlation_all_subjects(
-    updated_metrics, updated_metrics_zscore, hand="both",
-    indep_var='ldlj', dep_var='MotorAcuity',
-    simplified=True, return_medians=True, overlay_median=True
-)
-# Example call to plot histogram with statistics
-plot_histogram_spearman_corr_with_stats_reach_indices_by_subject(heatmap_results, show_value_on_legend=True)
-## -------------------------------------------------------------------------------------------------------------------
-
-## -------------------------------------------------------------------------------------------------------------------
-## -------------------- SPARC ---------------------------------
-## -------------------------------------------------------------------------------------------------------------------
-# 1. indep_var='sparc', dep_var='durations'
-# Example call: using 'sparc' as independent variable and 'durations' as dependent variable
-correlation_results = plot_indep_dep_scatter(updated_metrics, updated_metrics_zscore,
-                                             subject='07/22/HW', hand='non_dominant',
-                                             indep_var='sparc', dep_var='durations', cols=4)
-# Example call: using 'sparc' as independent variable and 'durations' as dependent variable for both hands
-heatmap_results = heatmap_spearman_correlation_all_subjects(
-    updated_metrics, updated_metrics_zscore, hand="both",
-    indep_var='sparc', dep_var='durations',
-    simplified=True, return_medians=True, overlay_median=True
-)
-# Example call to plot histogram with statistics
-plot_histogram_spearman_corr_with_stats_reach_indices_by_subject(heatmap_results, show_value_on_legend=True)
-## -------------------------------------------------------------------------------------------------------------------
-
-## -------------------------------------------------------------------------------------------------------------------
-# 2. indep_var='sparc', dep_var='distance'
-# Example call: using 'sparc' as independent variable and 'distance' as dependent variable
-correlation_results = plot_indep_dep_scatter(updated_metrics, updated_metrics_zscore,
-                                             subject='07/22/HW', hand='non_dominant',
-                                             indep_var='sparc', dep_var='distance', cols=4)
-# Example call: using 'sparc' as independent variable and 'distance' as dependent variable for both hands
-heatmap_results = heatmap_spearman_correlation_all_subjects(
-    updated_metrics, updated_metrics_zscore, hand="both",
-    indep_var='sparc', dep_var='distance',
-    simplified=True, return_medians=True, overlay_median=True
-)
-# Example call to plot histogram with statistics
-plot_histogram_spearman_corr_with_stats_reach_indices_by_subject(heatmap_results, show_value_on_legend=True)
-## -------------------------------------------------------------------------------------------------------------------
-
-## -------------------------------------------------------------------------------------------------------------------
-# 3. indep_var='sparc', dep_var='MotorAcuity'
-# Example call: using 'sparc' as independent variable and 'MotorAcuity' as dependent variable
-correlation_results = plot_indep_dep_scatter(updated_metrics, updated_metrics_zscore,
-                                             subject='07/22/HW', hand='non_dominant',
-                                             indep_var='sparc', dep_var='MotorAcuity', cols=4)
-# Example call: using 'sparc' as independent variable and 'MotorAcuity' as dependent variable for both hands
-heatmap_results = heatmap_spearman_correlation_all_subjects(
-    updated_metrics, updated_metrics_zscore, hand="both",
-    indep_var='sparc', dep_var='MotorAcuity',
-    simplified=True, return_medians=True, overlay_median=True
-)
-# Example call to plot histogram with statistics
-plot_histogram_spearman_corr_with_stats_reach_indices_by_subject(heatmap_results, show_value_on_legend=True)
-## -------------------------------------------------------------------------------------------------------------------
-
-def plot_ldlj_vs_sparc(updated_metrics, subject='07/22/HW', hand='non_dominant'):
+def plot_ldlj_vs_sparc(updated_metrics, ldlj, sparc, subject='07/22/HW', hand='non_dominant'):
     import matplotlib.pyplot as plt
     
     # Retrieve the Ldlj and Sparc data for the chosen subject and hand
-    ldlj_data = updated_metrics[subject][hand]['ldlj']
-    sparc_data = updated_metrics[subject][hand]['sparc']
+    ldlj_data = updated_metrics[subject][hand][ldlj]
+    sparc_data = updated_metrics[subject][hand][sparc]
 
     # Get sorted trial keys for consistent ordering
     trial_keys = sorted(ldlj_data.keys())
@@ -1982,18 +2047,15 @@ def plot_ldlj_vs_sparc(updated_metrics, subject='07/22/HW', hand='non_dominant')
 
         plt.subplot(rows, cols, reach_index + 1)
         plt.scatter(ldlj_clean, sparc_clean, color='blue')
-        plt.xlabel("Ldlj")
-        plt.ylabel("Sparc")
+        plt.xlabel(ldlj)
+        plt.ylabel(sparc)
         plt.title(f"Index {reach_index + 1}\nSpearman: {corr:.2f}, p: {p_value:.3f}")
         plt.grid(True)
 
     plt.tight_layout()
     plt.show()
 
-# Example call to plot Ldlj vs Sparc for a specific subject and hand
-plot_ldlj_vs_sparc(updated_metrics, subject='07/22/HW', hand='non_dominant')
-
-def heatmap_spearman_correlation_ldlj_sparc(updated_metrics, hand="non_dominant",
+def heatmap_spearman_correlation_ldlj_sparc(updated_metrics, ldlj, sparc, hand="non_dominant",
                                             simplified=False, return_medians=False, overlay_median=False):
     """
     Computes Spearman correlations (and p-values) between ldlj and sparc for each subject and reach index,
@@ -2024,7 +2086,7 @@ def heatmap_spearman_correlation_ldlj_sparc(updated_metrics, hand="non_dominant"
         # Determine num_reaches from the first subject with the hand_key.
         for subject in subjects:
             if hand_key in updated_metrics[subject]:
-                ldlj_data = updated_metrics[subject][hand_key].get('ldlj', {})
+                ldlj_data = updated_metrics[subject][hand_key].get(ldlj, {})
                 if ldlj_data:
                     trial_keys = sorted(ldlj_data.keys())
                     if trial_keys:
@@ -2039,8 +2101,8 @@ def heatmap_spearman_correlation_ldlj_sparc(updated_metrics, hand="non_dominant"
         for s_idx, subject in enumerate(subjects):
             if hand_key not in updated_metrics[subject]:
                 continue
-            ldlj_data = updated_metrics[subject][hand_key].get('ldlj', {})
-            sparc_data = updated_metrics[subject][hand_key].get('sparc', {})
+            ldlj_data = updated_metrics[subject][hand_key].get(ldlj, {})
+            sparc_data = updated_metrics[subject][hand_key].get(sparc, {})
             trial_keys = sorted(ldlj_data.keys())
             for reach_idx in range(num_reaches):
                 ldlj_vals = []
@@ -2157,77 +2219,6 @@ def heatmap_spearman_correlation_ldlj_sparc(updated_metrics, hand="non_dominant"
     else:
         return {"correlations": correlations_result}
 
-# Example call to compute and plot heatmap of Spearman correlations (with p-values) between Ldlj and Sparc for both hands
-heatmap_results = heatmap_spearman_correlation_ldlj_sparc(
-    updated_metrics, hand="both",
-    simplified=True, return_medians=True, overlay_median=True
-)
-
-def compute_icc_for_ldlj_sparc(updated_metrics, subject, hand):
-    """
-    Computes the intraclass correlation coefficient (ICC) between Ldlj and Sparc values
-    across trials for each reach index for a given subject and hand.
-
-    Parameters:
-        updated_metrics (dict): Dictionary containing subjects' data.
-        subject (str): Subject identifier.
-        hand (str): Hand identifier ('non_dominant' or 'dominant').
-
-    Returns:
-        dict: Dictionary with reach indices as keys and corresponding ICC (ICC2) values.
-    """
-    icc_results = {}
-    ldlj_data = updated_metrics[subject][hand].get('ldlj', {})
-    sparc_data = updated_metrics[subject][hand].get('sparc', {})
-    
-    trial_keys = sorted(ldlj_data.keys())
-    if not trial_keys:
-        return icc_results
-
-    num_reaches = len(ldlj_data[trial_keys[0]])
-    
-    for reach_idx in range(num_reaches):
-        records = []
-        for trial in trial_keys:
-            try:
-                ldlj_val = ldlj_data[trial][reach_idx]
-                sparc_val = sparc_data[trial][reach_idx]
-                # Create entries for both measures per trial
-                records.append({'trial': trial, 'measure': 'ldlj', 'value': ldlj_val})
-                records.append({'trial': trial, 'measure': 'sparc', 'value': sparc_val})
-            except (IndexError, KeyError):
-                continue
-        
-        if not records:
-            continue
-        
-        df = pd.DataFrame(records)
-        # Rename columns to match pingouin's expected names: 'targets', 'raters', 'ratings'
-        df = df.rename(columns={'trial': 'targets', 'measure': 'raters', 'value': 'ratings'})
-        # Compute ICC using a two-way random-effects model (consistency ICC2)
-        icc_table = pg.intraclass_corr(data=df, targets='targets', raters='raters', ratings='ratings')
-        # Select ICC2 value (if available)
-        icc_value = icc_table.loc[icc_table['Type'] == 'ICC2', 'ICC'].values
-        icc_results[reach_idx + 1] = icc_value[0] if icc_value.size > 0 else np.nan
-
-    return icc_results
-
-# Example usage:
-icc_ldlj_sparc = compute_icc_for_ldlj_sparc(updated_metrics, subject='07/22/HW', hand='non_dominant')
-print("Intraclass Correlation (ICC) for Ldlj vs Sparc by Reach Index:")
-for reach_idx, icc_val in icc_ldlj_sparc.items():
-    if np.isnan(icc_val):
-        interp = "Insufficient data to compute ICC."
-    elif icc_val < 0.5:
-        interp = "Poor reliability"
-    elif icc_val < 0.75:
-        interp = "Moderate reliability"
-    elif icc_val < 0.90:
-        interp = "Good reliability"
-    else:
-        interp = "Excellent reliability"
-    print(f"Reach {reach_idx}: ICC = {icc_val:.2f}  -> {interp}")
-
 def plot_corr_histogram_overlay(heatmap_results, significant_only=True, significance_threshold=0.05):
     """
     Plots an overlayed histogram of Spearman correlation values for both hands,
@@ -2273,13 +2264,27 @@ def plot_corr_histogram_overlay(heatmap_results, significant_only=True, signific
     plt.grid(True)
     plt.show()
 
-# Example call to plot overlayed histograms for both hands.
+
+# plot Ldlj vs Sparc for a specific subject and hand
+# plot_ldlj_vs_sparc(updated_metrics, subject='07/22/HW', hand='non_dominant')
+plot_ldlj_vs_sparc(updated_metrics_acorss_TWs, 'TW3_LDLJ', 'TW3_sparc', subject='07/22/HW', hand='non_dominant')
+
+# Example call to compute and plot heatmap of Spearman correlations (with p-values) between Ldlj and Sparc for both hands
+heatmap_results = heatmap_spearman_correlation_ldlj_sparc(
+    updated_metrics_acorss_TWs, 'TW3_LDLJ', 'TW3_sparc', hand="both",
+    simplified=True, return_medians=True, overlay_median=True
+)
+
+# plot overlayed histograms for both hands.
 plot_corr_histogram_overlay(heatmap_results, significant_only=False, significance_threshold=0.05)
 
-# Example call to plot histogram with statistics
+# plot histogram with statistics
 plot_histogram_spearman_corr_with_stats_reach_indices_by_subject(heatmap_results, show_value_on_legend=True)
-
-def plot_ldlj_sparc_correlation(updated_metrics):
+## -------------------------------------------------------------------------------------------------------------------
+## -------------------------------------------------------------------------------------------------------------------
+## cross-check ldlj vs sparc for all subjects and both hands acoross all reach indices
+## -------------------------------------------------------------------------------------------------------------------
+def plot_ldlj_sparc_correlation(updated_metrics, ldlj, sparc):
     """
     Plots Ldlj vs Sparc scatter plots for each subject and hand,
     computes the Spearman correlation and p-value,
@@ -2320,9 +2325,9 @@ def plot_ldlj_sparc_correlation(updated_metrics):
             sparc_values = []
 
             # Concatenate all trial data for the current subject and hand
-            for trial in updated_metrics[subject][hand]['ldlj']:
-                ldlj_values.extend(updated_metrics[subject][hand]['ldlj'][trial])
-                sparc_values.extend(updated_metrics[subject][hand]['sparc'][trial])
+            for trial in updated_metrics[subject][hand][ldlj]:
+                ldlj_values.extend(updated_metrics[subject][hand][ldlj][trial])
+                sparc_values.extend(updated_metrics[subject][hand][sparc][trial])
 
             ldlj_values = np.array(ldlj_values)
             sparc_values = np.array(sparc_values)
@@ -2339,8 +2344,8 @@ def plot_ldlj_sparc_correlation(updated_metrics):
 
             ax = axs[plot_idx]
             ax.scatter(ldlj_clean, sparc_clean, color='blue', alpha=0.7)
-            ax.set_xlabel('Ldlj')
-            ax.set_ylabel('Sparc')
+            ax.set_xlabel(ldlj)
+            ax.set_ylabel(sparc)
             ax.set_title(f"{subject} - {hand}\nSpearman: {corr:.2f}, p: {p_value:.4f}")
             ax.grid(True)
             plot_idx += 1
@@ -2354,37 +2359,621 @@ def plot_ldlj_sparc_correlation(updated_metrics):
 
     return correlation_results
 
+def plot_ldlj_sparc_histogram(ldlj_sparc_correlations):
+    import matplotlib.pyplot as plt
+
+    corr_values = []
+    p_values = []
+    for subject, hands in ldlj_sparc_correlations.items():
+        for hand, (corr, p_val) in hands.items():
+            if not np.isnan(corr):
+                corr_values.append(corr)
+                p_values.append(p_val)
+
+    plt.figure(figsize=(8, 6))
+    plt.hist(corr_values, bins=10, color='blue', alpha=0.7, edgecolor='black')
+    plt.xlabel('Spearman Correlation')
+    plt.ylabel('Frequency')
+    plt.title('Histogram of Ldlj vs Sparc Correlations')
+
+    median_corr = np.median(corr_values)
+    plt.axvline(median_corr, color='red', linestyle='--', linewidth=2, label=f"Median: {median_corr:.2f}")
+    plt.legend()
+    plt.grid(True)
+    plt.show()
+
+    p_values_array = np.array(p_values)
+    significant_count = np.sum(p_values_array < 0.05)
+    percentage_significant = (significant_count / len(p_values_array)) * 100
+    print(f"Percentage of p-values < 0.05: {percentage_significant:.2f}%")
+
 # Example call to plot Ldlj vs Sparc correlations for all subjects and hands
-ldlj_sparc_correlations = plot_ldlj_sparc_correlation(updated_metrics)
+ldlj_sparc_correlations = plot_ldlj_sparc_correlation(updated_metrics_acorss_TWs, 'TW3_LDLJ', 'TW3_sparc')
+# Example call to plot histogram of Ldlj vs Sparc correlations
+plot_ldlj_sparc_histogram(ldlj_sparc_correlations)
 
-# Extract correlation and p-value values from ldlj_sparc_correlations dictionary.
-corr_values = []
-p_values = []
-for subject, hands in ldlj_sparc_correlations.items():
-    for hand, (corr, p_val) in hands.items():
-        if not np.isnan(corr):
-            corr_values.append(corr)
-            p_values.append(p_val)
+# -------------------------------------------------------------------------------------------------------------------
 
-# Plot histogram of the Spearman correlations.
-plt.figure(figsize=(8, 6))
-plt.hist(corr_values, bins=10, color='blue', alpha=0.7, edgecolor='black')
-plt.xlabel('Spearman Correlation')
-plt.ylabel('Frequency')
-plt.title('Histogram of Ldlj vs Sparc Correlations')
+def create_metrics_dataframe(updated_metrics_acorss_TWs, updated_metrics_zscore_by_trial, sBBTResult, MotorExperiences):
+    """
+    Creates a DataFrame from the combined metrics stored in the updated_metrics_acorss_TWs dictionary.
+    It loops over each subject, hand, trial, and location (assumed to be 16) and collects the available
+    metrics into a list of dictionaries. If a 'durations' value is NaN, a message is printed and that record
+    is skipped.
 
-# Add a vertical line for the median.
-median_corr = np.median(corr_values)
-plt.axvline(median_corr, color='red', linestyle='--', linewidth=2, label=f"Median: {median_corr:.2f}")
-plt.legend()
+    Parameters:
+        updated_metrics_acorss_TWs (dict): A nested dictionary that contains metrics per subject, hand, and trial.
+        updated_metrics_zscore_by_trial (dict): A nested dictionary containing z-scored metrics, including MotorAcuity,
+                                        per subject, hand, and trial.
+        sBBTResult (dict): Dictionary containing sBBTResult values per subject and hand.
+        MotorExperiences (dict): Dictionary containing for each subject their attributes:
+            Gender, Age, handedness, physical_h_total_weighted, musical_h_total_weighted,
+            digital_h_total_weighted, overall_h_total_weighted.
 
-plt.grid(True)
-plt.show()
+    Returns:
+        df (DataFrame): A pandas DataFrame with columns:
+            ['Subject', 'Hand', 'Trial', 'Location', 'durations',
+             'cartesian_distances', 'path_distances', 'v_peaks',
+             'TW1_acc_peaks', 'TW1_jerk_peaks',
+             'TW2_1_acc_peaks', 'TW2_1_jerk_peaks',
+             'TW2_2_acc_peaks', 'TW2_2_jerk_peaks',
+             'TW3_acc_peaks', 'TW3_jerk_peaks',
+             'TW4_acc_peaks', 'TW4_jerk_peaks',
+             'TW5_acc_peaks', 'TW5_jerk_peaks',
+             'TW6_acc_peaks', 'TW6_jerk_peaks',
+             'TW1_LDLJ', 'TW2_1_LDLJ', 'TW2_2_LDLJ', 'TW3_LDLJ', 'TW4_LDLJ', 'TW5_LDLJ', 'TW6_LDLJ',
+             'TW1_sparc', 'TW2_1_sparc', 'TW2_2_sparc', 'TW3_sparc', 'TW4_sparc', 'TW5_sparc', 'TW6_sparc',
+             'distance', 'MotorAcuity', 'sBBTResult',
+             'Gender', 'Age', 'handedness', 'physical_h_total_weighted',
+             'musical_h_total_weighted', 'digital_h_total_weighted', 'overall_h_total_weighted']
+    """
 
-# Calculate percentage of p-values less than 0.05
-p_values_array = np.array(p_values)
-significant_count = np.sum(p_values_array < 0.05)
-percentage_significant = (significant_count / len(p_values_array)) * 100
-print(f"Percentage of p-values < 0.05: {percentage_significant:.2f}%")
+    rows = []
+    for subject in updated_metrics_acorss_TWs:
+
+        # Use only the last part of the subject key (e.g. "06/19/CZ" becomes "CZ")
+        subject_name = subject.split('/')[-1]
+
+        # Extract motor experience info per subject (one value each)
+        motor_data = MotorExperiences.get(subject_name, {})
+        gender = motor_data.get("Gender", np.nan)
+        age = motor_data.get("Age", np.nan)
+        handedness_attr = motor_data.get("handedness", np.nan)
+        physical_h_total_weighted = motor_data.get("physical_h_total_weighted", np.nan)
+        musical_h_total_weighted = motor_data.get("musical_h_total_weighted", np.nan)
+        digital_h_total_weighted = motor_data.get("digital_h_total_weighted", np.nan)
+        overall_h_total_weighted = motor_data.get("overall_h_total_weighted", np.nan)
+
+        for hand in updated_metrics_acorss_TWs[subject]:
+            # Attempt to get the sBBTResult value for the subject and hand.
+            try:
+                # Get the value from the "non_dominant" column for the row where Subject matches subject_name
+                sbbt_val = sBBTResult.loc[sBBTResult["Subject"] == subject_name, hand].values
+            except KeyError:
+                sbbt_val = np.nan
+
+            for trial in updated_metrics_acorss_TWs[subject][hand]['durations']:
+                for loc in range(16):
+                    duration_val = updated_metrics_acorss_TWs[subject][hand]['durations'][trial][loc]
+                    if not np.isnan(duration_val):
+                        rows.append({
+                            'Subject': subject,
+                            'Hand': hand,
+                            'Trial': trial,
+                            'Location': loc + 1,  # Location index (1 to 16)
+                            
+                            # Motor experiences (one value per subject)
+                            'Gender': gender,
+                            'Age': age,
+                            'handedness': handedness_attr,
+                            'physical_h_total_weighted': physical_h_total_weighted,
+                            'musical_h_total_weighted': musical_h_total_weighted,
+                            'digital_h_total_weighted': digital_h_total_weighted,
+                            'overall_h_total_weighted': overall_h_total_weighted,
+                            
+                            # sBBTResult per subject per hand
+                            'sBBTResult': sbbt_val,
+
+                            # reach metrics
+                            'cartesian_distances': updated_metrics_acorss_TWs[subject][hand]['cartesian_distances'][trial][loc],
+                            'path_distances': updated_metrics_acorss_TWs[subject][hand]['path_distances'][trial][loc],
+                            'v_peaks': updated_metrics_acorss_TWs[subject][hand]['v_peaks'][trial][loc],
+
+                            # Dependent variables: task performance metrics
+                            'durations': duration_val,
+                            'distance': updated_metrics_acorss_TWs[subject][hand]['distance'][trial][loc],
+                            'MotorAcuity': updated_metrics_zscore_by_trial[subject][hand]['MotorAcuity'][trial][loc],
+                            
+                            # Independent variables: time window metrics
+                            # Time Window 1
+                            'TW1_acc_peaks': updated_metrics_acorss_TWs[subject][hand]['TW1_acc_peaks'][trial][loc],
+                            'TW1_jerk_peaks': updated_metrics_acorss_TWs[subject][hand]['TW1_jerk_peaks'][trial][loc],
+                            'TW1_LDLJ': updated_metrics_acorss_TWs[subject][hand]['TW1_LDLJ'][trial][loc],
+                            'TW1_sparc': updated_metrics_acorss_TWs[subject][hand]['TW1_sparc'][trial][loc],
+                            # Time Window 2-1
+                            'TW2_1_acc_peaks': updated_metrics_acorss_TWs[subject][hand]['TW2_1_acc_peaks'][trial][loc],
+                            'TW2_1_jerk_peaks': updated_metrics_acorss_TWs[subject][hand]['TW2_1_jerk_peaks'][trial][loc],
+                            'TW2_1_LDLJ': updated_metrics_acorss_TWs[subject][hand]['TW2_1_LDLJ'][trial][loc],
+                            'TW2_1_sparc': updated_metrics_acorss_TWs[subject][hand]['TW2_1_sparc'][trial][loc],
+                            # Time Window 2-2
+                            'TW2_2_acc_peaks': updated_metrics_acorss_TWs[subject][hand]['TW2_2_acc_peaks'][trial][loc],
+                            'TW2_2_jerk_peaks': updated_metrics_acorss_TWs[subject][hand]['TW2_2_jerk_peaks'][trial][loc],
+                            'TW2_2_LDLJ': updated_metrics_acorss_TWs[subject][hand]['TW2_2_LDLJ'][trial][loc],
+                            'TW2_2_sparc': updated_metrics_acorss_TWs[subject][hand]['TW2_2_sparc'][trial][loc],
+                            # Time Window 3
+                            'TW3_acc_peaks': updated_metrics_acorss_TWs[subject][hand]['TW3_acc_peaks'][trial][loc],
+                            'TW3_jerk_peaks': updated_metrics_acorss_TWs[subject][hand]['TW3_jerk_peaks'][trial][loc],
+                            'TW3_LDLJ': updated_metrics_acorss_TWs[subject][hand]['TW3_LDLJ'][trial][loc],
+                            'TW3_sparc': updated_metrics_acorss_TWs[subject][hand]['TW3_sparc'][trial][loc],
+                            # Time Window 4
+                            'TW4_acc_peaks': updated_metrics_acorss_TWs[subject][hand]['TW4_acc_peaks'][trial][loc],
+                            'TW4_jerk_peaks': updated_metrics_acorss_TWs[subject][hand]['TW4_jerk_peaks'][trial][loc],
+                            'TW4_LDLJ': updated_metrics_acorss_TWs[subject][hand]['TW4_LDLJ'][trial][loc],
+                            'TW4_sparc': updated_metrics_acorss_TWs[subject][hand]['TW4_sparc'][trial][loc],
+                            # Time Window 5
+                            'TW5_acc_peaks': updated_metrics_acorss_TWs[subject][hand]['TW5_acc_peaks'][trial][loc],
+                            'TW5_jerk_peaks': updated_metrics_acorss_TWs[subject][hand]['TW5_jerk_peaks'][trial][loc],
+                            'TW5_LDLJ': updated_metrics_acorss_TWs[subject][hand]['TW5_LDLJ'][trial][loc],
+                            'TW5_sparc': updated_metrics_acorss_TWs[subject][hand]['TW5_sparc'][trial][loc],
+                            # Time Window 6
+                            'TW6_acc_peaks': updated_metrics_acorss_TWs[subject][hand]['TW6_acc_peaks'][trial][loc],
+                            'TW6_jerk_peaks': updated_metrics_acorss_TWs[subject][hand]['TW6_jerk_peaks'][trial][loc],
+                            'TW6_LDLJ': updated_metrics_acorss_TWs[subject][hand]['TW6_LDLJ'][trial][loc],
+                            'TW6_sparc': updated_metrics_acorss_TWs[subject][hand]['TW6_sparc'][trial][loc],
+                        })
+                    else:
+                        print(f"Skipping NaN for Subject: {subject}, Hand: {hand}, Trial: {trial}, Location: {loc+1}")
+    df = pd.DataFrame(rows)
+    # Define the path where the DataFrame will be saved as a pickle file.
+    output_pickle_file = "/Users/yilinwu/Desktop/honours data/DataProcess/df.pkl"
+
+    # Save the DataFrame 'df' as a pickle file.
+    with open(output_pickle_file, "wb") as f:
+        pickle.dump(df, f)
+    print(f"DataFrame saved as pickle file at: {output_pickle_file}")
+
+    return df
+
+# Create DataFrame from updated metrics across test windows
+df = create_metrics_dataframe(updated_metrics_acorss_TWs, updated_metrics_zscore_by_trial, sBBTResult, MotorExperiences)
+# -------------------------------------------------------------------------------------------------------------------
+
+import statsmodels.api as sm
+import statsmodels.formula.api as smf
+from statsmodels.stats.outliers_influence import variance_inflation_factor
+from patsy import dmatrices
+
+import seaborn as sns
+from scipy.stats import wilcoxon
+import pickle
+
+import pandas as pd
+import seaborn as sns
+import numpy as np
+from sklearn.decomposition import PCA
+
+with open("/Users/yilinwu/Desktop/honours data/DataProcess/df.pkl", "rb") as f:
+    df = pickle.load(f)
+
+print("DataFrame loaded with shape:", df.shape)
 
 
+
+def model_info(model):
+    llf = model.llf   # log-likelihood
+    k = model.df_modelwc  # number of estimated parameters
+    n = model.nobs   # number of observations
+
+    aic = -2*llf + 2*k
+    bic = -2*llf + k*np.log(n)
+    return aic, bic
+
+
+
+df.columns.tolist()
+
+
+
+['Subject',
+ 'Hand',
+ 'Location',
+ 'Gender',
+ 'Age',
+ 'handedness',
+ 'physical_h_total_weighted',
+ 'musical_h_total_weighted',
+ 'digital_h_total_weighted',
+ 'overall_h_total_weighted',
+ 'sBBTResult',
+ 'cartesian_distances',
+ 'path_distances',
+ 'v_peaks',
+ 'durations',
+ 'distance',
+ 'MotorAcuity',
+ 'TW1_acc_peaks',
+ 'TW1_jerk_peaks',
+ 'TW1_LDLJ',
+ 'TW1_sparc',
+ 'TW2_1_acc_peaks',
+ 'TW2_1_jerk_peaks',
+ 'TW2_1_LDLJ',
+ 'TW2_1_sparc',
+ 'TW2_2_acc_peaks',
+ 'TW2_2_jerk_peaks',
+ 'TW2_2_LDLJ',
+ 'TW2_2_sparc',
+ 'TW3_acc_peaks',
+ 'TW3_jerk_peaks',
+ 'TW3_LDLJ',
+ 'TW3_sparc',
+ 'TW4_acc_peaks',
+ 'TW4_jerk_peaks',
+ 'TW4_LDLJ',
+ 'TW4_sparc',
+ 'TW5_acc_peaks',
+ 'TW5_jerk_peaks',
+ 'TW5_LDLJ',
+ 'TW5_sparc',
+ 'TW6_acc_peaks',
+ 'TW6_jerk_peaks',
+ 'TW6_LDLJ',
+ 'TW6_sparc']
+
+
+
+
+# Define the PCA columns
+pca_columns = [
+    'TW1_acc_peaks', 'TW1_jerk_peaks', 'TW1_LDLJ', 'TW1_sparc',
+    'TW2_1_acc_peaks', 'TW2_1_jerk_peaks', 'TW2_1_LDLJ', 'TW2_1_sparc',
+    'TW2_2_acc_peaks', 'TW2_2_jerk_peaks', 'TW2_2_LDLJ', 'TW2_2_sparc',
+    'TW3_acc_peaks', 'TW3_jerk_peaks', 'TW3_LDLJ', 'TW3_sparc',
+    'TW4_acc_peaks', 'TW4_jerk_peaks', 'TW4_LDLJ', 'TW4_sparc',
+    'TW5_acc_peaks', 'TW5_jerk_peaks', 'TW5_LDLJ', 'TW5_sparc',
+    'TW6_acc_peaks', 'TW6_jerk_peaks', 'TW6_LDLJ', 'TW6_sparc'
+]
+
+# Extract the data for PCA from the dataframe (assumed to be 'df')
+X = df[pca_columns].copy()
+
+# Handle missing values (e.g., fill NaNs with the median of each column)
+X = X.fillna(X.median())
+
+# Run PCA
+pca = PCA()
+pca_components = pca.fit_transform(X)
+
+# Print the shape of the PCA result and the explained variance ratio
+print("PCA components shape:", pca_components.shape)
+print("Explained variance ratio:", pca.explained_variance_ratio_)
+
+# Optionally, return the PCA components for further use
+pca_components
+
+
+
+
+
+
+
+
+
+# Core mixed-effects model: duration ~ LDLJ
+# does smoothness (LDLJ/SPARC) explain movement duration beyond amplitude and location?
+model1 = smf.mixedlm(
+    "durations ~ TW1_LDLJ + cartesian_distances + C(Location)",
+    df, groups=df["Subject"]
+).fit()
+print(model1.summary())
+
+# test if SPARC (or jerk/accel peaks) adds explanatory power.
+model2 = smf.mixedlm(
+    "durations ~ TW1_LDLJ + TW1_sparc + cartesian_distances + C(Location)",
+    df, groups=df["Subject"]
+).fit()
+print(model2.summary())
+
+
+aic1, bic1 = model_info(model1)
+aic2, bic2 = model_info(model2)
+
+# compare fit statistics:
+print("Model 1 - AIC:", aic1, "BIC:", bic1)
+print("Model 2 - AIC:", aic2, "BIC:", bic2)
+print("Model 1 - AIC/BIC:", aic1/bic1)
+print("Model 2 - AIC/BIC:", aic2/bic2)
+# 👉 If model2 doesn’t lower AIC/BIC much, LDLJ may already capture what SPARC does.
+
+
+# Check for multicollinearity using VIF
+y, X = dmatrices("durations ~ TW1_LDLJ + TW1_sparc + TW1_jerk_peaks + TW1_acc_peaks", df, return_type='dataframe')
+vif_df = pd.DataFrame({
+    "Variable": X.columns,
+    "VIF": [variance_inflation_factor(X.values, i) for i in range(X.shape[1])]
+})
+print(vif_df)
+# 👉 Drop or choose between variables with VIF > 5–10 (they overlap too much).
+
+
+# Compare TW1 vs TW3 separately
+model_TW1 = smf.mixedlm(
+    "durations ~ TW1_LDLJ + TW1_sparc + cartesian_distances + C(Location)",
+    df, groups=df["Subject"]
+).fit()
+
+model_TW3 = smf.mixedlm(
+    "durations ~ TW3_LDLJ + TW3_sparc + cartesian_distances + C(Location)",
+    df, groups=df["Subject"]
+).fit()
+
+print(model_TW1.summary())
+print(model_TW3.summary())
+
+aic_TW1, bic_TW1 = model_info(model_TW1)
+aic_TW3, bic_TW3 = model_info(model_TW3)
+print("TW1 - AIC:", aic_TW1, "BIC:", bic_TW1)
+print("TW3 - AIC:", aic_TW3, "BIC:", bic_TW3)
+print("TW1 - AIC/BIC:", aic_TW1/bic_TW1)
+print("TW3 - AIC/BIC:", aic_TW3/bic_TW3)
+
+model_full = smf.mixedlm(
+    "durations ~ TW1_LDLJ + TW1_sparc + TW3_LDLJ + TW3_sparc + cartesian_distances + C(Location) + v_peaks",
+    df, groups=df["Subject"]
+).fit()
+print(model_full.summary())
+aic_full, bic_full = model_info(model_full)
+print("Full Model - AIC:", aic_full, "BIC:", bic_full)
+print("Full Model - AIC/BIC:", aic_full/bic_full)
+# Compare all models
+models = {
+    "TW1": (model_TW1, aic_TW1, bic_TW1),
+    "TW3": (model_TW3, aic_TW3, bic_TW3),
+    "Full": (model_full, aic_full, bic_full)
+}
+for name, (model, aic, bic) in models.items():
+    print(f"{name} Model - AIC: {aic}, BIC: {bic}, AIC/BIC: {aic/bic}")
+# 👉 Choose the model with the lowest AIC/BIC that balances fit and simplicity.
+
+
+
+
+def plot_predictions(model, df, response_col="durations"):
+    """
+    Plot actual vs. predicted values for a fitted statsmodels model.
+    
+    Parameters:
+        model: fitted statsmodels model (mixedlm or ols)
+        df: DataFrame used for fitting
+        response_col: the column name of the response variable
+    """
+    # Predicted values
+    df["predicted"] = model.predict(df)
+
+    plt.figure(figsize=(6, 6))
+    plt.scatter(df[response_col], df["predicted"], alpha=0.3)
+    plt.plot([df[response_col].min(), df[response_col].max()],
+             [df[response_col].min(), df[response_col].max()],
+             'r--', label="Perfect prediction")
+
+    plt.xlabel("Actual " + response_col)
+    plt.ylabel("Predicted " + response_col)
+    plt.title(f"Predicted vs Actual: {response_col}")
+    plt.legend()
+    plt.show()
+
+plot_predictions(model1, df, response_col="durations")
+plot_predictions(model2, df, response_col="durations")
+
+
+
+
+
+def compare_models(models, model_names):
+    """
+    Compare multiple statsmodels models (OLS or MixedLM) side by side using
+    log-likelihood, AIC, and BIC.
+
+    Parameters:
+        models: list of fitted statsmodels models
+        model_names: list of names for the models
+    Returns:
+        DataFrame summary of fit statistics
+    """
+    rows = []
+    for name, model in zip(model_names, models):
+        llf = model.llf
+        k = model.df_modelwc
+        n = model.nobs
+        aic = -2*llf + 2*k
+        bic = -2*llf + k*np.log(n)
+
+        rows.append({
+            "Model": name,
+            "LogLik": llf,
+            "AIC": aic,
+            "BIC": bic
+        })
+    return pd.DataFrame(rows)
+
+
+# Fit models
+m1 = smf.mixedlm("durations ~ TW1_LDLJ + cartesian_distances + C(Location)",
+                 df, groups=df["Subject"]).fit(reml=False)
+
+m2 = smf.mixedlm("durations ~ TW1_LDLJ + TW1_sparc + cartesian_distances + C(Location)",
+                 df, groups=df["Subject"]).fit(reml=False)
+
+m3 = smf.mixedlm("durations ~ TW3_LDLJ + TW3_sparc + cartesian_distances + C(Location)",
+                 df, groups=df["Subject"]).fit(reml=False)
+
+# Compare side by side
+results_table = compare_models([m1, m2, m3], ["TW1 LDLJ", "TW1 LDLJ+SPARC", "TW3 LDLJ+SPARC"])
+print(results_table)
+
+
+
+# Color by subject/hand so it’s easy to track.
+# 1:1 dashed line (perfect prediction line).
+# Linear fit per facet → so you see if each person/hand follows the trend.
+# Small point size + transparency → avoids overplotting with 30k+ points.
+# Faceting → each panel shows one subject (or hand), making it super obvious if some are systematically off.
+
+
+
+def plot_predictions_facet(model, df, response_col="durations", facet_by="Subject"):
+    """
+    Faceted scatter plots of actual vs. predicted values, grouped by Subject or Hand,
+    and a second panel showing the distribution of residuals (predicted – actual) for each facet.
+
+    Parameters:
+        model: fitted statsmodels model (OLS or MixedLM)
+        df: DataFrame used for fitting
+        response_col: dependent variable name in df
+        facet_by: column name to facet by ("Subject" or "Hand")
+    """
+    df = df.copy()
+    df["predicted"] = model.predict(df)
+
+    # Scatter plot of actual vs. predicted in facets.
+    g = sns.lmplot(
+        data=df,
+        x=response_col,
+        y="predicted",
+        col=facet_by,
+        hue=facet_by,
+        col_wrap=4,
+        scatter_kws={"alpha": 0.4, "s": 20},
+        line_kws={"color": "red"}
+    )
+
+    # Add 1:1 diagonal reference line to each facet
+    for ax in g.axes.flatten():
+        lims = [
+            min(df[response_col].min(), df["predicted"].min()),
+            max(df[response_col].max(), df["predicted"].max())
+        ]
+        ax.plot(lims, lims, 'k--', alpha=0.7)
+        ax.set_xlim(lims)
+        ax.set_ylim(lims)
+
+    g.set_axis_labels(f"Actual {response_col}", f"Predicted {response_col}")
+    g.set_titles("{col_name}")
+    plt.subplots_adjust(top=0.9)
+    g.fig.suptitle(f"Model Predictions vs. Actual {response_col}, faceted by {facet_by}")
+
+    # Calculate residuals and create a facet plot for their distributions.
+    df["residuals"] = df["predicted"] - df[response_col]
+    g2 = sns.FacetGrid(df, col=facet_by, hue=facet_by, col_wrap=4, height=4)
+    g2.map(plt.hist, "residuals", bins=20, color="skyblue", edgecolor="black", alpha=0.7)
+    g2.set_axis_labels("Residuals (Predicted - Actual)", "Frequency")
+    g2.set_titles("{col_name}")
+    g2.fig.suptitle(f"Residual Distributions by {facet_by}", y=1.03)
+    plt.tight_layout()
+    plt.show()
+
+
+# Suppose you already fit a model:
+m1 = smf.mixedlm("durations ~ TW1_LDLJ + TW1_sparc + cartesian_distances + C(Location)",
+                 df, groups=df["Subject"]).fit(reml=False)
+
+# Facet by Subject
+plot_predictions_facet(m1, df, response_col="durations", facet_by="Subject")
+
+# Facet by Hand
+plot_predictions_facet(m1, df, response_col="durations", facet_by="Hand")
+
+
+
+
+
+
+
+
+
+
+
+
+
+# Repeat the above for 'distance' as the dependent variable
+model_dist1 = smf.mixedlm(
+    "distance ~ TW1_LDLJ + cartesian_distances + C(Location)",
+    df, groups=df["Subject"]
+).fit()
+print(model_dist1.summary())
+model_dist2 = smf.mixedlm(
+    "distance ~ TW1_LDLJ + TW1_sparc + cartesian_distances + C(Location)",
+    df, groups=df["Subject"]
+).fit()
+print(model_dist2.summary())
+aic_dist1, bic_dist1 = model_info(model_dist1)
+aic_dist2, bic_dist2 = model_info(model_dist2)
+print("Distance Model 1 - AIC:", aic_dist1, "BIC:", bic_dist1)
+print("Distance Model 2 - AIC:", aic_dist2, "BIC:", bic_dist2)
+print("Distance Model 1 - AIC/BIC:", aic_dist1/bic_dist1)
+print("Distance Model 2 - AIC/BIC:", aic_dist2/bic_dist2)
+model_dist_TW1 = smf.mixedlm(
+    "distance ~ TW1_LDLJ + TW1_sparc + cartesian_distances + C(Location)",
+    df, groups=df["Subject"]
+).fit()
+model_dist_TW3 = smf.mixedlm(
+    "distance ~ TW3_LDLJ + TW3_sparc + cartesian_distances + C(Location)",
+    df, groups=df["Subject"]
+).fit()
+print(model_dist_TW1.summary())
+print(model_dist_TW3.summary())
+aic_dist_TW1, bic_dist_TW1 = model_info(model_dist_TW1)
+aic_dist_TW3, bic_dist_TW3 = model_info(model_dist_TW3)
+print("Distance TW1 - AIC:", aic_dist_TW1, "BIC:", bic_dist_TW1)
+print("Distance TW3 - AIC:", aic_dist_TW3, "BIC:", bic_dist_TW3)
+print("Distance TW1 - AIC/BIC:", aic_dist_TW1/bic_dist_TW1)
+print("Distance TW3 - AIC/BIC:", aic_dist_TW3/bic_dist_TW3)
+model_dist_full = smf.mixedlm(
+    "distance ~ TW1_LDLJ + TW1_sparc + TW3_LDLJ + TW3_sparc + cartesian_distances + C(Location) + v_peaks",
+    df, groups=df["Subject"]
+).fit()
+print(model_dist_full.summary())
+aic_dist_full, bic_dist_full = model_info(model_dist_full)
+print("Distance Full Model - AIC:", aic_dist_full, "BIC:", bic_dist_full)
+print("Distance Full Model - AIC/BIC:", aic_dist_full/bic_dist_full)
+# Compare all distance models
+dist_models = {
+    "TW1": (model_dist_TW1, aic_dist_TW1, bic_dist_TW1),
+    "TW3": (model_dist_TW3, aic_dist_TW3, bic_dist_TW3),
+    "Full": (model_dist_full, aic_dist_full, bic_dist_full)
+}
+for name, (model, aic, bic) in dist_models.items():
+    print(f"{name} Distance Model - AIC: {aic}, BIC: {bic}, AIC/BIC: {aic/bic}")
+# 👉 Choose the distance model with the lowest AIC/BIC that balances fit and simplicity.
+
+
+
+
+
+
+
+# Run ANOVA 
+model = smf.ols('durations ~ C(Hand) + TW1_acc_peaks + TW1_jerk_peaks + TW1_LDLJ + TW1_sparc + C(Location)', data=df).fit()
+model = smf.ols('durations ~ C(Hand) + TW3_acc_peaks + TW3_jerk_peaks + TW3_LDLJ + TW3_sparc + C(Location)', data=df).fit()
+model = smf.ols('durations ~ C(Hand) + TW1_acc_peaks + TW1_jerk_peaks + TW1_LDLJ + TW1_sparc + TW3_acc_peaks + TW3_jerk_peaks + TW3_LDLJ + TW3_sparc + cartesian_distances + C(Location) + v_peaks', data=df).fit()
+
+model = smf.ols('distance ~ C(Hand) + TW1_acc_peaks + TW1_jerk_peaks + TW1_LDLJ + TW1_sparc + C(Location)', data=df).fit()
+model = smf.ols('distance ~ C(Hand) + TW3_acc_peaks + TW3_jerk_peaks + TW3_LDLJ + TW3_sparc + C(Location)', data=df).fit()
+model = smf.ols('distance ~ C(Hand) + TW1_acc_peaks + TW1_jerk_peaks + TW1_LDLJ + TW1_sparc + TW3_acc_peaks + TW3_jerk_peaks + TW3_LDLJ + TW3_sparc + cartesian_distances + C(Location) + v_peaks', data=df).fit()
+
+anova_table = sm.stats.anova_lm(model, typ=2)
+print("\nANOVA results:")
+print(anova_table)
+
+# Mixed-effects model with Subject as a random effect
+model_mixed = smf.mixedlm("durations ~ C(Hand) + TW1_acc_peaks + TW1_jerk_peaks + TW1_LDLJ + TW1_sparc + C(Location)", df, groups=df["Subject"])
+model_mixed = smf.mixedlm("durations ~ C(Hand) + TW3_acc_peaks + TW3_jerk_peaks + TW3_LDLJ + TW3_sparc + C(Location)", df, groups=df["Subject"])
+model_mixed = smf.mixedlm("durations ~ C(Hand) + TW1_acc_peaks + TW1_jerk_peaks + TW1_LDLJ + TW1_sparc + + TW3_acc_peaks + TW3_jerk_peaks + TW3_LDLJ + TW3_sparc + cartesian_distances + C(Location) + v_peaks", df, groups=df["Subject"])
+
+model_mixed = smf.mixedlm("distance ~ C(Hand) + TW1_acc_peaks + TW1_jerk_peaks + TW1_LDLJ + TW1_sparc + C(Location)", df, groups=df["Subject"])
+model_mixed = smf.mixedlm("distance ~ C(Hand) + TW3_acc_peaks + TW3_jerk_peaks + TW3_LDLJ + TW3_sparc + C(Location)", df, groups=df["Subject"])
+model_mixed = smf.mixedlm("distance ~ C(Hand) + TW1_acc_peaks + TW1_jerk_peaks + TW1_LDLJ + TW1_sparc + + TW3_acc_peaks + TW3_jerk_peaks + TW3_LDLJ + TW3_sparc + cartesian_distances + C(Location) + v_peaks", df, groups=df["Subject"])
+
+result_mixed = model_mixed.fit()
+print("\nMixed-effects results:")
+print(result_mixed.summary())

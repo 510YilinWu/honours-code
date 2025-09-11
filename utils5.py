@@ -298,19 +298,48 @@ def update_filtered_metrics_and_count(filtered_metrics, distance_threshold=15, d
 
 
 # --- COMBINE DURATIONS, SPARC, LDLJ, AND DISTANCE, CALCULATED SPEED AND ACCURACY FOR ALL DATES ---
-def combine_metrics_for_all_dates_acorss_TWs(reach_metrics, reach_sparc_test_windows_1_Normalizing, reach_sparc_test_windows_3_Normalizing, reach_TW_metrics_test_windows_1, reach_TW_metrics_test_windows_3, Block_Distance, all_dates):
+def combine_metrics_for_all_dates_acorss_TWs(
+    reach_metrics,
+    reach_sparc_test_windows_1_Normalizing,
+    reach_sparc_test_windows_2_1_Normalizing,
+    reach_sparc_test_windows_2_2_Normalizing,
+    reach_sparc_test_windows_3_Normalizing,
+    reach_sparc_test_windows_4_Normalizing,
+    reach_sparc_test_windows_5_Normalizing,
+    reach_sparc_test_windows_6_Normalizing,
+    reach_TW_metrics_test_windows_1,
+    reach_TW_metrics_test_windows_2_1,
+    reach_TW_metrics_test_windows_2_2,
+    reach_TW_metrics_test_windows_3,
+    reach_TW_metrics_test_windows_4,
+    reach_TW_metrics_test_windows_5,
+    reach_TW_metrics_test_windows_6,
+    Block_Distance, all_dates):
     """
-    Combines reach durations, SPARC, LDLJ, and distance metrics into a single dictionary for all dates and hands.
-    Args:   
-        reach_metrics (dict): Dictionary containing reach durations.
-        reach_sparc_test_windows_1_Normalizing (dict): Dictionary containing SPARC metrics for test window 1.
-        reach_sparc_test_windows_3_Normalizing (dict): Dictionary containing SPARC metrics for test window 3.
-        reach_TW_metrics_test_windows_1 (dict): Dictionary containing LDLJ metrics for test window 1.
-        reach_TW_metrics_test_windows_3 (dict): Dictionary containing LDLJ metrics for test window 3.
-        Block_Distance (dict): Dictionary containing distance metrics.
-        all_dates (list): List of all dates to process.
+    Combines reach durations, SPARC, LDLJ, and distance metrics into a single dictionary
+    for all dates and hands.
+
+    Args:
+    reach_metrics (dict): Dictionary containing reach durations and other basic metrics.
+    reach_sparc_test_windows_1_Normalizing (dict): SPARC metrics for test window 1.
+    reach_sparc_test_windows_2_1_Normalizing (dict): SPARC metrics for test window 2_1.
+    reach_sparc_test_windows_2_2_Normalizing (dict): SPARC metrics for test window 2_2.
+    reach_sparc_test_windows_3_Normalizing (dict): SPARC metrics for test window 3.
+    reach_sparc_test_windows_4_Normalizing (dict): SPARC metrics for test window 4.
+    reach_sparc_test_windows_5_Normalizing (dict): SPARC metrics for test window 5.
+    reach_sparc_test_windows_6_Normalizing (dict): SPARC metrics for test window 6.
+    reach_TW_metrics_test_windows_1 (dict): LDLJ metrics for test window 1.
+    reach_TW_metrics_test_windows_2_1 (dict): LDLJ metrics for test window 2_1.
+    reach_TW_metrics_test_windows_2_2 (dict): LDLJ metrics for test window 2_2.
+    reach_TW_metrics_test_windows_3 (dict): LDLJ metrics for test window 3.
+    reach_TW_metrics_test_windows_4 (dict): LDLJ metrics for test window 4.
+    reach_TW_metrics_test_windows_5 (dict): LDLJ metrics for test window 5.
+    reach_TW_metrics_test_windows_6 (dict): LDLJ metrics for test window 6.
+    Block_Distance (dict): Dictionary containing distance metrics.
+    all_dates (list): List of all dates to process.
+
     Returns:
-        dict: Combined metrics for all dates and hands.
+    dict: Combined metrics for all dates and hands.
     """
     combined_metrics = {}
 
@@ -318,12 +347,22 @@ def combine_metrics_for_all_dates_acorss_TWs(reach_metrics, reach_sparc_test_win
         combined_metrics[date] = {}
         for hand in ['left', 'right']:
             if all([
-                date in reach_metrics['reach_durations'] and hand in reach_metrics['reach_durations'][date],
-                date in reach_sparc_test_windows_1_Normalizing and hand in reach_sparc_test_windows_1_Normalizing[date],
-                date in reach_sparc_test_windows_3_Normalizing and hand in reach_sparc_test_windows_3_Normalizing[date],
-                date in reach_TW_metrics_test_windows_1['reach_LDLJ'] and hand in reach_TW_metrics_test_windows_1['reach_LDLJ'][date],
-                date in reach_TW_metrics_test_windows_3['reach_LDLJ'] and hand in reach_TW_metrics_test_windows_3['reach_LDLJ'][date],
-                date in Block_Distance and hand in Block_Distance[date]
+            date in reach_metrics['reach_durations'] and hand in reach_metrics['reach_durations'][date],
+            date in reach_sparc_test_windows_1_Normalizing and hand in reach_sparc_test_windows_1_Normalizing[date],
+            date in reach_sparc_test_windows_2_1_Normalizing and hand in reach_sparc_test_windows_2_1_Normalizing[date],
+            date in reach_sparc_test_windows_2_2_Normalizing and hand in reach_sparc_test_windows_2_2_Normalizing[date],
+            date in reach_sparc_test_windows_3_Normalizing and hand in reach_sparc_test_windows_3_Normalizing[date],
+            date in reach_sparc_test_windows_4_Normalizing and hand in reach_sparc_test_windows_4_Normalizing[date],
+            date in reach_sparc_test_windows_5_Normalizing and hand in reach_sparc_test_windows_5_Normalizing[date],
+            date in reach_sparc_test_windows_6_Normalizing and hand in reach_sparc_test_windows_6_Normalizing[date],
+            date in reach_TW_metrics_test_windows_1['reach_LDLJ'] and hand in reach_TW_metrics_test_windows_1['reach_LDLJ'][date],
+            date in reach_TW_metrics_test_windows_2_1['reach_LDLJ'] and hand in reach_TW_metrics_test_windows_2_1['reach_LDLJ'][date],
+            date in reach_TW_metrics_test_windows_2_2['reach_LDLJ'] and hand in reach_TW_metrics_test_windows_2_2['reach_LDLJ'][date],
+            date in reach_TW_metrics_test_windows_3['reach_LDLJ'] and hand in reach_TW_metrics_test_windows_3['reach_LDLJ'][date],
+            date in reach_TW_metrics_test_windows_4['reach_LDLJ'] and hand in reach_TW_metrics_test_windows_4['reach_LDLJ'][date],
+            date in reach_TW_metrics_test_windows_5['reach_LDLJ'] and hand in reach_TW_metrics_test_windows_5['reach_LDLJ'][date],
+            date in reach_TW_metrics_test_windows_6['reach_LDLJ'] and hand in reach_TW_metrics_test_windows_6['reach_LDLJ'][date],
+            date in Block_Distance and hand in Block_Distance[date]
             ]):
                 combined_metrics[date][hand] = {
                     "durations": {k: np.float64(v) for k, v in reach_metrics['reach_durations'][date][hand].items()},
@@ -334,15 +373,96 @@ def combine_metrics_for_all_dates_acorss_TWs(reach_metrics, reach_sparc_test_win
                     "TW1_acc_peaks": {k: np.float64(v) for k, v in reach_TW_metrics_test_windows_1['reach_acc_peaks'][date][hand].items()},
                     "TW1_jerk_peaks": {k: np.float64(v) for k, v in reach_TW_metrics_test_windows_1['reach_jerk_peaks'][date][hand].items()},
                     "TW1_LDLJ": {k: np.float64(v) for k, v in reach_TW_metrics_test_windows_1['reach_LDLJ'][date][hand].items()},
+                    "TW2_1_acc_peaks": {k: np.float64(v) for k, v in reach_TW_metrics_test_windows_2_1['reach_acc_peaks'][date][hand].items()},
+                    "TW2_1_jerk_peaks": {k: np.float64(v) for k, v in reach_TW_metrics_test_windows_2_1['reach_jerk_peaks'][date][hand].items()},
+                    "TW2_1_LDLJ": {k: np.float64(v) for k, v in reach_TW_metrics_test_windows_2_1['reach_LDLJ'][date][hand].items()},
+                    "TW2_2_acc_peaks": {k: np.float64(v) for k, v in reach_TW_metrics_test_windows_2_2['reach_acc_peaks'][date][hand].items()},
+                    "TW2_2_jerk_peaks": {k: np.float64(v) for k, v in reach_TW_metrics_test_windows_2_2['reach_jerk_peaks'][date][hand].items()},
+                    "TW2_2_LDLJ": {k: np.float64(v) for k, v in reach_TW_metrics_test_windows_2_2['reach_LDLJ'][date][hand].items()},
                     "TW3_acc_peaks": {k: np.float64(v) for k, v in reach_TW_metrics_test_windows_3['reach_acc_peaks'][date][hand].items()},
                     "TW3_jerk_peaks": {k: np.float64(v) for k, v in reach_TW_metrics_test_windows_3['reach_jerk_peaks'][date][hand].items()},
                     "TW3_LDLJ": {k: np.float64(v) for k, v in reach_TW_metrics_test_windows_3['reach_LDLJ'][date][hand].items()},
+                    "TW4_acc_peaks": {k: np.float64(v) for k, v in reach_TW_metrics_test_windows_4['reach_acc_peaks'][date][hand].items()},
+                    "TW4_jerk_peaks": {k: np.float64(v) for k, v in reach_TW_metrics_test_windows_4['reach_jerk_peaks'][date][hand].items()},
+                    "TW4_LDLJ": {k: np.float64(v) for k, v in reach_TW_metrics_test_windows_4['reach_LDLJ'][date][hand].items()},
+                    "TW5_acc_peaks": {k: np.float64(v) for k, v in reach_TW_metrics_test_windows_5['reach_acc_peaks'][date][hand].items()},
+                    "TW5_jerk_peaks": {k: np.float64(v) for k, v in reach_TW_metrics_test_windows_5['reach_jerk_peaks'][date][hand].items()},
+                    "TW5_LDLJ": {k: np.float64(v) for k, v in reach_TW_metrics_test_windows_5['reach_LDLJ'][date][hand].items()},
+                    "TW6_acc_peaks": {k: np.float64(v) for k, v in reach_TW_metrics_test_windows_6['reach_acc_peaks'][date][hand].items()},
+                    "TW6_jerk_peaks": {k: np.float64(v) for k, v in reach_TW_metrics_test_windows_6['reach_jerk_peaks'][date][hand].items()},
+                    "TW6_LDLJ": {k: np.float64(v) for k, v in reach_TW_metrics_test_windows_6['reach_LDLJ'][date][hand].items()},
                     "TW1_sparc": {k: np.float64(v) for k, v in reach_sparc_test_windows_1_Normalizing[date][hand].items()},
+                    "TW2_1_sparc": {k: np.float64(v) for k, v in reach_sparc_test_windows_2_1_Normalizing[date][hand].items()},
+                    "TW2_2_sparc": {k: np.float64(v) for k, v in reach_sparc_test_windows_2_2_Normalizing[date][hand].items()},
                     "TW3_sparc": {k: np.float64(v) for k, v in reach_sparc_test_windows_3_Normalizing[date][hand].items()},
+                    "TW4_sparc": {k: np.float64(v) for k, v in reach_sparc_test_windows_4_Normalizing[date][hand].items()},
+                    "TW5_sparc": {k: np.float64(v) for k, v in reach_sparc_test_windows_5_Normalizing[date][hand].items()},
+                    "TW6_sparc": {k: np.float64(v) for k, v in reach_sparc_test_windows_6_Normalizing[date][hand].items()},
                     "distance": {k: np.float64(v) for k, v in Block_Distance[date][hand].items()}
                 }
 
     return combined_metrics
+
+# --- PROCESS AND SAVE COMBINED METRICS FOR ALL SUBJECTS ---
+def process_and_save_combined_metrics_acorss_TWs(
+    Block_Distance, reach_metrics,
+    reach_sparc_test_windows_1_Normalizing,
+    reach_sparc_test_windows_2_1_Normalizing,
+    reach_sparc_test_windows_2_2_Normalizing,
+    reach_sparc_test_windows_3_Normalizing,
+    reach_sparc_test_windows_4_Normalizing,
+    reach_sparc_test_windows_5_Normalizing,
+    reach_sparc_test_windows_6_Normalizing,
+    reach_TW_metrics_test_windows_1,
+    reach_TW_metrics_test_windows_2_1,
+    reach_TW_metrics_test_windows_2_2,
+    reach_TW_metrics_test_windows_3,
+    reach_TW_metrics_test_windows_4,
+    reach_TW_metrics_test_windows_5,
+    reach_TW_metrics_test_windows_6,
+    All_dates, DataProcess_folder):
+    """
+    Combines multiple processing steps into one function:
+    1. Updates Block_Distance keys to match filenames in reach_metrics.
+    2. Combines durations, SPARC, LDLJ, and distance metrics for all dates.
+    3. Saves all combined metrics per subject as pickle files.
+
+    Args:
+    Block_Distance (dict): Dictionary containing block distance data.
+    reach_metrics (dict): Dictionary containing reach metrics data.
+    reach_sparc_test_windows_*_Normalizing (dict): SPARC metrics for various test windows.
+    reach_TW_metrics_test_windows_* (dict): LDLJ metrics for various test windows.
+    All_dates (list): List of all dates to process.
+    DataProcess_folder (str): Folder where the pickle files will be saved.
+
+    Returns:
+    None
+    """
+    # Step 1: Update Block_Distance keys
+    update_block_distance_keys(Block_Distance, reach_metrics, reach_sparc_test_windows_1_Normalizing, reach_TW_metrics_test_windows_1)
+
+    # Step 2: Combine metrics for all dates
+    all_combined_metrics_acorss_TWs = combine_metrics_for_all_dates_acorss_TWs(
+    reach_metrics,
+    reach_sparc_test_windows_1_Normalizing,
+    reach_sparc_test_windows_2_1_Normalizing,
+    reach_sparc_test_windows_2_2_Normalizing,
+    reach_sparc_test_windows_3_Normalizing,
+    reach_sparc_test_windows_4_Normalizing,
+    reach_sparc_test_windows_5_Normalizing,
+    reach_sparc_test_windows_6_Normalizing,
+    reach_TW_metrics_test_windows_1,
+    reach_TW_metrics_test_windows_2_1,
+    reach_TW_metrics_test_windows_2_2,
+    reach_TW_metrics_test_windows_3,
+    reach_TW_metrics_test_windows_4,
+    reach_TW_metrics_test_windows_5,
+    reach_TW_metrics_test_windows_6,
+    Block_Distance, All_dates
+    )
+
+    # Step 3: Save combined metrics per subject
+    save_combined_metrics_per_subject_acorss_TWs(all_combined_metrics_acorss_TWs, DataProcess_folder)
 
 # --- SAVE ALL COMBINED METRICS PER SUBJECT AS PICKLE FILE ---
 def save_combined_metrics_per_subject_acorss_TWs(all_combined_metrics_acorss_TWs, output_folder):
@@ -368,33 +488,7 @@ def save_combined_metrics_per_subject_acorss_TWs(all_combined_metrics_acorss_TWs
             pickle.dump(metrics, f)
         print(f"Combined metrics for subject {subject} saved to {output_file}")
 
-
-# --- PROCESS AND SAVE COMBINED METRICS FOR ALL SUBJECTS ---
-def process_and_save_combined_metrics_acorss_TWs(Block_Distance, reach_metrics,
-                                                    reach_sparc_test_windows_1_Normalizing, reach_TW_metrics_test_windows_1,
-                                                    reach_sparc_test_windows_3_Normalizing, reach_TW_metrics_test_windows_3,
-                                                    All_dates, DataProcess_folder):
-    """
-    Combines multiple processing steps into one function:
-    1. Updates Block_Distance keys to match filenames in reach_metrics.
-    2. Combines durations, SPARC, LDLJ, and distance, and calculates speed and accuracy for all dates.
-    3. Saves all combined metrics per subject as pickle files.
-
-    Args:
-
-
-    Returns:
-        None
-    """
-    # Step 1: Update Block_Distance keys
-    update_block_distance_keys(Block_Distance, reach_metrics, reach_sparc_test_windows_1_Normalizing, reach_TW_metrics_test_windows_1)
-
-    # Step 2: Combine metrics for all dates
-    all_combined_metrics_acorss_TWs = combine_metrics_for_all_dates_acorss_TWs(reach_metrics, reach_sparc_test_windows_1_Normalizing, reach_sparc_test_windows_3_Normalizing, reach_TW_metrics_test_windows_1, reach_TW_metrics_test_windows_3, Block_Distance, All_dates)
-
-    # Step 4: Save combined metrics per subject
-    save_combined_metrics_per_subject_acorss_TWs(all_combined_metrics_acorss_TWs, DataProcess_folder)
-
+# --- LOAD SELECTED SUBJECT RESULTS ---
 def load_selected_subject_results_acorss_TWs(selected_subjects, DataProcess_folder):
     """
     Loads the processed results for selected subjects and aggregates them into a single dictionary.

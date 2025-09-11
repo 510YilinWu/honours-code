@@ -4,6 +4,7 @@ import pandas as pd
 import numpy as np
 from scipy.stats import pearsonr
 import seaborn as sns
+from scipy.stats import spearmanr
 
 # Load Motor Experiences from CSV into a dictionary
 def load_motor_experiences(csv_filepath):
@@ -133,7 +134,7 @@ def update_overall_h_total_weighted(MotorExperiences):
 def analyze_motor_experience_correlations(motor_keys, score_columns, sbbt_df, MotorExperiences):
     """
     For each motor experience metric (motor_keys) and each score column in sbbt_df (e.g., right_score, left_score),
-    this function computes the Pearson correlation between the two after merging the MotorExperiences data with sbbt_df.
+    this function computes the Spearman correlation between the two after merging the MotorExperiences data with sbbt_df.
     It then creates a heatmap showing all correlation values and their corresponding p-values in one plot.
     
     Each cell in the heatmap is annotated with the correlation coefficient and p-value on a new line.
@@ -169,10 +170,10 @@ def analyze_motor_experience_correlations(motor_keys, score_columns, sbbt_df, Mo
                 corr_table.loc[motor_key, score_column] = np.nan
                 p_table.loc[motor_key, score_column] = np.nan
             else:
-                corr, p_value = pearsonr(merged_clean[motor_key], merged_clean[score_column])
+                corr, p_value = spearmanr(merged_clean[motor_key], merged_clean[score_column])
                 corr_table.loc[motor_key, score_column] = corr
                 p_table.loc[motor_key, score_column] = p_value
-                print("Pearson correlation between {} and {}: {:.3f}".format(motor_key, score_column, corr))
+                print("Spearman correlation between {} and {}: {:.3f}".format(motor_key, score_column, corr))
                 print("P-value: {:.3f}".format(p_value))
 
     # Create annotations combining correlation and p-value

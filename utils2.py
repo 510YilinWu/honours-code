@@ -84,11 +84,24 @@ def calculate_reach_metrics(reach_speed_segments, results, fs):
 # --- DEFINE TIME WINDOWS ---
 def define_time_windows(reach_speed_segments, reach_metrics, fs, window_size):
     test_windows_1 = reach_speed_segments
-    test_windows_2 = {
+    test_windows_2_1 = {
         date: {
             hand: {
                 trial: [
                     (segment[0], reach_metrics['reach_v_peak_indices'][date][hand][trial][i]) 
+                    for i, segment in enumerate(reach_speed_segments[date][hand][trial])
+                ]
+                for trial in reach_speed_segments[date][hand]
+            }
+            for hand in reach_speed_segments[date]
+        }
+        for date in reach_speed_segments
+    }
+    test_windows_2_2 = {
+        date: {
+            hand: {
+                trial: [
+                    (reach_metrics['reach_v_peak_indices'][date][hand][trial][i], segment[1]) 
                     for i, segment in enumerate(reach_speed_segments[date][hand][trial])
                 ]
                 for trial in reach_speed_segments[date][hand]
@@ -158,7 +171,7 @@ def define_time_windows(reach_speed_segments, reach_metrics, fs, window_size):
         }
         for date in reach_speed_segments
     }
-    return test_windows_1, test_windows_2, test_windows_3, test_windows_4, test_windows_5, test_windows_6
+    return test_windows_1, test_windows_2_1, test_windows_2_2, test_windows_3, test_windows_4, test_windows_5, test_windows_6
 
 # # --- CALCULATE REACH METRICS SPECIFIC TO TIME WINDOW ---
 # def calculate_reach_metrics_for_time_windows(test_windows, results): 

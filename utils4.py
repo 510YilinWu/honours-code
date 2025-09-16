@@ -627,7 +627,7 @@ def plot_combined_xy_density(All_Subject_tBBTs_errors, cmap_choice):
         print("No combined data available.")
     else:
         fig, ax = plt.subplots(figsize=(12, 6))
-        hb = ax.hist2d(combined_xs, combined_ys, bins=50, cmap=cmap_choice)
+        hb = ax.hist2d(combined_xs, combined_ys, bins=60, cmap=cmap_choice)
         fig.colorbar(hb[3], ax=ax)
         ax.set_xlabel("X")
         ax.set_ylabel("Y")
@@ -977,8 +977,10 @@ def plot_trajectory(results, subject='07/22/HW', hand='right', trial=1,
     
     n_points = len(coord_x)
     
+    marker = 'RFIN' if hand == 'right' else 'LFIN'
+
     # Compute instantaneous velocity from the trajectory space (assume constant sampling rate 200Hz)
-    vel = results[subject][hand][trial][file_path]['traj_space']['RFIN'][1]
+    vel = results[subject][hand][trial][file_path]['traj_space'][marker][1]
     
     # Normalize velocities between 0 and 1
     v_min = np.min(vel)
@@ -1082,8 +1084,8 @@ def plot_trajectory(results, subject='07/22/HW', hand='right', trial=1,
     
     # Additional 3D Trajectory Plot for the first segment from first to last highlight, if possible
     if len(highlight_indices) >= 2:
-        seg_start = highlight_indices[0]
-        seg_end = highlight_indices[1]
+        seg_start = highlight_indices[2]
+        seg_end = highlight_indices[3]
         seg_indices = np.arange(seg_start, seg_end + 1)
         seg_coord_x = coord_x[seg_indices]
         seg_coord_y = coord_y[seg_indices]
@@ -1098,10 +1100,10 @@ def plot_trajectory(results, subject='07/22/HW', hand='right', trial=1,
         ax3d_seg.scatter(coord_x[seg_end], coord_y[seg_end], coord_z[seg_end],
                          color='blue', marker='X', s=50, label='end')
         
-        ax3d_seg.set_xlabel(coord_prefix + "X (mm)")
-        ax3d_seg.set_ylabel(coord_prefix + "Y (mm)")
-        ax3d_seg.set_zlabel(coord_prefix + "Z (mm)")
-        ax3d_seg.set_title("Selected 3D Trajectory Segment")
+        ax3d_seg.set_xlabel(coord_prefix + "X (mm)", fontsize=14, labelpad=0)
+        ax3d_seg.set_ylabel(coord_prefix + "Y (mm)", fontsize=14, labelpad=0)
+        ax3d_seg.set_zlabel(coord_prefix + "Z (mm)", fontsize=14, labelpad=0)
+        # ax3d_seg.set_title("Selected 3D Trajectory Segment")
         ax3d_seg.legend()
         plt.tight_layout()
         plt.show()
@@ -1151,8 +1153,10 @@ def combined_plot_trajectory_and_errors(results, All_Subject_tBBTs_errors,
     highlight_indices = sorted(highlight_indices)
 
     # --------------------
+    marker = 'RFIN' if hand == 'right' else 'LFIN'
+
     # Compute instantaneous velocity from trajectory space (assume sampling rate of 200Hz)
-    vel = results[subject][hand][trial][file_path]['traj_space']['RFIN'][1]
+    vel = results[subject][hand][trial][file_path]['traj_space'][marker][1]
     n_points = len(coord_x_full)
     v_min = np.min(vel)
     v_max = np.max(vel)

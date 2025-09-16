@@ -216,7 +216,7 @@ def sparc_with_plots(movement, fs=200, padlevel=4, fc=20.0, amp_th=0.05):
     Mf_cut = Mf_sel[fc_inx]
 
     plt.subplot(3, 2, 4)
-    plt.plot(f_sel, Mf_sel, color='lightgray', label='All under 10Hz')
+    plt.plot(f_sel, Mf_sel, color='lightgray', label='All under 20Hz')
     plt.plot(f_cut, Mf_cut, color='blue', label='Above threshold')
     plt.axhline(y=amp_th, color='red', linestyle='--', label='Threshold')
     plt.title("4. After Amplitude Thresholding")
@@ -263,6 +263,25 @@ speed_curved_fast = np.linalg.norm(vel_curved_fast, axis=1)
 
 print("SPARC with plots for curved_fast trajectory")
 sparc_val_curved_fast = sparc_with_plots(speed_curved_fast, fs=1/dt)
+
+# Plot SPARC for straight_slow trajectory:
+dt = t[1] - t[0]
+traj_straight_slow = straight_slow(t)
+vel_straight_slow = np.gradient(traj_straight_slow, dt, axis=0)
+speed_straight_slow = np.linalg.norm(vel_straight_slow, axis=1)
+
+print("SPARC with plots for straight_slow trajectory")
+sparc_val_straight_slow = sparc_with_plots(speed_straight_slow, fs=1/dt)
+
+# Plot SPARC for straight_fast trajectory:
+traj_straight_fast = straight_fast(t)
+vel_straight_fast = np.gradient(traj_straight_fast, dt, axis=0)
+speed_straight_fast = np.linalg.norm(vel_straight_fast, axis=1)
+
+print("SPARC with plots for straight_fast trajectory")
+sparc_val_straight_fast = sparc_with_plots(speed_straight_fast, fs=1/dt)
+
+
 
 ## -----------------------------------------------------------
 

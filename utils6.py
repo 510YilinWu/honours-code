@@ -10,6 +10,7 @@ from scipy.stats import spearmanr
 from matplotlib.patches import Rectangle
 
 
+
 figuresize = (8, 6)
 # # reachindexlabels = list(range(1, 17))
 # # # Fixed colors assigned to specific reach indices.
@@ -199,10 +200,10 @@ def scatter_plot_duration_distance_by_choice(updated_metrics, overlay_hands=True
         plt.xlabel(f"Durations ({labels.get('durations', '')})")
         plt.ylabel(f"Distance ({labels.get('distance', '')})")
         plt.grid(alpha=0.5)
-        plt.title(f"{title} - {'Overlayed Hands' if overlay_hands else f'{hand.capitalize()} Hand'}", fontsize=16)
+        # plt.title(f"{title} - {'Overlayed Hands' if overlay_hands else f'{hand.capitalize()} Hand'}", fontsize=16)
         # Add Spearman correlation and number of data points to the plot
         plt.text(0.05, 0.95, f"Spearman Corr: {spearman_corr:.4f}\nP-value: {p_value:.4f}\nn: {len(flat_durations)}",
-                 transform=plt.gca().transAxes, fontsize=12, verticalalignment='top',
+                 transform=plt.gca().transAxes, fontsize=16, verticalalignment='top',
                  bbox=dict(boxstyle="round", facecolor="white", alpha=0.5))
     
         # Option to fit a hyperbolic curve if requested

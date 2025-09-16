@@ -18,16 +18,17 @@ import numpy as np
 from scipy.stats import zscore
 from scipy.stats import wilcoxon
 from scipy.stats import spearmanr
+from scipy.stats import chisquare
+from scipy.stats import circmean, rayleigh
 
 import pandas as pd
 import seaborn as sns
 
 import pingouin as pg
-from scipy.stats import spearmanr, zscore
-from scipy.stats import zscore, spearmanr
 
 import statsmodels.api as sm
 import statsmodels.formula.api as smf
+
 
 # -------------------------------------------------------------------------------------------------------------------
 
@@ -155,31 +156,497 @@ results = utils1.load_selected_subject_results(All_dates, DataProcess_folder)
 
 # Specify the path to the pickle file
 pickle_file = "/Users/yilinwu/Desktop/honours data/DataProcess/All_Subject_tBBTs_errors.pkl"
-cmap_choice = LinearSegmentedColormap.from_list("GreenWhiteBlue", ["green", "white", "blue"], N=256)
+cmap_choice = LinearSegmentedColormap.from_list("WhiteGreenBlue", ["white", "green", "blue"], N=256)
 
 # Load the pickle file without using a function
 with open(pickle_file, "rb") as file:
     All_Subject_tBBTs_errors = pickle.load(file)
 
-### Separate data by hand and plot 3D scatter plots for each hand
-utils4.plot_xy_density_for_each_hand(All_Subject_tBBTs_errors, cmap_choice)
-
 ### Combine data from both hands and plot combined density heatmap with grid markers
-utils4.plot_combined_xy_density(All_Subject_tBBTs_errors, cmap_choice)
+def plot_combined_xy_density(All_Subject_tBBTs_errors, cmap_choice):
+    """
+    Combines x and y data from both hands in the errors dictionary, plots a 2D density heatmap,
+    and overlays grid markers as black crosses.
+    
+    Parameters:
+        All_Subject_tBBTs_errors (dict): Dictionary containing error data.
+        cmap_choice: A valid matplotlib colormap.
+    """
+    import matplotlib.pyplot as plt
+
+    combined_xs, combined_ys = [], []
+
+    for h in ['left', 'right']:
+        xs, ys = [], []
+        # Loop over all (subject, hand) keys in the errors dictionary
+        for key in All_Subject_tBBTs_errors:
+            subject_key, hand_key = key
+            if hand_key != h:
+                continue
+            # For each trial in the subject-hand entry, extract the p3_block2 data points
+            for trial in All_Subject_tBBTs_errors[key]:
+                trial_data = All_Subject_tBBTs_errors[key][trial]
+                # Get the 3D points from p3_block2 (if available)
+                p3_data = trial_data.get('p3_block2', None)
+                if p3_data is None:
+                    continue
+                p3_data = np.array(p3_data)
+                # Ensure data is in (n_points, 3) format
+                if p3_data.ndim == 2 and p3_data.shape[0] == 3:
+                    p3_data = p3_data.T
+                elif p3_data.ndim == 1:
+                    p3_data = p3_data.reshape(-1, 3)
+                if p3_data.size == 0:
+                    continue
+
+                # Check for invalid x-values based on hand
+                if hand_key == 'left':
+                    if np.any(p3_data[:, 0] <= -50):
+                        invalid_idx = np.where(p3_data[:, 0] <= -50)[0]
+                        print(f"Error: Subject '{subject_key}', hand '{hand_key}', trial '{trial}' has x values <= -50 at indices {invalid_idx} with values {p3_data[invalid_idx, 0]}")
+                elif hand_key == 'right':
+                    if np.any(p3_data[:, 0] >= 0):
+                        invalid_idx = np.where(p3_data[:, 0] >= 0)[0]
+                        print(f"Error: Subject '{subject_key}', hand '{hand_key}', trial '{trial}' has non-negative x values at indices {invalid_idx} with values {p3_data[invalid_idx, 0]}")
+                xs.extend(p3_data[:, 0])
+                ys.extend(p3_data[:, 1])
+        
+        if len(xs) > 0 and len(ys) > 0:
+            combined_xs.extend(xs)
+            combined_ys.extend(ys)
+        else:
+            print(f"No data available for {h} hand.")
+
+    combined_xs = np.array(combined_xs)
+    combined_ys = np.array(combined_ys)
+    print(len(combined_xs), len(combined_ys))
+    print("Combined Data: X max:", np.max(combined_xs), "X min:", np.min(combined_xs),
+            "Y max:", np.max(combined_ys), "Y min:", np.min(combined_ys))
+
+    if combined_xs.size == 0 or combined_ys.size == 0:
+        print("No combined data available.")
+    else:
+        fig, ax = plt.subplots(figsize=(12, 5))
+        hb = ax.hist2d(combined_xs, combined_ys, bins=50, cmap=cmap_choice)
+        fig.colorbar(hb[3], ax=ax)
+        ax.set_xlabel("X (mm)")
+        ax.set_ylabel("Y (mm)")
+        ax.set_title("Right                                                        Left")
+        
+        # Define grid markers to overlay as black crosses
+        grid_xxR = np.array([[ 12.5       ,  66.92857143, 121.35714286, 175.78571429],
+                                [ 12.5       ,  66.92857143, 121.35714286, 175.78571429],
+                                [ 12.5       ,  66.92857143, 121.35714286, 175.78571429],
+                                [ 12.5       ,  66.92857143, 121.35714286, 175.78571429]])
+    
+        grid_yyR = np.array([[ 12.5       ,  12.5       ,  12.5       ,  12.5       ],
+                                [ 66.92857143,  66.92857143,  66.92857143,  66.92857143],
+                                [121.35714286, 121.35714286, 121.35714286, 121.35714286],
+                                [175.78571429, 175.78571429, 175.78571429, 175.78571429]])
+    
+        grid_xxL = np.array([[-246.5       , -192.07142857, -137.64285714,  -83.21428571],
+                                [-246.5       , -192.07142857, -137.64285714,  -83.21428571],
+                                [-246.5       , -192.07142857, -137.64285714,  -83.21428571],
+                                [-246.5       , -192.07142857, -137.64285714,  -83.21428571]])
+    
+        grid_yyL = np.array([[ 12.5       ,  12.5       ,  12.5       ,  12.5       ],
+                                [ 66.92857143,  66.92857143,  66.92857143,  66.92857143],
+                                [121.35714286, 121.35714286, 121.35714286, 121.35714286],
+                                [175.78571429, 175.78571429, 175.78571429, 175.78571429]])
+    
+        # Overlay grid markers as black crosses with all values subtracted by 12.5
+        ax.scatter((grid_xxR - 12.5).flatten(), (grid_yyR - 12.5).flatten(),
+                    marker='x', color='black', s=50, linewidths=2)
+        ax.scatter((grid_xxL - 12.5).flatten(), (grid_yyL - 12.5).flatten(),
+                    marker='x', color='black', s=50, linewidths=2)
+
+
+    
+        plt.tight_layout()
+        plt.show()
 
 ### Combine 16 blocks data into one for each subject and hand
-Combine_blocks = utils4.Combine_16_blocks(All_Subject_tBBTs_errors)
+def Combine_16_blocks(All_Subject_tBBTs_errors):
+    """
+    For each subject and hand in All_Subject_tBBTs_errors, iterate over all trials,
+    extract the 'p3_block2' data and 'blocks_without_points', and compute new coordinates based on
+    blockMembership and grid adjustments.
+    
+    For left-hand entries, grid values from grid_xxR and grid_yyR are used.
+    For right-hand entries, grid values from grid_xxL and grid_yyL are used.
+    
+    Returns:
+        dict: Mapping from (subject, hand) to another dict mapping trial index to a list of tuples (new_x, new_y, block)
+    """
+    # Block membership mapping (order of blocks)
+    blockMembership = [12, 1, 14, 3, 8, 13, 2, 15, 0, 5, 6, 11, 4, 9, 7, 10]
 
-### Plot left and right hand 16 blocks as one density histograms with 0.0 at the center of the view
-utils4.plot_left_right_hand_new_coordinates_density(Combine_blocks, cmap_choice)
+    # Define grid markers for right hand (for left-hand data adjustment)
+    grid_xxR = np.array([[ 12.5      ,  66.92857143, 121.35714286, 175.78571429],
+                           [ 12.5      ,  66.92857143, 121.35714286, 175.78571429],
+                           [ 12.5      ,  66.92857143, 121.35714286, 175.78571429],
+                           [ 12.5      ,  66.92857143, 121.35714286, 175.78571429]])
+    grid_yyR = np.array([[ 12.5      ,  12.5      ,  12.5      ,  12.5      ],
+                           [ 66.92857143,  66.92857143,  66.92857143,  66.92857143],
+                           [121.35714286, 121.35714286, 121.35714286, 121.35714286],
+                           [175.78571429, 175.78571429, 175.78571429, 175.78571429]])
+    
+    # Define grid markers for left hand (for right-hand data adjustment)
+    grid_xxL = np.array([[-246.5      , -192.07142857, -137.64285714,  -83.21428571],
+                           [-246.5      , -192.07142857, -137.64285714,  -83.21428571],
+                           [-246.5      , -192.07142857, -137.64285714,  -83.21428571],
+                           [-246.5      , -192.07142857, -137.64285714,  -83.21428571]])
+    grid_yyL = np.array([[ 12.5      ,  12.5      ,  12.5      ,  12.5      ],
+                           [ 66.92857143,  66.92857143,  66.92857143,  66.92857143],
+                           [121.35714286, 121.35714286, 121.35714286, 121.35714286],
+                           [175.78571429, 175.78571429, 175.78571429, 175.78571429]])
+    
+    results = {}
+    
+    # Iterate over every (subject, hand) key in the dictionary
+    for key in All_Subject_tBBTs_errors:
+        subject, hand = key
+        results[key] = {}  # dictionary to store per trial new block coordinates
+        
+        # Loop over all trial indices for the given (subject, hand)
+        for trial in sorted(All_Subject_tBBTs_errors[key].keys()):
+            trial_entry = All_Subject_tBBTs_errors[key][trial]
+            # Get p3_block2 data and blocks_without_points
+            p3_data = trial_entry.get('p3_block2', None)
+            blocks_without_points = trial_entry.get('blocks_without_points', None)
+            if p3_data is None or blocks_without_points is None:
+                continue
+
+            # Ensure p3_data is a numpy array and properly shaped as (n_points, 3)
+            p3_data = np.array(p3_data)
+            if p3_data.ndim == 2 and p3_data.shape[0] == 3:
+                p3_data = p3_data.T
+            elif p3_data.ndim == 1:
+                p3_data = p3_data.reshape(-1, 3)
+            if p3_data.size == 0:
+                continue
+            
+            # Choose grid arrays based on hand: 'left' uses grid_xxR/yyR, 'right' uses grid_xxL/yyL
+            if hand.lower() == 'left':
+                grid_x = (grid_xxR - 12.5).flatten()
+                grid_y = (grid_yyR - 12.5).flatten()
+            elif hand.lower() == 'right':
+                grid_x = (grid_xxL - 12.5).flatten()[::-1]
+                grid_y = (grid_yyL - 12.5).flatten()
+            else:
+                continue
+
+            data_index = 0
+            new_coords = []  # List to store the new coordinates for this trial
+            
+            # Loop over each of the 16 blocks
+            for i in range(16):
+                current_block = blockMembership[i]
+                # If this block was not marked as missing
+                if current_block not in blocks_without_points:
+                    # Get block_points from the p3_data
+                    block_points = p3_data[data_index]
+                    data_index += 1
+                    print(f"Subject: {subject}, Hand: {hand}, Trial: {trial}, Block: {current_block}, "
+                          f"Block Points: {block_points}, Grid Point: ({grid_x[current_block]}, {grid_y[current_block]})")
+                    new_x = block_points[0] - grid_x[current_block]
+                    new_y = block_points[1] - grid_y[current_block]                   
+                    new_coords.append((new_x, new_y, blockMembership[i]))
+            results[key][trial] = new_coords
+        print(f"Processed key: {key}")
+    
+    return results
+
+### Plot left and right hand 16 blocks as one density histogram, overlaying multiple trials
+def plot_left_right_hand_new_coordinates_density(Combine_blocks, cmap=None, bins=60, xlim=(-15, 15), ylim=(-15, 15)):
+    """
+    Plots 2D density histograms (hist2d) for new coordinates of left-hand and right-hand data
+    as subplots, overlaying multiple trial data. 0.0 is kept at the center of the view.
+
+    Parameters:
+        Combine_blocks (dict): Dictionary mapping (subject, hand) to either:
+                               - a list of tuples (new_x, new_y, block), or
+                               - a dict mapping trial identifiers to lists of tuples (new_x, new_y, block).
+        cmap: A matplotlib colormap. If None, defaults to a white-to-red colormap.
+        bins (int): Number of bins for the histogram.
+        xlim (tuple): x-axis limits (centered at 0).
+        ylim (tuple): y-axis limits (centered at 0).
+    """
+    import matplotlib.pyplot as plt
+
+    if cmap is None:
+        cmap = LinearSegmentedColormap.from_list("WhiteRed", ["white", "red"], N=256)
+
+    xs_left, ys_left = [], []  # Right hand plot (will show left-hand data)
+    xs_right, ys_right = [], []  # Left hand plot (will show right-hand data)
+
+    # Loop through Combine_blocks which may contain multiple trials per key.
+    for key, data in Combine_blocks.items():
+        subject, hand = key
+        # If multiple trials, data is a dictionary, otherwise a list
+        if isinstance(data, dict):
+            for trial in data:
+                trial_coords = data[trial]
+                for new_x, new_y, block in trial_coords:
+                    if hand.lower() == 'left':
+                        xs_left.append(new_x)
+                        ys_left.append(new_y)
+                    elif hand.lower() == 'right':
+                        xs_right.append(new_x)
+                        ys_right.append(new_y)
+        else:
+            for new_x, new_y, block in data:
+                if hand.lower() == 'left':
+                    xs_left.append(new_x)
+                    ys_left.append(new_y)
+                elif hand.lower() == 'right':
+                    xs_right.append(new_x)
+                    ys_right.append(new_y)  
+
+    xs_left = np.array(xs_left)
+    ys_left = np.array(ys_left)
+    xs_right = np.array(xs_right)
+    ys_right = np.array(ys_right)
+
+    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(14, 6))
+
+    hb1 = ax1.hist2d(xs_right, ys_right, bins=bins, cmap=cmap)
+    ax1.plot(0, 0, 'ko', markersize=8)
+    ax1.set_xlim(xlim)
+    ax1.set_ylim(ylim)
+    ax1.grid(False)
+    fig.colorbar(hb1[3], ax=ax1)
+    ax1.set_xlabel("X (mm)")
+    ax1.set_ylabel("Y (mm)")
+    ax1.set_title("Right")
+
+    hb2 = ax2.hist2d(xs_left, ys_left, bins=bins, cmap=cmap)
+    ax2.plot(0, 0, 'ko', markersize=8)
+    ax2.set_xlim(xlim)
+    ax2.set_ylim(ylim)
+    ax2.grid(False)
+    fig.colorbar(hb2[3], ax=ax2)
+    ax2.set_xlabel("X (mm)")
+    ax2.set_ylabel("Y (mm)")
+    ax2.set_title("Left")
+
+    plt.tight_layout()
+    plt.show()
 
 ### Plot left and right hand 16 blocks as one polar histograms (rose diagrams)
-utils4.plot_left_right_hand_polar_histogram(Combine_blocks, cmap_choice)
+def plot_left_right_hand_polar_histogram(Combine_blocks, cmap_choice):
+    """
+    Plots polar histograms (rose diagrams) for left-hand and right-hand new coordinates as subplots.
+    If for a subject-hand key there are multiple trials (i.e. data is a dict of trial keys mapping to lists of tuples),
+    this function overlays all the trials into one histogram.
+    
+    Parameters:
+        Combine_blocks (dict): Dictionary mapping keys (subject, hand) either to a list of tuples (new_x, new_y, block)
+                               or to a dict mapping trial identifiers to lists of tuples.
+        cmap_choice: A matplotlib colormap to map histogram density.
+    """
+    import matplotlib.pyplot as plt
 
+    # Combine coordinates across all trials for each hand
+    xs_left, ys_left, xs_right, ys_right = [], [], [], []
+
+    # Collect coordinates
+    for key, data in Combine_blocks.items():
+        _, hand = key
+        hand_lower = hand.lower()
+        if isinstance(data, dict):
+            coords_iter = [pt for trial in data.values() for pt in trial]
+        else:
+            coords_iter = data
+
+        for new_x, new_y, _ in coords_iter:
+            if hand_lower == 'left':
+                xs_left.append(new_x)
+                ys_left.append(new_y)
+            elif hand_lower == 'right':
+                xs_right.append(new_x)
+                ys_right.append(new_y)
+
+    xs_left, ys_left = np.array(xs_left), np.array(ys_left)
+    xs_right, ys_right = np.array(xs_right), np.array(ys_right)
+
+    # Convert Cartesian coordinates to polar: compute radius and angles.
+    r_left = np.sqrt(xs_left**2 + ys_left**2)
+    theta_left = np.arctan2(ys_left, xs_left)
+
+    r_right = np.sqrt(xs_right**2 + ys_right**2)
+    theta_right = np.arctan2(ys_right, xs_right)
+
+    num_bins = 20
+
+    _, axes = plt.subplots(1, 2, subplot_kw=dict(projection='polar'), figsize=(12, 6))
+
+    # Left hand polar histogram
+    counts_left, bin_edges_left = np.histogram(theta_left, bins=num_bins, weights=r_left)
+    width_left = bin_edges_left[1] - bin_edges_left[0]
+    max_left = counts_left.max() if counts_left.max() != 0 else 1
+    normalized_counts_left = counts_left / max_left
+
+    axes[1].bar(bin_edges_left[:-1], counts_left, width=width_left, bottom=0.0,
+                color=[cmap_choice(val) for val in normalized_counts_left],
+                edgecolor='k', alpha=0.75)
+    axes[1].set_title("Left Hand")
+
+    # Right hand polar histogram
+    counts_right, bin_edges_right = np.histogram(theta_right, bins=num_bins, weights=r_right)
+    width_right = bin_edges_right[1] - bin_edges_right[0]
+    max_right = counts_right.max() if counts_right.max() != 0 else 1
+    normalized_counts_right = counts_right / max_right
+
+    axes[0].bar(bin_edges_right[:-1], counts_right, width=width_right, bottom=0.0,
+                color=[cmap_choice(val) for val in normalized_counts_right],
+                edgecolor='k', alpha=0.75)
+    axes[0].set_title("Right Hand")
+
+    plt.tight_layout()
+    plt.show()
+
+
+plot_combined_xy_density(All_Subject_tBBTs_errors, cmap_choice)
+Combine_blocks = Combine_16_blocks(All_Subject_tBBTs_errors)  # Now processes all trials instead of only trial index 1
+plot_left_right_hand_new_coordinates_density(Combine_blocks, cmap_choice)
+plot_left_right_hand_polar_histogram(Combine_blocks, cmap_choice)
+
+### Analyze distribution (uniformity, bias, quadrants) and plot polar histograms (rose diagrams)
+def analyze_and_plot_left_right(Combine_blocks, cmap_choice, num_bins=20):
+    """
+    Analyze distribution (uniformity, bias, quadrants) and plot polar histograms (rose diagrams).
+
+    Performs chi-square tests for uniformity across quadrants, left vs right, top vs bottom.
+    Computes mean resultant vector direction and Rayleigh test for circular uniformity.
+
+    Parameters:
+        Combine_blocks (dict): (subject, hand) -> list of (new_x, new_y, block) or dict of trials
+        cmap_choice: matplotlib colormap
+        num_bins: number of bins for polar histogram
+    """
+
+    xs_left, ys_left, xs_right, ys_right = [], [], [], []
+
+    # Collect coordinates
+    for key, data in Combine_blocks.items():
+        _, hand = key
+        hand_lower = hand.lower()
+        if isinstance(data, dict):
+            coords_iter = [pt for trial in data.values() for pt in trial]
+        else:
+            coords_iter = data
+
+        for new_x, new_y, _ in coords_iter:
+            if hand_lower == 'left':
+                xs_left.append(new_x)
+                ys_left.append(new_y)
+            elif hand_lower == 'right':
+                xs_right.append(new_x)
+                ys_right.append(new_y)
+
+    xs_left, ys_left = np.array(xs_left), np.array(ys_left)
+    xs_right, ys_right = np.array(xs_right), np.array(ys_right)
+
+    # Convert to polar
+    r_left = np.sqrt(xs_left**2 + ys_left**2)
+    theta_left = np.arctan2(ys_left, xs_left)
+
+    r_right = np.sqrt(xs_right**2 + ys_right**2)
+    theta_right = np.arctan2(ys_right, xs_right)
+
+    # -------------------------
+    #  Statistical tests
+    # -------------------------
+    def circular_chi_tests(xs, ys, theta):
+        results = {}
+
+        # Quadrants counts
+        quad_counts = [
+            np.sum((xs >= 0) & (ys >= 0)),  # Q1
+            np.sum((xs < 0) & (ys >= 0)),   # Q2
+            np.sum((xs < 0) & (ys < 0)),    # Q3
+            np.sum((xs >= 0) & (ys < 0)),   # Q4
+        ]
+        chi_result = chisquare(quad_counts)
+        results['quadrants_statistic'] = chi_result.statistic
+        results['quadrants_p'] = chi_result.pvalue
+
+        # Left vs Right counts
+        lr_counts = [np.sum(xs < 0), np.sum(xs >= 0)]
+        chi_result = chisquare(lr_counts)
+        results['left_vs_right_statistic'] = chi_result.statistic
+        results['left_vs_right_p'] = chi_result.pvalue
+
+        # Top vs Bottom counts
+        tb_counts = [np.sum(ys >= 0), np.sum(ys < 0)]
+        chi_result = chisquare(tb_counts)
+        results['top_vs_bottom_statistic'] = chi_result.statistic
+        results['top_vs_bottom_p'] = chi_result.pvalue
+
+        # Mean direction (circular mean)
+        results['mean_direction_rad'] = circmean(theta, high=np.pi, low=-np.pi)
+
+        # Rayleigh test for circular uniformity (approximation)
+        n = len(theta)
+        R = np.sqrt(np.sum(np.cos(theta))**2 + np.sum(np.sin(theta))**2) / n
+        z = n * R**2
+        p_rayleigh = np.exp(-z) * (1 + (2*z - z**2)/(4*n) - (24*z - 132*z**2 + 76*z**3 - 9*z**4)/(288*n**2))
+        results['rayleigh_p'] = p_rayleigh
+
+        return results
+
+    stats_left = circular_chi_tests(xs_left, ys_left, theta_left)
+    stats_right = circular_chi_tests(xs_right, ys_right, theta_right)
+
+    # -------------------------
+    #  Plot rose diagrams with mean direction arrow
+    # -------------------------
+    fig, axes = plt.subplots(1, 2, subplot_kw=dict(projection='polar'), figsize=(12, 6))
+
+    # Left hand
+    counts_left, bin_edges_left = np.histogram(theta_left, bins=num_bins, weights=r_left)
+    width_left = bin_edges_left[1] - bin_edges_left[0]
+    max_left = counts_left.max() if counts_left.max() != 0 else 1
+    norm_left = counts_left / max_left
+
+    axes[1].bar(bin_edges_left[:-1], counts_left, width=width_left, bottom=0.0,
+                color=[cmap_choice(val) for val in norm_left],
+                edgecolor='k', alpha=0.75)
+    axes[1].set_title("Left Hand", y=1.05)
+    # Draw mean direction arrow
+    axes[1].arrow(stats_left['mean_direction_rad'], 0, 0, max_left, width=0.05, color='red', alpha=0.8)
+
+    # Right hand
+    counts_right, bin_edges_right = np.histogram(theta_right, bins=num_bins, weights=r_right)
+    width_right = bin_edges_right[1] - bin_edges_right[0]
+    max_right = counts_right.max() if counts_right.max() != 0 else 1
+    norm_right = counts_right / max_right
+
+    axes[0].bar(bin_edges_right[:-1], counts_right, width=width_right, bottom=0.0,
+                color=[cmap_choice(val) for val in norm_right],
+                edgecolor='k', alpha=0.75)
+    axes[0].set_title("Right Hand", y=1.05)
+    # Draw mean direction arrow
+    axes[0].arrow(stats_right['mean_direction_rad'], 0, 0, max_right, width=0.05, color='red', alpha=0.8)
+
+    plt.tight_layout()
+    plt.show()
+
+    return {"left": stats_left, "right": stats_right}
+
+stats = analyze_and_plot_left_right(Combine_blocks, cmap_choice)
+
+print("Left hand")
+for key, value in stats['left'].items():
+    print(f"{key}: {value:.6f}")
+print("\nRight hand")
+for key, value in stats['right'].items():
+    print(f"{key}: {value:.6f}")
 
 subject = '07/22/HW'
-hand = 'right'
-target_file = '/Users/yilinwu/Desktop/Yilin-Honours/Subject/Traj/2025/07/22/HW/HW_tBBT63.csv'
+hand = 'left'
+target_file = '/Users/yilinwu/Desktop/Yilin-Honours/Subject/Traj/2025/07/22/HW/HW_tBBT02.csv'
 
 # Get all file keys in the trial dictionary (results[subject][hand][1])
 file_keys = list(results[subject][hand][1].keys())
@@ -189,18 +656,18 @@ target_index = file_keys.index(target_file)
 print("Index of target file:", target_index)
 
 ### Plot p3_box2 and p3_block2 coordinates in a 3D scatter plot for a specific subject, hand, and trial
-utils4.plot_p3_coordinates(All_Subject_tBBTs_errors, subject='07/22/HW', hand='right', trial_index=31)
+utils4.plot_p3_coordinates(All_Subject_tBBTs_errors, subject='07/22/HW', hand='left', trial_index=1)
 
 ### Plot hand trajectory with velocity-coded coloring and highlighted segments
-utils4.plot_trajectory(results, subject='07/22/HW', hand='right', trial=1,
-                file_path='/Users/yilinwu/Desktop/Yilin-Honours/Subject/Traj/2025/07/22/HW/HW_tBBT63.csv',
+utils4.plot_trajectory(results, subject='07/22/HW', hand='left', trial=1,
+                file_path='/Users/yilinwu/Desktop/Yilin-Honours/Subject/Traj/2025/07/22/HW/HW_tBBT02.csv',
                 overlay_trial=0, velocity_segment_only=True, plot_mode='segment')
 
 ### Combine hand trajectory and error coordinates in a single 3D plot
 utils4.combined_plot_trajectory_and_errors(results, All_Subject_tBBTs_errors,
-                                      subject='07/22/HW', hand='right',
-                                      trial=1, trial_index=31,
-                                      file_path='/Users/yilinwu/Desktop/Yilin-Honours/Subject/Traj/2025/07/22/HW/HW_tBBT63.csv',
+                                      subject='07/22/HW', hand='left',
+                                      trial=1, trial_index=1,
+                                      file_path='/Users/yilinwu/Desktop/Yilin-Honours/Subject/Traj/2025/07/22/HW/HW_tBBT02.csv',
                                       overlay_trial=0, velocity_segment_only=True, plot_mode='segment')
 
 # # # -------------------------------------------------------------------------------------------------------------------
@@ -279,11 +746,224 @@ sBBTResult = utils8.load_and_compute_sbbt_result()
 sBBTResult = utils8.swap_and_rename_sbbt_result(sBBTResult)
 sBBTResult_stats = utils8.compute_sbbt_result_stats(sBBTResult)
 
+
+
+
+def plot_sbbt_boxplot(sBBTResult):
+    """
+    Plot a boxplot of sBBT scores by hand (Non-dominant vs Dominant) on a given axis.
+    It overlays a swarmplot and draws dashed lines connecting each subject's pair of scores.
+    
+    Parameters:
+        ax: matplotlib.axes.Axes - the axis on which to plot.
+        sBBTResult: DataFrame - indexed by subjects with columns "non_dominant" and "dominant".
+    """
+    # Create a figure and axis for the boxplot
+    fig, ax = plt.subplots(figsize=(6, 5))
+    # Prepare a DataFrame for sBBT scores per subject.
+    df_scores = pd.DataFrame({
+        "Subject": sBBTResult.index,
+        "Non-dominant": sBBTResult["non_dominant"],
+        "Dominant": sBBTResult["dominant"]
+    })
+    
+    # Melt the DataFrame to long format.
+    df_melt = df_scores.melt(id_vars="Subject", var_name="Hand", value_name="sBBT Score")
+    
+    # Define the order for hands.
+    order = ["Non-dominant", "Dominant"]
+    
+    # Plot the boxplot and swarmplot.
+    sns.boxplot(x="Hand", y="sBBT Score", data=df_melt, palette="Set2", order=order, ax=ax)
+    sns.swarmplot(x="Hand", y="sBBT Score", data=df_melt, color="black", size=5, alpha=0.8, order=order, ax=ax)
+    
+    # Set title and labels.
+    # ax.set_title("Box Plot of sBBT Scores by Hand")
+    ax.tick_params(axis='both', which='major', labelsize=16)
+    ax.set_xlabel("Hand", fontsize=20)
+    ax.set_ylabel("sBBT Score", fontsize=20)
+    
+    # # Draw dashed lines connecting each subject's non-dominant and dominant scores.
+    # for subject in df_scores["Subject"]:
+    #     nd_val = df_scores.loc[df_scores["Subject"] == subject, "Non-dominant"].values[0]
+    #     d_val = df_scores.loc[df_scores["Subject"] == subject, "Dominant"].values[0]
+    #     ax.plot([0, 1], [nd_val, d_val], color="gray", linestyle="--", linewidth=1, alpha=0.7)
+
+plot_sbbt_boxplot(sBBTResult)
+
+# -------------------------------------------------------------------------------------------------------------------
+# Prepare long-format DataFrame using sBBTResult values
+df = pd.DataFrame({
+    'Subject': list(range(1, len(sBBTResult) + 1)) * 2,
+    'Test': ['Test1'] * len(sBBTResult) + ['Test2'] * len(sBBTResult),
+    'Right': list(sBBTResult['Right']) + list(sBBTResult['Right.1']),
+    'Left': list(sBBTResult['Left']) + list(sBBTResult['Left.1'])
+})
+
+# Compute ICC for Right hand scores
+icc_right = pg.intraclass_corr(data=df, targets='Subject', raters='Test', ratings='Right')
+print("ICC for Right hand:")
+print(icc_right[['Type', 'ICC', 'F', 'pval', 'CI95%']])
+
+# Compute ICC for Left hand scores
+icc_left = pg.intraclass_corr(data=df, targets='Subject', raters='Test', ratings='Left')
+print("ICC for Left hand:")
+print(icc_left[['Type', 'ICC', 'F', 'pval', 'CI95%']])
+# -------------------------------------------------------------------------------------------------------------------
+
+import scipy.stats as stats
+
+# Calculate Spearman correlation for the Right hand scores (Test1 vs Test2)
+right_corr, right_p = stats.spearmanr(sBBTResult['Right'], sBBTResult['Right.1'])
+print("Spearman correlation for Right hand:", right_corr, "p-value:", right_p)
+
+# Calculate Spearman correlation for the Left hand scores (Test1 vs Test2)
+left_corr, left_p = stats.spearmanr(sBBTResult['Left'], sBBTResult['Left.1'])
+print("Spearman correlation for Left hand:", left_corr, "p-value:", left_p)
+
+# --------------------------------------------------------------------
+# plot Bland-Altman plots for Left and Right hand scores
+def plot_bland_altman(sBBTResult, show_value_in_legend=True):
+    import matplotlib.pyplot as plt
+
+    # Prepare data for Left hand
+    left1 = pd.Series(sBBTResult['Left'])
+    left2 = pd.Series(sBBTResult['Left.1'])
+    mean_left = (left1 + left2) / 2
+    diff_left = left1 - left2
+    md_left = diff_left.mean()
+    sd_left = diff_left.std()
+
+    # Prepare data for Right hand
+    right1 = pd.Series(sBBTResult['Right'])
+    right2 = pd.Series(sBBTResult['Right.1'])
+    mean_right = (right1 + right2) / 2
+    diff_right = right1 - right2
+    md_right = diff_right.mean()
+    sd_right = diff_right.std()
+
+    if show_value_in_legend:
+        label_md_left = f'Mean Diff = {md_left:.2f}'
+        label_plus_left = f'+1.96 SD = {(md_left + 1.96 * sd_left):.2f}'
+        label_minus_left = f'-1.96 SD = {(md_left - 1.96 * sd_left):.2f}'
+
+        label_md_right = f'Mean Diff = {md_right:.2f}'
+        label_plus_right = f'+1.96 SD = {(md_right + 1.96 * sd_right):.2f}'
+        label_minus_right = f'-1.96 SD = {(md_right - 1.96 * sd_right):.2f}'
+    else:
+        # When not showing values in legend, only the right hand plot will show generic legend labels.
+        label_md_left = label_plus_left = label_minus_left = None
+        label_md_right = 'Mean Diff'
+        label_plus_right = '+1.96 SD'
+        label_minus_right = '-1.96 SD'
+
+    # Create subplots: left subplot for Left hand, right subplot for Right hand
+    fig, axes = plt.subplots(1, 2, figsize=(12, 6))
+
+    # Plot Bland–Altman for Left hand
+    axes[0].scatter(mean_left, diff_left, color='blue', s=50, alpha=0.6)
+    axes[0].axhline(md_left, color='gray', linestyle='--', label=label_md_left if label_md_left else "")
+    axes[0].axhline(md_left + 1.96 * sd_left, color='red', linestyle='--', label=label_plus_left if label_plus_left else "")
+    axes[0].axhline(md_left - 1.96 * sd_left, color='red', linestyle='--', label=label_minus_left if label_minus_left else "")
+    axes[0].set_title('Left')
+    axes[0].set_xlabel('Mean of Test1 and Test2')
+    axes[0].set_ylabel('Difference between Test1 and Test2')
+    if show_value_in_legend:
+        axes[0].legend()
+
+    # Plot Bland–Altman for Right hand
+    axes[1].scatter(mean_right, diff_right, color='blue', s=50, alpha=0.6)
+    axes[1].axhline(md_right, color='gray', linestyle='--', label=label_md_right)
+    axes[1].axhline(md_right + 1.96 * sd_right, color='red', linestyle='--', label=label_plus_right)
+    axes[1].axhline(md_right - 1.96 * sd_right, color='red', linestyle='--', label=label_minus_right)
+    axes[1].set_title('Right')
+    axes[1].set_xlabel('Mean of Test1 and Test2')
+    axes[1].set_ylabel('Difference between Test1 and Test2')
+    axes[1].legend()
+
+    plt.tight_layout()
+    plt.show()
+
+    print(
+        f"Left Hand - Mean Difference: {md_left:.2f} ± {sd_left:.2f} "
+        f"(95% CI: {md_left - 1.96 * sd_left:.2f} to {md_left + 1.96 * sd_left:.2f})"
+    )
+    print(
+        f"Right Hand - Mean Difference: {md_right:.2f} ± {sd_right:.2f} "
+        f"(95% CI: {md_right - 1.96 * sd_right:.2f} to {md_right + 1.96 * sd_right:.2f})"
+    )
+
+plot_bland_altman(sBBTResult, show_value_in_legend=False)
+
+# --------------------------------------------------------------------
+
+def plot_sbbt_scores(sBBTResult, figsize=(14, 6)):
+    """
+    Plots side-by-side boxplots for the right and left hand sBBT scores.
+    Each plot overlays each subject's paired Test1 and Test2 scores with a colored line:
+      - Green if Test2 > Test1 (improvement)
+      - Orange if Test2 equals Test1
+      - Red if Test2 < Test1
+    sBBT score is defined as number of blocks transferred in one minute (n of blocks).
+
+    Parameters:
+        sBBTResult (DataFrame): A DataFrame with index for subjects and columns:
+                                'Right', 'Right.1', 'Left', 'Left.1'
+        figsize (tuple): Figure size.
+    """
+    import matplotlib.pyplot as plt
+    
+    # Create DataFrames for Right and Left hands, preserving the subject index.
+    df_right = pd.DataFrame({
+        'Subject': sBBTResult.index,
+        '1': sBBTResult['Right'],
+        '2': sBBTResult['Right.1']
+    })
+    df_left = pd.DataFrame({
+        'Subject': sBBTResult.index,
+        '1': sBBTResult['Left'],
+        '2': sBBTResult['Left.1']
+    })
+    
+    plt.figure(figsize=figsize)
+    
+    # Plot for Left hand
+    plt.subplot(1, 2, 1)
+    melted_left = df_left.melt(id_vars='Subject', value_vars=['1', '2'],
+                               var_name='Test', value_name='sBBT Score')
+    sns.boxplot(x='Test', y='sBBT Score', data=melted_left, color='lightgray')
+    plt.ylabel("sBBT Score (n of blocks)", fontsize=16)
+    plt.xticks(fontsize=16)  # Increase xtick label size for left hand plot
+    for _, row in df_left.iterrows():
+        color = 'green' if row['2'] > row['1'] else ('orange' if row['2'] == row['1'] else 'red')
+        plt.plot([0, 1], [row['1'], row['2']],
+                 marker='o', color=color, linewidth=1, alpha=0.7)
+    plt.title("Left", fontsize=18)    
+
+    # Plot for Right hand
+    plt.subplot(1, 2, 2)
+    melted_right = df_right.melt(id_vars='Subject', value_vars=['1', '2'],
+                                 var_name='Test', value_name='sBBT Score')
+    sns.boxplot(x='Test', y='sBBT Score', data=melted_right, color='lightgray')
+    plt.ylabel("sBBT Score (n of blocks)", fontsize=16)
+    plt.xticks(fontsize=16)  # Increase xtick label size for right hand plot
+    # Overlay each subject's paired scores as a line:
+    for _, row in df_right.iterrows():
+        color = 'green' if row['2'] > row['1'] else ('orange' if row['2'] == row['1'] else 'red')
+        plt.plot([0, 1], [row['1'], row['2']],
+                 marker='o', color=color, linewidth=1, alpha=0.7)
+    plt.title("Right", fontsize=18)
+    
+    plt.tight_layout()
+    plt.show()
+
+plot_sbbt_scores(sBBTResult)
+
 # # Get the value from the "non_dominant" column for the row where Subject is 'CZ'
 # value = sBBTResult.loc[sBBTResult["Subject"] == "CZ", "non_dominant"].values
 # print("Value:", value)
 
-
+sBBTResult['Right.1']-sBBTResult['Right']
 # -------------------------------------------------------------------------------------------------------------------
 # Examine correlations between motor experience metrics and sBBT scores by extracting the highest score for each hand
 motor_keys = [
@@ -298,6 +978,217 @@ score_columns = ["dominant", "non_dominant"]
 utils7.analyze_motor_experience_correlations(motor_keys, score_columns, sBBTResult, MotorExperiences)
 
 # -------------------------------------------------------------------------------------------------------------------
+def overlay_timewindow(results, reach_speed_segments_1=None, reach_speed_segments_2=None, 
+                       subject="06/19/CZ", hand="right", trial=1,
+                       file_path='/Users/yilinwu/Desktop/Yilin-Honours/Subject/Traj/2025/06/19/CZ/CZ_tBBT01.csv',
+                       fs=200, target_samples=101, seg_index=0):
+    """
+    Plots normalized jerk (and other signals) from trajectory data using two different time window segmentations.
+    For the selected segment (seg_index), this function extracts the two segments using reach_speed_segments_1 
+    and reach_speed_segments_2 and overlays their corresponding signals. The x-axis now displays the actual frame 
+    indices from the original trial.
+
+    Parameters:
+        results (dict): Dictionary containing trajectory data.
+        reach_speed_segments_1, reach_speed_segments_2 (dict or None): Dictionaries with segmentation ranges 
+            with structure: reach_speed_segments[subject][hand][file_path] = list of (start_idx, end_idx) tuples.
+        subject (str): Subject identifier.
+        hand (str): Hand identifier.
+        trial (int): Trial index.
+        file_path (str): Path to the CSV file.
+        fs (int): Sampling rate in Hz.
+        target_samples (int): Number of samples for the normalized jerk signal.
+        seg_index (int): Index of the segment to plot.
+
+    This function extracts the trajectory data using marker 'RFIN' for right hand or 'LFIN' for left hand,
+    computes a normalized jerk signal (via linear interpolation) and plots five overlaid subplots:
+      Position, Velocity, Acceleration, Original Jerk, and Normalized Jerk.
+    """
+    import matplotlib.pyplot as plt
+
+    # Select marker based on hand.
+    marker = 'RFIN' if hand == 'right' else 'LFIN'
+    
+    # Extract full trajectory arrays.
+    traj_data = results[subject][hand][trial][file_path]['traj_space'][marker]
+    position_full = traj_data[0]
+    velocity_full = traj_data[1]
+    acceleration_full = traj_data[2]
+    jerk_full = traj_data[3]
+    
+    seg_ranges1 = reach_speed_segments_1[subject][hand][file_path]
+    seg_ranges2 = reach_speed_segments_2[subject][hand][file_path]
+    
+    if seg_index < 0 or seg_index >= len(seg_ranges1) or seg_index >= len(seg_ranges2):
+        print("Invalid seg_index provided.")
+        return
+
+    # Retrieve the indices for the selected segment from both segmentations.
+    start_idx1, end_idx1 = seg_ranges1[seg_index]
+    start_idx2, end_idx2 = seg_ranges2[seg_index]
+
+    # Extract the trajectory segments for each segmentation.
+    pos_seg1 = position_full[start_idx1:end_idx1]
+    vel_seg1 = velocity_full[start_idx1:end_idx1]
+    acc_seg1 = acceleration_full[start_idx1:end_idx1]
+    jerk_seg1 = jerk_full[start_idx1:end_idx1]
+
+    pos_seg2 = position_full[start_idx2:end_idx2]
+    vel_seg2 = velocity_full[start_idx2:end_idx2]
+    acc_seg2 = acceleration_full[start_idx2:end_idx2]
+    jerk_seg2 = jerk_full[start_idx2:end_idx2]
+
+    # Process Segment 1
+    duration1 = len(jerk_seg1) / fs
+    t_orig1 = np.linspace(0, duration1, num=len(jerk_seg1))
+    t_std1 = np.linspace(0, duration1, num=target_samples)
+    warped_jerk1 = np.interp(t_std1, t_orig1, jerk_seg1)
+    jerk_squared_integral1 = np.trapezoid(warped_jerk1**2, t_std1)
+    vpeak1 = vel_seg1.max()
+    dimensionless_jerk1 = (duration1**3 / vpeak1**2) * jerk_squared_integral1
+    LDLJ1 = -math.log(abs(dimensionless_jerk1), math.e)
+
+    # Process Segment 2
+    duration2 = len(jerk_seg2) / fs
+    t_orig2 = np.linspace(0, duration2, num=len(jerk_seg2))
+    t_std2 = np.linspace(0, duration2, num=target_samples)
+    warped_jerk2 = np.interp(t_std2, t_orig2, jerk_seg2)
+    jerk_squared_integral2 = np.trapezoid(warped_jerk2**2, t_std2)
+    vpeak2 = vel_seg2.max()
+    dimensionless_jerk2 = (duration2**3 / vpeak2**2) * jerk_squared_integral2
+    LDLJ2 = -math.log(abs(dimensionless_jerk2), math.e)
+
+    # Use the real frame indices as the x-axis.
+    x_vals1 = range(start_idx1, end_idx1)
+    x_vals2 = range(start_idx2, end_idx2)
+
+    # Create a figure with 5 subplots to overlay the two segments for each signal.
+    fig, axs = plt.subplots(5, 1, figsize=(12, 12))
+    
+    # Overlay Position
+    axs[0].plot(x_vals1, pos_seg1, color='blue', linewidth=2, label='Segment 1')
+    axs[0].plot(x_vals2, pos_seg2, color='lime', linestyle='--', linewidth=2, label='Segment 2')
+    axs[0].set_title('Position')
+    axs[0].legend(loc='upper right')
+
+    # Overlay Velocity
+    axs[1].plot(x_vals1, vel_seg1, color='blue', linewidth=2, label='Segment 1')
+    axs[1].plot(x_vals2, vel_seg2, color='lime', linestyle='--', linewidth=2, label='Segment 2')
+    axs[1].set_title('Velocity')
+    # axs[1].legend(loc='upper right')
+
+    # Overlay Acceleration
+    axs[2].plot(x_vals1, acc_seg1, color='blue', linewidth=2, label='Segment 1')
+    axs[2].plot(x_vals2, acc_seg2, color='lime', linestyle='--', linewidth=2, label='Segment 2')
+    axs[2].set_title('Acceleration')
+    # axs[2].legend(loc='upper right')
+
+    # Overlay Original Jerk
+    axs[3].plot(x_vals1, jerk_seg1, color='blue', linewidth=2, label='Segment 1')
+    axs[3].plot(x_vals2, jerk_seg2, color='lime', linestyle='--', linewidth=2, label='Segment 2')
+    axs[3].set_title('Original Jerk')
+    # axs[3].legend(loc='upper right')
+    axs[3].set_xlabel("Frame Index", fontsize=12)
+
+    # Overlay Normalized Jerk with computed LDLJ values
+    percent_x1 = np.linspace(0, 100, len(warped_jerk1))
+    percent_x2 = np.linspace(0, 100, len(warped_jerk2))
+    axs[4].plot(percent_x1, warped_jerk1, linestyle='--', color='blue', linewidth=2,
+                label=f'LDLJ: {LDLJ1:.2f}')
+    axs[4].plot(percent_x2, warped_jerk2, linestyle='--', color='lime', linewidth=2,
+                label=f'LDLJ: {LDLJ2:.2f}')
+    
+    # Setting tick positions based on the duration of segment 1
+    axs[4].set_xticks(np.linspace(0, 100, 6))
+    axs[4].set_xticklabels([f"{int(p)}%" for p in np.linspace(0, 100, 6)])
+    axs[4].set_title(f'Normalized Jerk - Overlay Segments {seg_index+1}')
+    axs[4].legend(loc='upper right')
+    axs[4].set_xlabel("Percentage of Segment Duration", fontsize=12)
+
+
+    plt.tight_layout()
+    plt.show()
+
+overlay_timewindow(results, test_windows_1, test_windows_6, subject="07/22/HW", hand="left", trial=1,
+                   file_path='/Users/yilinwu/Desktop/Yilin-Honours/Subject/Traj/2025/07/22/HW/HW_tBBT02.csv',
+                   fs=200, target_samples=101, seg_index=1)
+
+
+
+
+def plot_3d_trajectory_segment(results, test_windows_1, test_windows_6, subject, hand, trial, file_path, seg_index=0):
+    """
+    Extracts a 3D trajectory segment based on paired start and end indices from test_windows_1 
+    and overlays another segment extracted from test_windows_6 in the same 3D plot.
+    
+    Parameters:
+        results (dict): Dictionary containing trajectory data.
+        test_windows_1 (dict): Dictionary with paired start and end indices (first test window).
+        test_windows_6 (dict): Dictionary with paired start and end indices (second test window).
+        subject (str): Subject identifier.
+        hand (str): 'right' or 'left'.
+        trial (int): Trial index.
+        file_path (str): Path to the CSV file.
+        seg_index (int): Index of the segment to extract (default is 0).
+    """
+    import matplotlib.pyplot as plt
+    from mpl_toolkits.mplot3d import Axes3D  # for 3D plotting
+
+    # Get the full trajectory data
+    traj_data = results[subject][hand][trial][file_path]['traj_data']
+    coord_prefix = "RFIN_" if hand == "right" else "LFIN_"
+    coord_x_full = np.array(traj_data[coord_prefix + "X"])
+    coord_y_full = np.array(traj_data[coord_prefix + "Y"])
+    coord_z_full = np.array(traj_data[coord_prefix + "Z"])
+
+    # Get the paired start and end indices for the first test window
+    start_idx1, end_idx1 = test_windows_1[subject][hand][file_path][seg_index]
+    # Extract the segment from test_windows_1
+    traj_x1 = coord_x_full[start_idx1:end_idx1]
+    traj_y1 = coord_y_full[start_idx1:end_idx1]
+    traj_z1 = coord_z_full[start_idx1:end_idx1]
+
+    # Get the paired start and end indices for the second test window (test_windows_6)
+    start_idx6, end_idx6 = test_windows_6[subject][hand][file_path][seg_index]
+    # Extract the segment from test_windows_6
+    traj_x6 = coord_x_full[start_idx6:end_idx6]
+    traj_y6 = coord_y_full[start_idx6:end_idx6]
+    traj_z6 = coord_z_full[start_idx6:end_idx6]
+
+    # Plot the extracted trajectory segments in 3D
+    fig = plt.figure(figsize=(10, 8))
+    ax = fig.add_subplot(111, projection='3d')
+
+    # Plot Test Window 1 segment
+    ax.scatter(traj_x1, traj_y1, traj_z1, c='blue', marker='o', s=10, label='Test Window 1')
+    # Plot Test Window 6 segment
+    ax.scatter(traj_x6, traj_y6, traj_z6, c='lime', marker='^', s=80, label='Test Window 6')
+
+    # Highlight the start and end of test_windows_6
+    ax.scatter(coord_x_full[start_idx6], coord_y_full[start_idx6], coord_z_full[start_idx6],
+               c='red', marker='D', s=100, label='TW6 Start')
+    ax.scatter(coord_x_full[end_idx6 - 1], coord_y_full[end_idx6 - 1], coord_z_full[end_idx6 - 1],
+               c='black', marker='D', s=100, label='TW6 End')
+
+    ax.set_xlabel("X (mm)")
+    ax.set_ylabel("Y (mm)")
+    ax.set_zlabel("Z (mm)")
+    ax.legend()
+    plt.show()
+
+
+# Example usage:
+plot_3d_trajectory_segment(
+    results, 
+    test_windows_1, 
+    test_windows_6, 
+    subject="07/22/HW", 
+    hand="left", 
+    trial=1,
+    file_path='/Users/yilinwu/Desktop/Yilin-Honours/Subject/Traj/2025/07/22/HW/HW_tBBT02.csv',
+    seg_index=1
+)
+
 def plot_single_trial_p_v_a_j_Nj_in_one(results, reach_speed_segments=None,
                                   subject="06/19/CZ", hand="right", trial=1,
                                   file_path='/Users/yilinwu/Desktop/Yilin-Honours/Subject/Traj/2025/06/19/CZ/CZ_tBBT01.csv',
@@ -480,12 +1371,12 @@ plot_single_trial_p_v_a_j_Nj_in_one(results, subject="07/22/HW", hand="left", tr
                               fs=200, target_samples=101, plot_option=1)
 
 # Option 2: Plot a single segment (e.g., first segment)
-plot_single_trial_p_v_a_j_Nj_in_one(results, test_windows_3, subject="07/22/HW", hand="left", trial=1,
+plot_single_trial_p_v_a_j_Nj_in_one(results, test_windows_1, subject="07/22/HW", hand="left", trial=1,
                               file_path='/Users/yilinwu/Desktop/Yilin-Honours/Subject/Traj/2025/07/22/HW/HW_tBBT02.csv',
-                              fs=200, target_samples=101, plot_option=2, seg_index=0)
+                              fs=200, target_samples=101, plot_option=2, seg_index=1)
 
 # Option 3: Overlay all segments
-plot_single_trial_p_v_a_j_Nj_in_one(results, test_windows_3, subject="07/22/HW", hand="left", trial=1,
+plot_single_trial_p_v_a_j_Nj_in_one(results, test_windows_1, subject="07/22/HW", hand="left", trial=1,
                               file_path='/Users/yilinwu/Desktop/Yilin-Honours/Subject/Traj/2025/07/22/HW/HW_tBBT02.csv',
                               fs=200, target_samples=101, plot_option=3)
 
@@ -1062,6 +1953,24 @@ def plot_metric_boxplots(updated_metrics_acorss_TWs, metrics=["TW3_LDLJ", "TW3_s
 
     # Loop through each metric to compute stats and plot the boxplots.
     for i, metric in enumerate(metrics):
+        # Calculate global statistics for the metric across all subjects and hands.
+        global_vals = []
+        for subject, subject_data in updated_metrics_acorss_TWs.items():
+            for hand, hand_data in subject_data.items():
+                if metric in hand_data:
+                    for trial, trial_vals in hand_data[metric].items():
+                        global_vals.extend(trial_vals)
+        global_vals = np.array(global_vals)
+        if global_vals.size > 0:
+            min_val = np.nanmin(global_vals)
+            max_val = np.nanmax(global_vals)
+            median_val = np.nanmedian(global_vals)
+            q1 = np.nanpercentile(global_vals, 25)
+            q3 = np.nanpercentile(global_vals, 75)
+            iqr = q3 - q1
+            # Print in thesis style with one sentence.
+            print(f"For metric {metric}, the minimum value was {min_val:.2f}, the maximum value was {max_val:.2f}, the median was {median_val:.2f}, and the interquartile range was {iqr:.2f}.")
+        
         # Compute statistics for each subject and hand for the current metric.
         stats_results = {}
         for subject, subject_data in updated_metrics_acorss_TWs.items():
@@ -1114,11 +2023,15 @@ def plot_metric_boxplots(updated_metrics_acorss_TWs, metrics=["TW3_LDLJ", "TW3_s
         sns.boxplot(x="hand", y="central", data=df, palette="Set2", order=order, ax=ax)
         sns.swarmplot(x="hand", y="central", data=df, color="black", size=5, alpha=0.8, order=order, ax=ax)
 
+        # Add labels "Good" and "Bad" on the y-axis.
+        ax.text(-0.15, 0, "Good", transform=ax.transAxes, color="green", fontsize=12, va="center")
+        ax.text(-0.15, 1, "Bad", transform=ax.transAxes, color="red", fontsize=12, va="center")
+        
         # Update title and axis labels depending on whether we're using median or mean.
         label = "Median" if use_median else "Mean"
-        ax.set_title(f"Box Plot of {metric.upper()} {label} Values by Hand\n{test_title}")
+        # ax.set_title(f"Box Plot of {metric.lower()} {label} Values by Hand\n{test_title}")
         ax.set_xlabel("Hand")
-        ax.set_ylabel(f"{label} {metric.upper()}")
+        ax.set_ylabel(f"{label} {metric.lower()}")
 
         # Draw a dashed line connecting the two hands for each subject.
         for subject in pivot_df.index:
@@ -1126,13 +2039,17 @@ def plot_metric_boxplots(updated_metrics_acorss_TWs, metrics=["TW3_LDLJ", "TW3_s
             d_value = pivot_df.loc[subject, "dominant"]
             ax.plot([0, 1], [nd_value, d_value], color="gray", linestyle="--", linewidth=1, alpha=0.7)
 
+        print(f"Plotted boxplot for metric: {metric}")
+        print(f"Wilcoxon test result for {metric}: {test_title}")
     plt.tight_layout()
     plt.show()
 
 # Call the function to plot boxplots for all four metrics in a 2x2 grid,
 # using the median and IQR instead of mean and std.
-# plot_metric_boxplots(updated_metrics_acorss_TWs, metrics=["TW1_LDLJ", "TW1_sparc", "TW3_LDLJ", "TW3_sparc"], use_median=True)
+# Example call:
 plot_metric_boxplots(updated_metrics_acorss_TWs, metrics=["TW2_1_LDLJ", "TW2_2_LDLJ", "durations", "distance"], use_median=True)
+
+
 
 ## -------------------------------------------------------------------------------------------------------------------
 # Do reach types that are faster on average also tend to be less accurate on average?
@@ -1285,17 +2202,25 @@ def Get_SAT_Z_MotorAcuity(stats_data, hand='non_dominant', plot_type='raw', retu
                 x_vals = np.linspace(min_lim, max_lim, 100)
                 ax.plot(x_vals, x_vals, color='green', linestyle='--', label='45° line')
                 
-                # Compute signed perpendicular distances and plot projection lines.
+                # Compute projection points on the 45° line and calculate their signed distances to (0,0)
                 for i, (x, y) in enumerate(zip(z_durations, z_distances)):
-                    # Compute signed perpendicular distance to the line x=y.
-                    signed_distance = (y - x) / math.sqrt(2)
+                    # The projection of (x, y) onto the line x = y is:
+                    proj_x = (x + y) / 2
+                    proj_y = proj_x  # Since the line is x = y
+                    
+                    # The distance from (0,0) to the projection point along the line (with sign)
+                    # is given by the dot product of the projection point with the unit vector along (1,1)
+                    projection_distance = (x + y) / math.sqrt(2)
+                    
                     subj = subjects[i]
                     if subj not in distances_dict:
                         distances_dict[subj] = {}
-                    distances_dict[subj][reach_index + 1] = signed_distance
+                    distances_dict[subj][reach_index + 1] = projection_distance
                     
-                    proj = ((x + y) / 2, (x + y) / 2)
-                    ax.plot([x, proj[0]], [y, proj[1]], color='purple', linestyle=':', linewidth=0.8)
+                    # Scatter the projected point (orange x)
+                    ax.scatter(proj_x, proj_y, color='orange', marker='x', s=30)
+                    # Draw a dashed line connecting the original and projected points
+                    ax.plot([x, proj_x], [y, proj_y], color='purple', linestyle=':', linewidth=0.8)
                 
                 ax.axhline(y=0, color='red')
                 ax.axvline(x=0, color='red')
@@ -1358,19 +2283,23 @@ def process_and_plot_scatter_for_subject_hand(updated_metrics, subject, hand, sh
     z_durations_matrix = (durations_matrix - np.nanmean(durations_matrix, axis=0)) / np.nanstd(durations_matrix, axis=0, ddof=0)
     z_distance_matrix  = (distance_matrix - np.nanmean(distance_matrix, axis=0)) / np.nanstd(distance_matrix, axis=0, ddof=0)
 
-    # --- Z-scored Scatter Plots Per Reach Index with Diagonal and Perpendicular Distances ---
-    # Dictionaries to store z-scored values and perpendicular distances
+    # --- Prepare dictionaries for raw and z-scored data ---
+    raw_durations = {}
+    raw_distance = {}
     zscore_durations = {}
     zscore_distance  = {}
     zscore_perp_distances = {}
-    
+
+    for i in range(num_reaches):
+        raw_durations[i + 1] = durations_matrix[:, i].tolist()
+        raw_distance[i + 1] = distance_matrix[:, i].tolist()
+        zscore_durations[i + 1] = z_durations_matrix[:, i].tolist()
+        zscore_distance[i + 1] = z_distance_matrix[:, i].tolist()
+
+    # --- Z-scored Scatter Plots Per Reach Index with Diagonal and Perpendicular Distances ---
     if show_plots:
         fig, axs = plt.subplots(rows, cols, figsize=(cols * 4, rows * 4), squeeze=False)
         for i in range(num_reaches):
-            # Save z-scored data for each reach (using 1-indexed keys)
-            zscore_durations[i + 1] = z_durations_matrix[:, i].tolist()
-            zscore_distance[i + 1] = z_distance_matrix[:, i].tolist()
-            
             ax = axs[i // cols][i % cols]
             ax.scatter(z_durations_matrix[:, i], z_distance_matrix[:, i], color='purple')
             ax.set_title(f"Reach {i + 1}")
@@ -1378,7 +2307,7 @@ def process_and_plot_scatter_for_subject_hand(updated_metrics, subject, hand, sh
             ax.set_ylabel("Z-scored Distance")
             ax.axhline(y=0, color='red', linestyle='--', linewidth=0.8)
             ax.axvline(x=0, color='red', linestyle='--', linewidth=0.8)
-            
+
             # Get axis limits and plot the 45° diagonal line
             xlims = ax.get_xlim()
             ylims = ax.get_ylim()
@@ -1386,15 +2315,22 @@ def process_and_plot_scatter_for_subject_hand(updated_metrics, subject, hand, sh
             max_lim = max(xlims[1], ylims[1])
             x_vals = np.linspace(min_lim, max_lim, 100)
             ax.plot(x_vals, x_vals, color='green', linestyle='--', label='45° line')
-            
+
             # Compute and overlay signed perpendicular distances for each dot.
             perp_distances = []
             for j, (x_val, y_val) in enumerate(zip(z_durations_matrix[:, i], z_distance_matrix[:, i])):
-                # Signed perpendicular distance to the line x=y.
-                distance_val = (y_val - x_val) / math.sqrt(2)
-                proj = ((x_val + y_val) / 2, (x_val + y_val) / 2)
-                ax.plot([x_val, proj[0]], [y_val, proj[1]], color='magenta', linestyle=':', linewidth=0.8)
-                perp_distances.append(distance_val)
+                # The projection of (x, y) onto the line x = y is:
+                proj_x = (x_val + y_val) / 2
+                proj_y = proj_x  # Since the line is x = y
+
+                # The distance from (0,0) to the projection point along the line (with sign)
+                # is given by the dot product of the projection point with the unit vector along (1,1)
+                projection_distance = (x_val + y_val) / math.sqrt(2)
+
+                ax.plot([x_val, proj_x], [y_val, proj_y], color='magenta', linestyle=':', linewidth=0.8)
+                ax.scatter(proj_x, proj_y, color='orange', marker='x', s=30)
+                perp_distances.append(projection_distance)
+
             zscore_perp_distances[i + 1] = perp_distances
             ax.legend()
             ax.grid(True)
@@ -1402,24 +2338,24 @@ def process_and_plot_scatter_for_subject_hand(updated_metrics, subject, hand, sh
         plt.tight_layout(rect=[0, 0.03, 1, 0.95])
         plt.show()
     else:
-        # If plotting is disabled: still save the z-scored data and compute signed perpendicular distances.
         for i in range(num_reaches):
-            zscore_durations[i + 1] = z_durations_matrix[:, i].tolist()
-            zscore_distance[i + 1] = z_distance_matrix[:, i].tolist()
             perp_distances = []
             for j, (x_val, y_val) in enumerate(zip(z_durations_matrix[:, i], z_distance_matrix[:, i])):
-                distance_val = (y_val - x_val) / math.sqrt(2)
-                perp_distances.append(distance_val)
+                projection_distance = (x_val + y_val) / math.sqrt(2)
+                perp_distances.append(projection_distance)
             zscore_perp_distances[i + 1] = perp_distances
 
-    # Save the z-scored data and perpendicular distances in the global structure.
+    # Save the raw data along with the z-scored data and perpendicular distances in the global structure.
     if subject not in updated_metrics_zscore:
         updated_metrics_zscore[subject] = {}
     updated_metrics_zscore[subject][hand] = {
-        'durations': zscore_durations,
-        'distance': zscore_distance,
+        'durations': raw_durations,
+        'distance': raw_distance,
+        'zscore_durations': zscore_durations,
+        'zscore_distance': zscore_distance,
         'MotorAcuity': zscore_perp_distances
     }
+
 
 def get_updated_metrics_zscore(updated_metrics, show_plots=True):
     global updated_metrics_zscore
@@ -1433,110 +2369,56 @@ def get_updated_metrics_zscore(updated_metrics, show_plots=True):
 updated_metrics_zscore = get_updated_metrics_zscore(updated_metrics_acorss_TWs, show_plots=False)
 
 ## -------------------------------------------------------------------------------------------------------------------
+def convert_updated_metrics_zscore(original_zscore, cross_metrics):
+    """
+    Converts the structure of updated_metrics_zscore from being keyed by reach indices (1 to 16)
+    into being keyed by trial names. The trial names are obtained from the "durations"
+    metric from cross_metrics.
 
-updated_metrics_zscore_by_trial = {}
+    For each subject and hand, for each metric (e.g. 'durations', 'distance',
+    'MotorAcuity'), the original structure is assumed to be:
+       {reach_index (as int): [trial0_value, trial1_value, ...]}
+    and the new structure will be:
+       {trial_name: [value_for_reach1, value_for_reach2, ..., value_for_reach16]}
 
-def process_and_plot_scatter_for_subject_hand(updated_metrics, subject, hand, show_plots=True):
-    global updated_metrics_zscore_by_trial
+    Parameters:
+        original_zscore (dict): The original updated_metrics_zscore dictionary with reach keys.
+        cross_metrics (dict): A dictionary (e.g., updated_metrics_acorss_TWs) from which to extract
+                              trial names via cross_metrics[subject][hand]['durations'].keys()
 
-    # Get the data dictionaries for the specified subject and hand.
-    durations_dict = updated_metrics[subject][hand]['durations']
-    distance_dict = updated_metrics[subject][hand]['distance']
+    Returns:
+        new_zscore (dict): The converted dictionary keyed by trial names.
+    """
+    new_zscore = {}
+    for subject, subj_data in original_zscore.items():
+        new_zscore[subject] = {}
+        for hand, hand_data in subj_data.items():
+            new_zscore[subject][hand] = {}
+            # Obtain trial names from cross_metrics by using the keys 
+            # from the 'durations' metric
+            trial_names = list(cross_metrics[subject][hand]['durations'].keys())
+            # For each metric (e.g., 'durations', 'distance', 'MotorAcuity')
+            for metric, metric_data in hand_data.items():
+                new_zscore[subject][hand][metric] = {}
+                # Determine the number of trials from the first reach entry.
+                first_reach = sorted(metric_data.keys(), key=lambda k: int(k))[0]
+                num_trials = len(metric_data[first_reach])
+                # If trial_names length mismatches, generate default names.
+                if len(trial_names) != num_trials:
+                    trial_names = [f"trial{i+1}" for i in range(num_trials)]
+                # For each trial (by index), gather values across all reach indices (sorted).
+                for t in range(num_trials):
+                    reach_values = []
+                    # Sort the reach indices as integers for correct ordering.
+                    for reach in sorted(metric_data.keys(), key=lambda k: int(k)):
+                        reach_values.append(metric_data[reach][t])
+                    # Map the t-th trial name to its list of 16 reach values.
+                    new_zscore[subject][hand][metric][trial_names[t]] = reach_values
+    return new_zscore
 
-    # Get sorted trial keys for consistent ordering.
-    trial_keys = sorted(durations_dict.keys())
-    num_reaches = len(durations_dict[trial_keys[0]])
-
-    # Create matrices of shape (num_trials, num_reaches)
-    durations_matrix = np.array([durations_dict[trial] for trial in trial_keys])
-    distance_matrix  = np.array([distance_dict[trial] for trial in trial_keys])
-
-    # --- Original Scatter Plots Per Reach Index ---
-    rows = math.ceil(math.sqrt(num_reaches))
-    cols = math.ceil(num_reaches / rows)
-    if show_plots:
-        fig, axs = plt.subplots(rows, cols, figsize=(cols * 4, rows * 4), squeeze=False)
-        for i in range(num_reaches):
-            ax = axs[i // cols][i % cols]
-            ax.scatter(durations_matrix[:, i], distance_matrix[:, i], color='blue')
-            ax.set_title(f"Reach {i + 1}")
-            ax.set_xlabel("Duration")
-            ax.set_ylabel("Distance")
-            ax.grid(True)
-        fig.suptitle(f"{subject} - {hand.capitalize()}: Original Duration vs Distance", fontsize=16)
-        plt.tight_layout(rect=[0, 0.03, 1, 0.95])
-        plt.show()
-
-    # --- Z-score Computation using nanmean and nanstd ---
-    z_durations_matrix = (durations_matrix - np.nanmean(durations_matrix, axis=0)) / np.nanstd(durations_matrix, axis=0, ddof=0)
-    z_distance_matrix  = (distance_matrix - np.nanmean(distance_matrix, axis=0)) / np.nanstd(distance_matrix, axis=0, ddof=0)
-
-    # --- Z-scored Scatter Plots Per Reach Index with Diagonal and Perpendicular Distances ---
-    # For plotting we keep the per-reach approach
-    if show_plots:
-        fig, axs = plt.subplots(rows, cols, figsize=(cols * 4, rows * 4), squeeze=False)
-        for i in range(num_reaches):
-            ax = axs[i // cols][i % cols]
-            ax.scatter(z_durations_matrix[:, i], z_distance_matrix[:, i], color='purple')
-            ax.set_title(f"Reach {i + 1}")
-            ax.set_xlabel("Z-scored Duration")
-            ax.set_ylabel("Z-scored Distance")
-            ax.axhline(y=0, color='red', linestyle='--', linewidth=0.8)
-            ax.axvline(x=0, color='red', linestyle='--', linewidth=0.8)
-            
-            # Plot the 45° diagonal line using current axis limits
-            xlims = ax.get_xlim()
-            ylims = ax.get_ylim()
-            min_lim = min(xlims[0], ylims[0])
-            max_lim = max(xlims[1], ylims[1])
-            x_vals = np.linspace(min_lim, max_lim, 100)
-            ax.plot(x_vals, x_vals, color='green', linestyle='--', label='45° line')
-            
-            # For each dot, compute and overlay signed perpendicular distance to the line x=y.
-            for j, (x_val, y_val) in enumerate(zip(z_durations_matrix[:, i], z_distance_matrix[:, i])):
-                proj = ((x_val + y_val) / 2, (x_val + y_val) / 2)
-                ax.plot([x_val, proj[0]], [y_val, proj[1]], color='magenta', linestyle=':', linewidth=0.8)
-            ax.legend()
-            ax.grid(True)
-        fig.suptitle(f"{subject} - {hand.capitalize()}: Z-scored Duration vs Distance", fontsize=16)
-        plt.tight_layout(rect=[0, 0.03, 1, 0.95])
-        plt.show()
-
-    # --- Reassemble the z-scored results into a structure by trial (same as updated_metrics_acorss_TWs) ---
-    zscore_durations_per_trial = {}
-    zscore_distance_per_trial = {}
-    zscore_motorAcuity_per_trial = {}
-
-    for k, trial in enumerate(trial_keys):
-        # Save z-scored durations and distances for each trial as lists
-        zscore_durations_per_trial[trial] = z_durations_matrix[k, :].tolist()
-        zscore_distance_per_trial[trial] = z_distance_matrix[k, :].tolist()
-        # Compute the signed perpendicular distances (MotorAcuity) for each reach in the trial
-        zscore_motorAcuity_per_trial[trial] = [
-            (z_distance_matrix[k, i] - z_durations_matrix[k, i]) / math.sqrt(2)
-            for i in range(num_reaches)
-        ]
-
-    # Save the reassembled dictionaries in the global structure
-    if subject not in updated_metrics_zscore_by_trial:
-        updated_metrics_zscore_by_trial[subject] = {}
-    updated_metrics_zscore_by_trial[subject][hand] = {
-        'durations': zscore_durations_per_trial,
-        'distance': zscore_distance_per_trial,
-        'MotorAcuity': zscore_motorAcuity_per_trial
-    }
-
-def get_updated_metrics_zscore(updated_metrics, show_plots=True):
-    global updated_metrics_zscore_by_trial
-    # Loop over all subjects and all hands to process the z-scored metrics.
-    for subject in updated_metrics:
-        for hand in updated_metrics[subject]:
-            process_and_plot_scatter_for_subject_hand(updated_metrics, subject, hand, show_plots=show_plots)
-    return updated_metrics_zscore_by_trial
-
-# Call the function and return the complete updated_metrics_zscore.
-updated_metrics_zscore_by_trial = get_updated_metrics_zscore(updated_metrics_acorss_TWs, show_plots=False)
-
+# Convert the updated_metrics_zscore to be keyed by trial names.
+updated_metrics_zscore_by_trial = convert_updated_metrics_zscore(updated_metrics_zscore,
+                                                                  updated_metrics_acorss_TWs)
 # # -------------------------------------------------------------------------------------------------------------------
 # Scatter plots for independent metrics (ldlj and sparc) versus durations and distance
 def plot_scatter_correlations(updated_metrics_acorss_TWs, use_zscore=False, selected_indep=None):
@@ -2524,6 +3406,10 @@ def create_metrics_dataframe(updated_metrics_acorss_TWs, updated_metrics_zscore_
                     else:
                         print(f"Skipping NaN for Subject: {subject}, Hand: {hand}, Trial: {trial}, Location: {loc+1}")
     df = pd.DataFrame(rows)
+    df['Dis_to_subject'] = ((df['Location'] - 1) // 4) + 1
+    df['Dis_to_partition'] = ((df['Location'] - 1) % 4) + 1
+    df["Age"] = pd.to_numeric(df["Age"], errors="coerce")
+    df["sBBTResult"] = df["sBBTResult"].apply(lambda x: x[0] if isinstance(x, np.ndarray) and len(x) > 0 else np.nan)
     # Define the path where the DataFrame will be saved as a pickle file.
     output_pickle_file = "/Users/yilinwu/Desktop/honours data/DataProcess/df.pkl"
 
@@ -2551,11 +3437,23 @@ import pandas as pd
 import seaborn as sns
 import numpy as np
 from sklearn.decomposition import PCA
+import math
+
+import ast
 
 with open("/Users/yilinwu/Desktop/honours data/DataProcess/df.pkl", "rb") as f:
     df = pickle.load(f)
 
 print("DataFrame loaded with shape:", df.shape)
+
+# Calculate Dis_to_subject and Dis_to_partition based on the Location column.
+# For Dis_to_subject: Locations 1-4 -> 1, 5-8 -> 2, 9-12 -> 3, 13-16 -> 4.
+# For Dis_to_partition: Locations that are 1,5,9,13 -> 1; 2,6,10,14 -> 2; 3,7,11,15 -> 3; 4,8,12,16 -> 4.
+
+df['Dis_to_subject'] = ((df['Location'] - 1) // 4) + 1
+df['Dis_to_partition'] = ((df['Location'] - 1) % 4) + 1
+df["Age"] = pd.to_numeric(df["Age"], errors="coerce")
+df["sBBTResult"] = df["sBBTResult"].apply(lambda x: x[0] if isinstance(x, np.ndarray) and len(x) > 0 else np.nan)
 
 
 
@@ -2570,86 +3468,568 @@ def model_info(model):
 
 
 
-df.columns.tolist()
+
+
+model_mixed = smf.mixedlm("distance ~ C(Hand) + TW6_LDLJ + C(Location)", df, groups=df["Subject"])
+result_mixed = model_mixed.fit()
+print("\nMixed-effects results:")
+print(result_mixed.summary())
+aic_val, bic_val = model_info(result_mixed)
+print("AIC:", aic_val)
+print("BIC:", bic_val)
 
 
 
-['Subject',
- 'Hand',
- 'Location',
- 'Gender',
- 'Age',
- 'handedness',
- 'physical_h_total_weighted',
- 'musical_h_total_weighted',
- 'digital_h_total_weighted',
- 'overall_h_total_weighted',
- 'sBBTResult',
- 'cartesian_distances',
- 'path_distances',
- 'v_peaks',
- 'durations',
- 'distance',
- 'MotorAcuity',
- 'TW1_acc_peaks',
- 'TW1_jerk_peaks',
- 'TW1_LDLJ',
- 'TW1_sparc',
- 'TW2_1_acc_peaks',
- 'TW2_1_jerk_peaks',
- 'TW2_1_LDLJ',
- 'TW2_1_sparc',
- 'TW2_2_acc_peaks',
- 'TW2_2_jerk_peaks',
- 'TW2_2_LDLJ',
- 'TW2_2_sparc',
- 'TW3_acc_peaks',
- 'TW3_jerk_peaks',
- 'TW3_LDLJ',
- 'TW3_sparc',
- 'TW4_acc_peaks',
- 'TW4_jerk_peaks',
- 'TW4_LDLJ',
- 'TW4_sparc',
- 'TW5_acc_peaks',
- 'TW5_jerk_peaks',
- 'TW5_LDLJ',
- 'TW5_sparc',
- 'TW6_acc_peaks',
- 'TW6_jerk_peaks',
- 'TW6_LDLJ',
- 'TW6_sparc']
+model_mixed = smf.mixedlm("distance ~ C(Hand) + TW6_LDLJ + cartesian_distances + C(Dis_to_subject) + C(Dis_to_partition)", df, groups=df["Subject"])
+result_mixed = model_mixed.fit()
+print("\nMixed-effects results:")
+print(result_mixed.summary())
+aic_val, bic_val = model_info(result_mixed)
+print("AIC:", aic_val)
+print("BIC:", bic_val)
+
+model_mixed = smf.mixedlm("distance ~ C(Hand) + TW6_LDLJ + C(Dis_to_subject) + C(Dis_to_partition)", df, groups=df["Subject"])
+result_mixed = model_mixed.fit()
+print("\nMixed-effects results:")
+print(result_mixed.summary())
+aic_val, bic_val = model_info(result_mixed)
+print("AIC:", aic_val)
+print("BIC:", bic_val)
+
+model_mixed = smf.mixedlm("distance ~ C(Hand) + TW6_LDLJ + TW6_sparc + C(Dis_to_subject) + C(Dis_to_partition)", df, groups=df["Subject"])
+result_mixed = model_mixed.fit()
+print("\nMixed-effects results:")
+print(result_mixed.summary())
+aic_val, bic_val = model_info(result_mixed)
+print("AIC:", aic_val)
+print("BIC:", bic_val)
+#-62032.6529
+
+# when we saw TW6_LDLJ’s coefficient shrink after adding TW6_sparc, that suggested possible multicollinearity.
+import pandas as pd
+from statsmodels.stats.outliers_influence import variance_inflation_factor
+from statsmodels.tools.tools import add_constant
+
+# Subset with only predictors of interest
+X = df[['TW6_LDLJ', 'TW6_sparc']]
+X = add_constant(X)
+
+# Compute VIF
+vif = pd.DataFrame()
+vif["Variable"] = X.columns
+vif["VIF"] = [variance_inflation_factor(X.values, i) for i in range(X.shape[1])]
+print(vif)
+
+# Also check correlation
+print(df[['TW6_LDLJ', 'TW6_sparc']].corr())
+
+# 👉 Both values are essentially 1, which means each predictor is almost completely independent of the other (no collinearity issue).
+# 👉 Their correlation is very weak. They measure related but largely different things.
+# The drop in TW6_LDLJ’s coefficient after adding TW6_sparc is not due to multicollinearity.
+# Instead, it’s because TW6_sparc explains additional variance in distance that was previously being (partly) absorbed by TW6_LDLJ.
+# Variable         VIF
+# 0      const  196.441633
+# 1   TW6_LDLJ    1.020933
+# 2  TW6_sparc    1.020933
+#            TW6_LDLJ  TW6_sparc
+# TW6_LDLJ   1.000000   0.143191
+# TW6_sparc  0.143191   1.000000
+
+
+model_mixed = smf.mixedlm("distance ~ C(Hand) + C(Gender) + TW6_LDLJ + TW6_sparc + C(Dis_to_subject) + C(Dis_to_partition)", df, groups=df["Subject"])
+result_mixed = model_mixed.fit()
+print("\nMixed-effects results:")
+print(result_mixed.summary())
+aic_val, bic_val = model_info(result_mixed)
+print("AIC:", aic_val)
+print("BIC:", bic_val)
+
+model_mixed = smf.mixedlm("distance ~ C(Hand) + Age + TW6_LDLJ + TW6_sparc + C(Dis_to_subject) + C(Dis_to_partition)", df, groups=df["Subject"])
+result_mixed = model_mixed.fit()
+print("\nMixed-effects results:")
+print(result_mixed.summary())
+aic_val, bic_val = model_info(result_mixed)
+print("AIC:", aic_val)
+print("BIC:", bic_val)
+
+
+model_mixed = smf.mixedlm("distance ~ C(Hand) + C(handedness) + TW6_LDLJ + TW6_sparc + C(Dis_to_subject) + C(Dis_to_partition)", df, groups=df["Subject"])
+result_mixed = model_mixed.fit()
+print("\nMixed-effects results:")
+print(result_mixed.summary())
+aic_val, bic_val = model_info(result_mixed)
+print("AIC:", aic_val)
+print("BIC:", bic_val)
+
+
+model_mixed = smf.mixedlm("distance ~ C(Hand) + TW6_LDLJ + TW6_sparc + C(Dis_to_subject) + C(Dis_to_partition) + C(sBBTResult)", df, groups=df["Subject"])
+result_mixed = model_mixed.fit()
+print("\nMixed-effects results:")
+print(result_mixed.summary())
+aic_val, bic_val = model_info(result_mixed)
+print("AIC:", aic_val)
+print("BIC:", bic_val)
 
 
 
 
-# Define the PCA columns
-pca_columns = [
-    'TW1_acc_peaks', 'TW1_jerk_peaks', 'TW1_LDLJ', 'TW1_sparc',
-    'TW2_1_acc_peaks', 'TW2_1_jerk_peaks', 'TW2_1_LDLJ', 'TW2_1_sparc',
-    'TW2_2_acc_peaks', 'TW2_2_jerk_peaks', 'TW2_2_LDLJ', 'TW2_2_sparc',
-    'TW3_acc_peaks', 'TW3_jerk_peaks', 'TW3_LDLJ', 'TW3_sparc',
-    'TW4_acc_peaks', 'TW4_jerk_peaks', 'TW4_LDLJ', 'TW4_sparc',
-    'TW5_acc_peaks', 'TW5_jerk_peaks', 'TW5_LDLJ', 'TW5_sparc',
-    'TW6_acc_peaks', 'TW6_jerk_peaks', 'TW6_LDLJ', 'TW6_sparc'
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+# ['Subject',
+#  'Hand',
+#  'Location',
+#  'Gender',
+#  'Age',
+#  'handedness',
+#  'physical_h_total_weighted',
+#  'musical_h_total_weighted',
+#  'digital_h_total_weighted',
+#  'overall_h_total_weighted',
+#  'sBBTResult',
+#  'cartesian_distances',
+#  'path_distances',
+#  'v_peaks',
+#  'durations',
+#  'distance',
+#  'MotorAcuity',
+#  'TW1_acc_peaks',
+#  'TW1_jerk_peaks',
+#  'TW1_LDLJ',
+#  'TW1_sparc',
+#  'TW2_1_acc_peaks',
+#  'TW2_1_jerk_peaks',
+#  'TW2_1_LDLJ',
+#  'TW2_1_sparc',
+#  'TW2_2_acc_peaks',
+#  'TW2_2_jerk_peaks',
+#  'TW2_2_LDLJ',
+#  'TW2_2_sparc',
+#  'TW3_acc_peaks',
+#  'TW3_jerk_peaks',
+#  'TW3_LDLJ',
+#  'TW3_sparc',
+#  'TW4_acc_peaks',
+#  'TW4_jerk_peaks',
+#  'TW4_LDLJ',
+#  'TW4_sparc',
+#  'TW5_acc_peaks',
+#  'TW5_jerk_peaks',
+#  'TW5_LDLJ',
+#  'TW5_sparc',
+#  'TW6_acc_peaks',
+#  'TW6_jerk_peaks',
+#  'TW6_LDLJ',
+#  'TW6_sparc']
+
+
+# 'Subject',
+#  'Hand',
+#  'Location',
+#  'Gender',
+#  'Age',
+#  'handedness',
+#  'physical_h_total_weighted',
+#  'musical_h_total_weighted',
+#  'digital_h_total_weighted',
+#  'overall_h_total_weighted',
+#  'sBBTResult',
+#  'cartesian_distances',
+#  'path_distances',
+TW6_LDLJ
+
+TW6_sparc
+
+
+
+
+
+
+
+import itertools
+import pandas as pd
+import pingouin as pg
+import seaborn as sns
+import numpy as np
+from matplotlib.colors import LinearSegmentedColormap
+from pycircstat.tests import rayleigh
+import statsmodels.formula.api as smf
+import scipy.stats as stats
+
+def run_distance_model_selection_all(df, base_predictors=None, candidate_predictors=None):
+    if base_predictors is None:
+        base_predictors = []
+    if candidate_predictors is None:
+        candidate_predictors = []
+
+    # Base formula
+    formula_base = "distance ~ " + " + ".join(base_predictors) if base_predictors else "distance ~ 1"
+    base_model = smf.mixedlm(formula_base, df, groups=df["Subject"]).fit()
+
+    results = []
+
+    # Loop over all subset sizes (1..len(candidates))
+    for k in range(1, len(candidate_predictors) + 1):
+        for subset in itertools.combinations(candidate_predictors, k):
+            predictors = list(base_predictors) + list(subset)
+            formula = "distance ~ " + " + ".join(predictors)
+
+            try:
+                model = smf.mixedlm(formula, df, groups=df["Subject"]).fit()
+            except Exception as e:
+                # Skip if model fails to converge
+                continue
+
+            # Compare to base model with LRT
+            lr_stat = 2 * (model.llf - base_model.llf)
+            lr_df = model.df_modelwc - base_model.df_modelwc
+            lr_pval = stats.chi2.sf(lr_stat, lr_df)
+
+            results.append({
+                "predictors": predictors,
+                "aic": model.aic,
+                "bic": model.bic,
+                "llf": model.llf,
+                "lrt_stat": lr_stat,
+                "lrt_df": lr_df,
+                "lrt_pval": lr_pval,
+            })
+
+    return results
+
+base = ["C(Hand)", "C(Location)", "TW6_LDLJ"]
+candidates = [
+    "Gender", "Age", "handedness", "physical_h_total_weighted",
+    "musical_h_total_weighted", "digital_h_total_weighted", "overall_h_total_weighted",
+    "cartesian_distances", "path_distances",
+    "TW6_sparc"
 ]
+run_distance_model_selection_all(df, base_predictors=base, candidate_predictors=candidates)
 
-# Extract the data for PCA from the dataframe (assumed to be 'df')
-X = df[pca_columns].copy()
 
-# Handle missing values (e.g., fill NaNs with the median of each column)
-X = X.fillna(X.median())
 
-# Run PCA
-pca = PCA()
-pca_components = pca.fit_transform(X)
 
-# Print the shape of the PCA result and the explained variance ratio
-print("PCA components shape:", pca_components.shape)
-print("Explained variance ratio:", pca.explained_variance_ratio_)
 
-# Optionally, return the PCA components for further use
-pca_components
+
+
+
+
+
+
+
+
+
+
+
+
+
+def run_distance_model_selection(df, base_predictors=None, candidate_predictors=None):
+    """
+    Sequentially add candidate predictors to a mixed-effects model predicting 'distance',
+    and compare models with AIC, BIC, and Likelihood Ratio Test.
+
+    Parameters:
+        df (DataFrame): Must contain 'distance' and 'Subject' plus predictors.
+        base_predictors (list[str]): Predictors always included in the model.
+        candidate_predictors (list[str]): Predictors to test one by one.
+
+    Returns:
+        results (list[dict]): Each entry has predictor, AIC, BIC, LRT p-value.
+    """
+    import statsmodels.api as sm
+    import statsmodels.formula.api as smf
+
+    if base_predictors is None:
+        base_predictors = []
+    if candidate_predictors is None:
+        candidate_predictors = []
+
+    # Start with base model
+    formula_base = "distance ~ " + " + ".join(base_predictors) if base_predictors else "distance ~ 1"
+    base_model = smf.mixedlm(formula_base, df, groups=df["Subject"]).fit()
+
+    results = []
+
+    for pred in candidate_predictors:
+        # Build formula with new predictor
+        formula_new = formula_base + " + " + pred
+        new_model = smf.mixedlm(formula_new, df, groups=df["Subject"]).fit()
+
+        # Likelihood ratio test (comparing nested models)
+        lr_stat = 2 * (new_model.llf - base_model.llf)
+        lr_df = new_model.df_modelwc - base_model.df_modelwc
+        import scipy.stats as stats
+        lr_pval = stats.chi2.sf(lr_stat, lr_df)
+
+        aic, bic = model_info(new_model)
+
+
+        results.append({
+            "added_predictor": pred,
+            "aic": aic,
+            "bic": bic,
+            "lrt_stat": lr_stat,
+            "lrt_df": lr_df,
+            "lrt_pval": lr_pval,
+        })
+
+    return results
+
+
+# Example usage:
+
+base = ["C(Hand)", "C(Location)", "TW6_LDLJ", "TW6_sparc"]
+candidates = [
+    "Gender", "Age", "handedness", "physical_h_total_weighted",
+    "musical_h_total_weighted", "digital_h_total_weighted", "overall_h_total_weighted",
+    "cartesian_distances", "path_distances"]
+model_results = run_distance_model_selection(df, base_predictors=base, candidate_predictors=candidates)
+
+
+
+
+
+
+# find the best model based on AIC and BIC
+best_aic_model = min(model_results, key=lambda x: x['aic'])
+best_bic_model = min(model_results, key=lambda x: x['bic'])
+print("Best model by AIC:", best_aic_model)
+print("Best model by BIC:", best_bic_model)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+def run_distance_models(df):
+    """
+    Run an ANOVA and a mixed-effects model predicting 'distance' using Hand, Location and TW1_LDLJ.
+    Prints the results and returns a dictionary containing the ANOVA table, mixed-effects model summary,
+    AIC and BIC.
+    
+    Parameters:
+        df (DataFrame): Input DataFrame containing columns 'distance', 'Hand', 'Location',
+            'TW1_LDLJ' and 'Subject'.
+            
+    Returns:
+        dict: Dictionary with keys: 'anova_table', 'mixed_model_summary', 'aic', 'bic'.
+    """
+    import statsmodels.api as sm
+    import statsmodels.formula.api as smf
+    
+    # Run OLS and compute ANOVA table
+    model_ols = smf.ols('distance ~ C(Hand) + C(Location) + TW1_LDLJ', data=df).fit()
+    anova_table = sm.stats.anova_lm(model_ols, typ=2)
+    print("\nANOVA results:")
+    print(anova_table)
+    
+    # Run mixed-effects model with Subject as a random effect
+    model_mixed = smf.mixedlm("distance ~ C(Hand) + C(Location) + TW1_LDLJ", df, groups=df["Subject"])
+    result_mixed = model_mixed.fit()
+    print("\nMixed-effects results:")
+    print(result_mixed.summary())
+    
+    # Use the model_info function to retrieve AIC and BIC
+    aic1, bic1 = model_info(result_mixed)
+    print(f"Initial Model AIC: {aic1}, BIC: {bic1}")
+    
+    return {
+        "anova_table": anova_table,
+        "mixed_model_summary": result_mixed.summary(),
+        "aic": aic1,
+        "bic": bic1,
+        "aic/bic": aic1/bic1
+    }
+
+# Run the models on the DataFrame
+results = run_distance_models(df)
+
+
+
+
+model = smf.ols('durations ~ C(Hand) + TW1_acc_peaks + TW1_jerk_peaks + TW1_LDLJ + TW1_sparc + C(Location)', data=df).fit()
+model = smf.ols('durations ~ C(Hand) + TW3_acc_peaks + TW3_jerk_peaks + TW3_LDLJ + TW3_sparc + C(Location)', data=df).fit()
+model = smf.ols('durations ~ C(Hand) + TW1_acc_peaks + TW1_jerk_peaks + TW1_LDLJ + TW1_sparc + TW3_acc_peaks + TW3_jerk_peaks + TW3_LDLJ + TW3_sparc + cartesian_distances + C(Location) + v_peaks', data=df).fit()
+
+model = smf.ols('distance ~ C(Hand) + TW1_acc_peaks + TW1_jerk_peaks + TW1_LDLJ + TW1_sparc + C(Location)', data=df).fit()
+model = smf.ols('distance ~ C(Hand) + TW3_acc_peaks + TW3_jerk_peaks + TW3_LDLJ + TW3_sparc + C(Location)', data=df).fit()
+model = smf.ols('distance ~ C(Hand) + TW1_acc_peaks + TW1_jerk_peaks + TW1_LDLJ + TW1_sparc + TW3_acc_peaks + TW3_jerk_peaks + TW3_LDLJ + TW3_sparc + cartesian_distances + C(Location) + v_peaks', data=df).fit()
+
+anova_table = sm.stats.anova_lm(model, typ=2)
+print("\nANOVA results:")
+print(anova_table)
+
+# Mixed-effects model with Subject as a random effect
+model_mixed = smf.mixedlm("durations ~ C(Hand) + TW1_acc_peaks + TW1_jerk_peaks + TW1_LDLJ + TW1_sparc + C(Location)", df, groups=df["Subject"])
+model_mixed = smf.mixedlm("durations ~ C(Hand) + TW3_acc_peaks + TW3_jerk_peaks + TW3_LDLJ + TW3_sparc + C(Location)", df, groups=df["Subject"])
+model_mixed = smf.mixedlm("durations ~ C(Hand) + TW1_acc_peaks + TW1_jerk_peaks + TW1_LDLJ + TW1_sparc + + TW3_acc_peaks + TW3_jerk_peaks + TW3_LDLJ + TW3_sparc + cartesian_distances + C(Location) + v_peaks", df, groups=df["Subject"])
+
+model_mixed = smf.mixedlm("distance ~ C(Hand) + TW1_acc_peaks + TW1_jerk_peaks + TW1_LDLJ + TW1_sparc + C(Location)", df, groups=df["Subject"])
+model_mixed = smf.mixedlm("distance ~ C(Hand) + TW3_acc_peaks + TW3_jerk_peaks + TW3_LDLJ + TW3_sparc + C(Location)", df, groups=df["Subject"])
+model_mixed = smf.mixedlm("distance ~ C(Hand) + TW1_acc_peaks + TW1_jerk_peaks + TW1_LDLJ + TW1_sparc + + TW3_acc_peaks + TW3_jerk_peaks + TW3_LDLJ + TW3_sparc + cartesian_distances + C(Location) + v_peaks", df, groups=df["Subject"])
+
+result_mixed = model_mixed.fit()
+print("\nMixed-effects results:")
+print(result_mixed.summary())
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+# Color by subject/hand so it’s easy to track.
+# 1:1 dashed line (perfect prediction line).
+# Linear fit per facet → so you see if each person/hand follows the trend.
+# Small point size + transparency → avoids overplotting with 30k+ points.
+# Faceting → each panel shows one subject (or hand), making it super obvious if some are systematically off.
+def plot_predictions_facet(model, df, response_col="durations", facet_by="Subject"):
+    """
+    Faceted scatter plots of actual vs. predicted values, grouped by Subject or Hand,
+    and a second panel showing the distribution of residuals (predicted – actual) for each facet.
+
+    Parameters:
+        model: fitted statsmodels model (OLS or MixedLM)
+        df: DataFrame used for fitting
+        response_col: dependent variable name in df
+        facet_by: column name to facet by ("Subject" or "Hand")
+    """
+    df = df.copy()
+    df["predicted"] = model.predict(df)
+
+    # Scatter plot of actual vs. predicted in facets.
+    g = sns.lmplot(
+        data=df,
+        x=response_col,
+        y="predicted",
+        col=facet_by,
+        hue=facet_by,
+        col_wrap=4,
+        scatter_kws={"alpha": 0.4, "s": 20},
+        line_kws={"color": "red"}
+    )
+
+    # Add 1:1 diagonal reference line to each facet
+    for ax in g.axes.flatten():
+        lims = [
+            min(df[response_col].min(), df["predicted"].min()),
+            max(df[response_col].max(), df["predicted"].max())
+        ]
+        ax.plot(lims, lims, 'k--', alpha=0.7)
+        ax.set_xlim(lims)
+        ax.set_ylim(lims)
+
+    g.set_axis_labels(f"Actual {response_col}", f"Predicted {response_col}")
+    g.set_titles("{col_name}")
+    plt.subplots_adjust(top=0.9)
+    g.fig.suptitle(f"Model Predictions vs. Actual {response_col}, faceted by {facet_by}")
+
+    # Calculate residuals and create a facet plot for their distributions.
+    df["residuals"] = df["predicted"] - df[response_col]
+    g2 = sns.FacetGrid(df, col=facet_by, hue=facet_by, col_wrap=4, height=4)
+    g2.map(plt.hist, "residuals", bins=20, color="skyblue", edgecolor="black", alpha=0.7)
+    g2.set_axis_labels("Residuals (Predicted - Actual)", "Frequency")
+    g2.set_titles("{col_name}")
+    g2.fig.suptitle(f"Residual Distributions by {facet_by}", y=1.03)
+    plt.tight_layout()
+    plt.show()
+
+
+# Suppose you already fit a model:
+m1 = smf.mixedlm("durations ~ TW1_LDLJ + TW1_sparc + cartesian_distances + C(Location)",
+                 df, groups=df["Subject"]).fit(reml=False)
+
+# mixed linear model for durations ~ LDLJ + SPARC + distance + location, with random intercepts for subjects
+# Facet by Subject
+
+plot_predictions_facet(m1, df, response_col="durations", facet_by="Subject")
+
+# Facet by Hand
+plot_predictions_facet(m1, df, response_col="durations", facet_by="Hand")
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -2666,6 +4046,34 @@ model1 = smf.mixedlm(
     df, groups=df["Subject"]
 ).fit()
 print(model1.summary())
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+# Core mixed-effects model: duration ~ LDLJ
+
 
 # test if SPARC (or jerk/accel peaks) adds explanatory power.
 model2 = smf.mixedlm(
@@ -2812,76 +4220,6 @@ results_table = compare_models([m1, m2, m3], ["TW1 LDLJ", "TW1 LDLJ+SPARC", "TW3
 print(results_table)
 
 
-
-# Color by subject/hand so it’s easy to track.
-# 1:1 dashed line (perfect prediction line).
-# Linear fit per facet → so you see if each person/hand follows the trend.
-# Small point size + transparency → avoids overplotting with 30k+ points.
-# Faceting → each panel shows one subject (or hand), making it super obvious if some are systematically off.
-
-
-
-def plot_predictions_facet(model, df, response_col="durations", facet_by="Subject"):
-    """
-    Faceted scatter plots of actual vs. predicted values, grouped by Subject or Hand,
-    and a second panel showing the distribution of residuals (predicted – actual) for each facet.
-
-    Parameters:
-        model: fitted statsmodels model (OLS or MixedLM)
-        df: DataFrame used for fitting
-        response_col: dependent variable name in df
-        facet_by: column name to facet by ("Subject" or "Hand")
-    """
-    df = df.copy()
-    df["predicted"] = model.predict(df)
-
-    # Scatter plot of actual vs. predicted in facets.
-    g = sns.lmplot(
-        data=df,
-        x=response_col,
-        y="predicted",
-        col=facet_by,
-        hue=facet_by,
-        col_wrap=4,
-        scatter_kws={"alpha": 0.4, "s": 20},
-        line_kws={"color": "red"}
-    )
-
-    # Add 1:1 diagonal reference line to each facet
-    for ax in g.axes.flatten():
-        lims = [
-            min(df[response_col].min(), df["predicted"].min()),
-            max(df[response_col].max(), df["predicted"].max())
-        ]
-        ax.plot(lims, lims, 'k--', alpha=0.7)
-        ax.set_xlim(lims)
-        ax.set_ylim(lims)
-
-    g.set_axis_labels(f"Actual {response_col}", f"Predicted {response_col}")
-    g.set_titles("{col_name}")
-    plt.subplots_adjust(top=0.9)
-    g.fig.suptitle(f"Model Predictions vs. Actual {response_col}, faceted by {facet_by}")
-
-    # Calculate residuals and create a facet plot for their distributions.
-    df["residuals"] = df["predicted"] - df[response_col]
-    g2 = sns.FacetGrid(df, col=facet_by, hue=facet_by, col_wrap=4, height=4)
-    g2.map(plt.hist, "residuals", bins=20, color="skyblue", edgecolor="black", alpha=0.7)
-    g2.set_axis_labels("Residuals (Predicted - Actual)", "Frequency")
-    g2.set_titles("{col_name}")
-    g2.fig.suptitle(f"Residual Distributions by {facet_by}", y=1.03)
-    plt.tight_layout()
-    plt.show()
-
-
-# Suppose you already fit a model:
-m1 = smf.mixedlm("durations ~ TW1_LDLJ + TW1_sparc + cartesian_distances + C(Location)",
-                 df, groups=df["Subject"]).fit(reml=False)
-
-# Facet by Subject
-plot_predictions_facet(m1, df, response_col="durations", facet_by="Subject")
-
-# Facet by Hand
-plot_predictions_facet(m1, df, response_col="durations", facet_by="Hand")
 
 
 

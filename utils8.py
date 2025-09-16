@@ -68,29 +68,29 @@ def compute_sbbt_result_stats(sBBTResult):
         dom_min, dom_max, dom_mean, dom_std))
     print("Non-Dominant Score -> Minimum: {}, Maximum: {}, Mean: {}, Standard Deviation: {}".format(
         non_min, non_max, non_mean, non_std))
+
+
     
     # Perform paired Wilcoxon signed-rank test comparing dominant and non_dominant scores
     statistic, p_value = wilcoxon(sBBTResult["dominant"], sBBTResult["non_dominant"])
     print("Paired Wilcoxon signed-rank test result: Statistic = {:.4f}, p-value = {:.4f}".format(statistic, p_value))
 
-    # Add box plot for dominant and non_dominant scores
+    # Add box plot for non_dominant and dominant scores, with non_dominant on left
     plt.figure(figsize=(8, 6))
-    plt.boxplot([sBBTResult['dominant'], sBBTResult['non_dominant']], labels=['Dominant', 'Non-Dominant'])
+    plt.boxplot([sBBTResult['non_dominant'], sBBTResult['dominant']], labels=['Non-Dominant', 'Dominant'])
     
-    # Overlay each value as dots with slight horizontal jitter
+    # Overlay each value as dots with slight horizontal jitter for non_dominant and dominant scores
+    non_dominant_values = sBBTResult['non_dominant']
     dominant_values = sBBTResult['dominant']
-    nondom_values = sBBTResult['non_dominant']
     
     # Create jitter for x positions
-    x_dominant = np.random.normal(1, 0.04, size=len(dominant_values))
-    x_nondom = np.random.normal(2, 0.04, size=len(nondom_values))
+    x_nondom = np.random.normal(1, 0.04, size=len(non_dominant_values))
+    x_dom = np.random.normal(2, 0.04, size=len(dominant_values))
     
-    plt.scatter(x_dominant, dominant_values, alpha=0.6, color='blue', label='Dominant Data Points')
-    plt.scatter(x_nondom, nondom_values, alpha=0.6, color='orange', label='Non-Dominant Data Points')
+    plt.scatter(x_nondom, non_dominant_values, alpha=0.6, color='orange', label='Non-Dominant Data Points')
+    plt.scatter(x_dom, dominant_values, alpha=0.6, color='blue', label='Dominant Data Points')
     
-    plt.title("sBBT Result Score Box Plot\nStatistic = {:.4f}, p-value = {:.4f}".format(statistic, p_value))
-    plt.ylabel("Scores")
-    plt.legend()
+    plt.ylabel("sBBT Scores")
     plt.show()
 
     dominant_stats = (dom_min, dom_max, dom_mean, dom_std)

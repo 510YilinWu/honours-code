@@ -644,9 +644,9 @@ print("\nRight hand")
 for key, value in stats['right'].items():
     print(f"{key}: {value:.6f}")
 
-subject = '07/22/HW'
+subject = '08/07/DA'
 hand = 'left'
-target_file = '/Users/yilinwu/Desktop/Yilin-Honours/Subject/Traj/2025/07/22/HW/HW_tBBT02.csv'
+target_file = '/Users/yilinwu/Desktop/Yilin-Honours/Subject/Traj/2025/08/07/DA/DA_tBBT18.csv'
 
 # Get all file keys in the trial dictionary (results[subject][hand][1])
 file_keys = list(results[subject][hand][1].keys())
@@ -698,6 +698,53 @@ reach_metrics = utils2.calculate_reach_metrics(reach_speed_segments, results, fs
 test_windows_1, test_windows_2_1, test_windows_2_2, test_windows_3, test_windows_4, test_windows_5, test_windows_6 = utils2.define_time_windows(reach_speed_segments, reach_metrics, fs=200, window_size=0.25)
 
 
+def compute_test_window_7(results, reach_speed_segments, reach_metrics):
+    # Helper function for test window 7:
+    def get_onset_termination(speed, seg_start, seg_end, threshold):
+        # Find index of peak velocity within the segment.
+        peak_index = seg_start + int(np.argmax(speed[seg_start:seg_end]))
+        # Search backwards from the peak until speed falls below the threshold.
+        onset = seg_start
+        for j in range(peak_index, seg_start - 1, -1):
+            if speed[j] < threshold:
+                onset = j + 1
+                break
+        # Search forwards from the peak until speed falls below the threshold.
+        termination = seg_end
+        for j in range(peak_index, seg_end):
+            if speed[j] < threshold:
+                termination = j
+                break
+        return onset, termination
+
+    # Test window 7: Onset is the first frame where the speed goes above 5% of the maximum velocity
+    #         and termination is the first frame where the speed drops below 5% of the maximum velocity.
+    test_windows_7 = {
+        date: {
+            hand: {
+                trial: [
+                    # For each segment, determine onset and termination using the speed array.
+                    # Marker: "RFIN" if hand=="right", else "LFIN".
+                    # Get the speed series from the results dictionary.
+                    # Use the pre-calculated maximum velocity for the segment from reach_metrics.
+                    (lambda seg, i: get_onset_termination(
+                        results[date][hand][1][trial]['traj_space']["RFIN" if hand == "right" else "LFIN"][1],
+                        seg[0],
+                        seg[1],
+                        0.1 * reach_metrics['reach_v_peaks'][date][hand][trial][i]
+                    ))(segment, i)
+                    for i, segment in enumerate(reach_speed_segments[date][hand][trial])
+                ]
+                for trial in reach_speed_segments[date][hand]
+            }
+            for hand in reach_speed_segments[date]
+        }
+        for date in reach_speed_segments
+    }
+    return test_windows_7
+
+test_windows_7 = compute_test_window_7(results, reach_speed_segments, reach_metrics)
+
 
 # --- CALCULATE REACH METRICS SPECIFIC TO TIME WINDOW ---
 # reach_acc_peaks
@@ -709,7 +756,7 @@ reach_TW_metrics_test_windows_2_2 = utils2.calculate_reach_metrics_for_time_wind
 reach_TW_metrics_test_windows_3 = utils2.calculate_reach_metrics_for_time_windows_Normalizing(test_windows_3, results)
 reach_TW_metrics_test_windows_4 = utils2.calculate_reach_metrics_for_time_windows_Normalizing(test_windows_4, results)
 reach_TW_metrics_test_windows_5 = utils2.calculate_reach_metrics_for_time_windows_Normalizing(test_windows_5, results)
-reach_TW_metrics_test_windows_6 = utils2.calculate_reach_metrics_for_time_windows_Normalizing(test_windows_6, results)
+reach_TW_metrics_test_windows_6 = utils2.calculate_reach_metrics_for_time_windows_Normalizing(test_windows_7, results)
 
 # --- CALCULATE SPARC FOR EACH TEST WINDOW FOR ALL DATES, HANDS, AND TRIALS ---
 reach_sparc_test_windows_1_Normalizing = utils2.calculate_reach_sparc_Normalizing(test_windows_1, results)
@@ -718,7 +765,7 @@ reach_sparc_test_windows_2_2_Normalizing = utils2.calculate_reach_sparc_Normaliz
 reach_sparc_test_windows_3_Normalizing = utils2.calculate_reach_sparc_Normalizing(test_windows_3, results)
 reach_sparc_test_windows_4_Normalizing = utils2.calculate_reach_sparc_Normalizing(test_windows_4, results)
 reach_sparc_test_windows_5_Normalizing = utils2.calculate_reach_sparc_Normalizing(test_windows_5, results)
-reach_sparc_test_windows_6_Normalizing = utils2.calculate_reach_sparc_Normalizing(test_windows_6, results)
+reach_sparc_test_windows_6_Normalizing = utils2.calculate_reach_sparc_Normalizing(test_windows_7, results)
 
 # # --- Save ALL LDLJ VALUES BY SUBJECT, HAND, AND TRIAL ---
 # utils2.save_ldlj_values(reach_TW_metrics_test_windows_1, DataProcess_folder)
@@ -745,6 +792,7 @@ sBBTResult = utils8.load_and_compute_sbbt_result()
 # Swap and rename sBBTResult scores for specific subjects
 sBBTResult = utils8.swap_and_rename_sbbt_result(sBBTResult)
 sBBTResult_stats = utils8.compute_sbbt_result_stats(sBBTResult)
+
 
 
 
@@ -856,33 +904,6 @@ def plot_bland_altman(sBBTResult, show_value_in_legend=True):
         label_md_right = 'Mean Diff'
         label_plus_right = '+1.96 SD'
         label_minus_right = '-1.96 SD'
-
-    # Create subplots: left subplot for Left hand, right subplot for Right hand
-    fig, axes = plt.subplots(1, 2, figsize=(12, 6))
-
-    # Plot Bland–Altman for Left hand
-    axes[0].scatter(mean_left, diff_left, color='blue', s=50, alpha=0.6)
-    axes[0].axhline(md_left, color='gray', linestyle='--', label=label_md_left if label_md_left else "")
-    axes[0].axhline(md_left + 1.96 * sd_left, color='red', linestyle='--', label=label_plus_left if label_plus_left else "")
-    axes[0].axhline(md_left - 1.96 * sd_left, color='red', linestyle='--', label=label_minus_left if label_minus_left else "")
-    axes[0].set_title('Left')
-    axes[0].set_xlabel('Mean of Test1 and Test2')
-    axes[0].set_ylabel('Difference between Test1 and Test2')
-    if show_value_in_legend:
-        axes[0].legend()
-
-    # Plot Bland–Altman for Right hand
-    axes[1].scatter(mean_right, diff_right, color='blue', s=50, alpha=0.6)
-    axes[1].axhline(md_right, color='gray', linestyle='--', label=label_md_right)
-    axes[1].axhline(md_right + 1.96 * sd_right, color='red', linestyle='--', label=label_plus_right)
-    axes[1].axhline(md_right - 1.96 * sd_right, color='red', linestyle='--', label=label_minus_right)
-    axes[1].set_title('Right')
-    axes[1].set_xlabel('Mean of Test1 and Test2')
-    axes[1].set_ylabel('Difference between Test1 and Test2')
-    axes[1].legend()
-
-    plt.tight_layout()
-    plt.show()
 
     print(
         f"Left Hand - Mean Difference: {md_left:.2f} ± {sd_left:.2f} "
@@ -2049,8 +2070,6 @@ def plot_metric_boxplots(updated_metrics_acorss_TWs, metrics=["TW3_LDLJ", "TW3_s
 # Example call:
 plot_metric_boxplots(updated_metrics_acorss_TWs, metrics=["TW2_1_LDLJ", "TW2_2_LDLJ", "durations", "distance"], use_median=True)
 
-
-
 ## -------------------------------------------------------------------------------------------------------------------
 # Do reach types that are faster on average also tend to be less accurate on average?
 result_Check_SAT_in_trials_mean_median_of_reach_indices = utils6.Check_SAT_in_trials_mean_median_of_reach_indices(updated_metrics_acorss_TWs, '07/22/HW', 'durations', 'distance', stat_type="median")
@@ -2366,7 +2385,7 @@ def get_updated_metrics_zscore(updated_metrics, show_plots=True):
     return updated_metrics_zscore
 
 # Call the function and return the complete updated_metrics_zscore.
-updated_metrics_zscore = get_updated_metrics_zscore(updated_metrics_acorss_TWs, show_plots=False)
+updated_metrics_zscore = get_updated_metrics_zscore(updated_metrics_acorss_TWs, show_plots=True)
 
 ## -------------------------------------------------------------------------------------------------------------------
 def convert_updated_metrics_zscore(original_zscore, cross_metrics):
@@ -2796,39 +2815,6 @@ def plot_histogram_spearman_corr_with_stats_reach_indices_by_subject(heatmap_res
     }
 
 ## -------------------------------------------------------------------------------------------------------------------
-
-# reach metrics available:
-# 'cartesian_distances', 'path_distances', 'v_peaks', 'v_peak_indices', 
-
-# time window metrics available:
-# 'TW1_acc_peaks', 'TW1_jerk_peaks', 
-# 'TW2_1_acc_peaks', 'TW2_1_jerk_peaks', 
-# 'TW2_2_acc_peaks', 'TW2_2_jerk_peaks',
-# 'TW3_acc_peaks', 'TW3_jerk_peaks'
-# 'TW4_acc_peaks', 'TW4_jerk_peaks'
-# 'TW5_acc_peaks', 'TW5_jerk_peaks'
-# 'TW6_acc_peaks', 'TW6_jerk_peaks'
-
-# dependent variable: 
-#'durations', 'distance', MotorAcuity
-
-# independent variable:
-# 'TW1_LDLJ', 
-# 'TW2_1_LDLJ'
-# 'TW2_2_LDLJ'
-# 'TW3_LDLJ'
-# 'TW4_LDLJ'
-# 'TW5_LDLJ'
-# 'TW6_LDLJ'
-# 
-# 'TW1_sparc'
-# 'TW2_1_sparc'
-# 'TW2_2_sparc'
-# 'TW3_sparc'
-# 'TW4_sparc'
-# 'TW5_sparc'
-# 'TW6_sparc'
-
 saved_heatmaps = {}
 saved_medians = {}
 
@@ -2861,9 +2847,6 @@ for var in ['TW1_LDLJ', 'TW2_1_LDLJ', 'TW2_2_LDLJ', 'TW3_LDLJ', 'TW4_LDLJ', 'TW5
         saved_heatmaps[(indep_var, dep_var)] = heatmap_results
         saved_medians[(indep_var, dep_var)] = median_of_median
 
-
-
-
 # Convert saved_medians dictionary to a list of records
 records = []
 for (indep_var, dep_var), medians in saved_medians.items():
@@ -2880,8 +2863,6 @@ for (indep_var, dep_var), medians in saved_medians.items():
 # Create DataFrame and display it
 df_saved_medians = pd.DataFrame(records)
 print(df_saved_medians)
-
-
 
 ## -------------------------------------------------------------------------------------------------------------------
 ## -------------------------------------------------------------------------------------------------------------------
@@ -3406,10 +3387,32 @@ def create_metrics_dataframe(updated_metrics_acorss_TWs, updated_metrics_zscore_
                     else:
                         print(f"Skipping NaN for Subject: {subject}, Hand: {hand}, Trial: {trial}, Location: {loc+1}")
     df = pd.DataFrame(rows)
+
+    # Calculate Dis_to_subject and Dis_to_partition based on the Location column.
+    # For Dis_to_subject: Locations 1-4 -> 1, 5-8 -> 2, 9-12 -> 3, 13-16 -> 4.
+    # For Dis_to_partition: Locations that are 1,5,9,13 -> 1; 2,6,10,14 -> 2; 3,7,11,15 -> 3; 4,8,12,16 -> 4.
     df['Dis_to_subject'] = ((df['Location'] - 1) // 4) + 1
     df['Dis_to_partition'] = ((df['Location'] - 1) % 4) + 1
-    df["Age"] = pd.to_numeric(df["Age"], errors="coerce")
+
+    # Convert the selected columns to numeric values in the DataFrame using pd.to_numeric.
+    cols = [
+        "physical_h_total_weighted",
+        "musical_h_total_weighted",
+        "digital_h_total_weighted",
+        "overall_h_total_weighted",
+        "Age"
+    ]
+    for col in cols:
+        df[col] = pd.to_numeric(df[col], errors="coerce")
+
+    # Ensure sBBTResult is a single numeric value (extract from array if necessary)
     df["sBBTResult"] = df["sBBTResult"].apply(lambda x: x[0] if isinstance(x, np.ndarray) and len(x) > 0 else np.nan)
+    
+    
+    # Apply log transformation to 'distance' and 'durations' columns to reduce skewness.
+    df["distance_log"] = np.log1p(df["distance"])
+    df["durations_log"] = np.log1p(df["durations"])
+
     # Define the path where the DataFrame will be saved as a pickle file.
     output_pickle_file = "/Users/yilinwu/Desktop/honours data/DataProcess/df.pkl"
 
@@ -3427,35 +3430,24 @@ df = create_metrics_dataframe(updated_metrics_acorss_TWs, updated_metrics_zscore
 import statsmodels.api as sm
 import statsmodels.formula.api as smf
 from statsmodels.stats.outliers_influence import variance_inflation_factor
+from statsmodels.tools.tools import add_constant
+import scipy.stats as stats
+from scipy.stats import wilcoxon
+
 from patsy import dmatrices
 
 import seaborn as sns
-from scipy.stats import wilcoxon
 import pickle
 
 import pandas as pd
 import seaborn as sns
 import numpy as np
-from sklearn.decomposition import PCA
 import math
 
-import ast
-
-with open("/Users/yilinwu/Desktop/honours data/DataProcess/df.pkl", "rb") as f:
-    df = pickle.load(f)
-
-print("DataFrame loaded with shape:", df.shape)
-
-# Calculate Dis_to_subject and Dis_to_partition based on the Location column.
-# For Dis_to_subject: Locations 1-4 -> 1, 5-8 -> 2, 9-12 -> 3, 13-16 -> 4.
-# For Dis_to_partition: Locations that are 1,5,9,13 -> 1; 2,6,10,14 -> 2; 3,7,11,15 -> 3; 4,8,12,16 -> 4.
-
-df['Dis_to_subject'] = ((df['Location'] - 1) // 4) + 1
-df['Dis_to_partition'] = ((df['Location'] - 1) % 4) + 1
-df["Age"] = pd.to_numeric(df["Age"], errors="coerce")
-df["sBBTResult"] = df["sBBTResult"].apply(lambda x: x[0] if isinstance(x, np.ndarray) and len(x) > 0 else np.nan)
-
-
+import pingouin as pg
+from matplotlib.colors import LinearSegmentedColormap
+from scipy.stats import spearmanr
+from sklearn.metrics import r2_score
 
 def model_info(model):
     llf = model.llf   # log-likelihood
@@ -3466,490 +3458,57 @@ def model_info(model):
     bic = -2*llf + k*np.log(n)
     return aic, bic
 
-
-
-
-
-model_mixed = smf.mixedlm("distance ~ C(Hand) + TW6_LDLJ + C(Location)", df, groups=df["Subject"])
-result_mixed = model_mixed.fit()
-print("\nMixed-effects results:")
-print(result_mixed.summary())
-aic_val, bic_val = model_info(result_mixed)
-print("AIC:", aic_val)
-print("BIC:", bic_val)
-
-
-
-model_mixed = smf.mixedlm("distance ~ C(Hand) + TW6_LDLJ + cartesian_distances + C(Dis_to_subject) + C(Dis_to_partition)", df, groups=df["Subject"])
-result_mixed = model_mixed.fit()
-print("\nMixed-effects results:")
-print(result_mixed.summary())
-aic_val, bic_val = model_info(result_mixed)
-print("AIC:", aic_val)
-print("BIC:", bic_val)
-
-model_mixed = smf.mixedlm("distance ~ C(Hand) + TW6_LDLJ + C(Dis_to_subject) + C(Dis_to_partition)", df, groups=df["Subject"])
-result_mixed = model_mixed.fit()
-print("\nMixed-effects results:")
-print(result_mixed.summary())
-aic_val, bic_val = model_info(result_mixed)
-print("AIC:", aic_val)
-print("BIC:", bic_val)
-
-model_mixed = smf.mixedlm("distance ~ C(Hand) + TW6_LDLJ + TW6_sparc + C(Dis_to_subject) + C(Dis_to_partition)", df, groups=df["Subject"])
-result_mixed = model_mixed.fit()
-print("\nMixed-effects results:")
-print(result_mixed.summary())
-aic_val, bic_val = model_info(result_mixed)
-print("AIC:", aic_val)
-print("BIC:", bic_val)
-#-62032.6529
-
-# when we saw TW6_LDLJ’s coefficient shrink after adding TW6_sparc, that suggested possible multicollinearity.
-import pandas as pd
-from statsmodels.stats.outliers_influence import variance_inflation_factor
-from statsmodels.tools.tools import add_constant
-
-# Subset with only predictors of interest
-X = df[['TW6_LDLJ', 'TW6_sparc']]
-X = add_constant(X)
-
-# Compute VIF
-vif = pd.DataFrame()
-vif["Variable"] = X.columns
-vif["VIF"] = [variance_inflation_factor(X.values, i) for i in range(X.shape[1])]
-print(vif)
-
-# Also check correlation
-print(df[['TW6_LDLJ', 'TW6_sparc']].corr())
-
-# 👉 Both values are essentially 1, which means each predictor is almost completely independent of the other (no collinearity issue).
-# 👉 Their correlation is very weak. They measure related but largely different things.
-# The drop in TW6_LDLJ’s coefficient after adding TW6_sparc is not due to multicollinearity.
-# Instead, it’s because TW6_sparc explains additional variance in distance that was previously being (partly) absorbed by TW6_LDLJ.
-# Variable         VIF
-# 0      const  196.441633
-# 1   TW6_LDLJ    1.020933
-# 2  TW6_sparc    1.020933
-#            TW6_LDLJ  TW6_sparc
-# TW6_LDLJ   1.000000   0.143191
-# TW6_sparc  0.143191   1.000000
-
-
-model_mixed = smf.mixedlm("distance ~ C(Hand) + C(Gender) + TW6_LDLJ + TW6_sparc + C(Dis_to_subject) + C(Dis_to_partition)", df, groups=df["Subject"])
-result_mixed = model_mixed.fit()
-print("\nMixed-effects results:")
-print(result_mixed.summary())
-aic_val, bic_val = model_info(result_mixed)
-print("AIC:", aic_val)
-print("BIC:", bic_val)
-
-model_mixed = smf.mixedlm("distance ~ C(Hand) + Age + TW6_LDLJ + TW6_sparc + C(Dis_to_subject) + C(Dis_to_partition)", df, groups=df["Subject"])
-result_mixed = model_mixed.fit()
-print("\nMixed-effects results:")
-print(result_mixed.summary())
-aic_val, bic_val = model_info(result_mixed)
-print("AIC:", aic_val)
-print("BIC:", bic_val)
-
-
-model_mixed = smf.mixedlm("distance ~ C(Hand) + C(handedness) + TW6_LDLJ + TW6_sparc + C(Dis_to_subject) + C(Dis_to_partition)", df, groups=df["Subject"])
-result_mixed = model_mixed.fit()
-print("\nMixed-effects results:")
-print(result_mixed.summary())
-aic_val, bic_val = model_info(result_mixed)
-print("AIC:", aic_val)
-print("BIC:", bic_val)
-
-
-model_mixed = smf.mixedlm("distance ~ C(Hand) + TW6_LDLJ + TW6_sparc + C(Dis_to_subject) + C(Dis_to_partition) + C(sBBTResult)", df, groups=df["Subject"])
-result_mixed = model_mixed.fit()
-print("\nMixed-effects results:")
-print(result_mixed.summary())
-aic_val, bic_val = model_info(result_mixed)
-print("AIC:", aic_val)
-print("BIC:", bic_val)
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-# ['Subject',
-#  'Hand',
-#  'Location',
-#  'Gender',
-#  'Age',
-#  'handedness',
-#  'physical_h_total_weighted',
-#  'musical_h_total_weighted',
-#  'digital_h_total_weighted',
-#  'overall_h_total_weighted',
-#  'sBBTResult',
-#  'cartesian_distances',
-#  'path_distances',
-#  'v_peaks',
-#  'durations',
-#  'distance',
-#  'MotorAcuity',
-#  'TW1_acc_peaks',
-#  'TW1_jerk_peaks',
-#  'TW1_LDLJ',
-#  'TW1_sparc',
-#  'TW2_1_acc_peaks',
-#  'TW2_1_jerk_peaks',
-#  'TW2_1_LDLJ',
-#  'TW2_1_sparc',
-#  'TW2_2_acc_peaks',
-#  'TW2_2_jerk_peaks',
-#  'TW2_2_LDLJ',
-#  'TW2_2_sparc',
-#  'TW3_acc_peaks',
-#  'TW3_jerk_peaks',
-#  'TW3_LDLJ',
-#  'TW3_sparc',
-#  'TW4_acc_peaks',
-#  'TW4_jerk_peaks',
-#  'TW4_LDLJ',
-#  'TW4_sparc',
-#  'TW5_acc_peaks',
-#  'TW5_jerk_peaks',
-#  'TW5_LDLJ',
-#  'TW5_sparc',
-#  'TW6_acc_peaks',
-#  'TW6_jerk_peaks',
-#  'TW6_LDLJ',
-#  'TW6_sparc']
-
-
-# 'Subject',
-#  'Hand',
-#  'Location',
-#  'Gender',
-#  'Age',
-#  'handedness',
-#  'physical_h_total_weighted',
-#  'musical_h_total_weighted',
-#  'digital_h_total_weighted',
-#  'overall_h_total_weighted',
-#  'sBBTResult',
-#  'cartesian_distances',
-#  'path_distances',
-TW6_LDLJ
-
-TW6_sparc
-
-
-
-
-
-
-
-import itertools
-import pandas as pd
-import pingouin as pg
-import seaborn as sns
-import numpy as np
-from matplotlib.colors import LinearSegmentedColormap
-from pycircstat.tests import rayleigh
-import statsmodels.formula.api as smf
-import scipy.stats as stats
-
-def run_distance_model_selection_all(df, base_predictors=None, candidate_predictors=None):
-    if base_predictors is None:
-        base_predictors = []
-    if candidate_predictors is None:
-        candidate_predictors = []
-
-    # Base formula
-    formula_base = "distance ~ " + " + ".join(base_predictors) if base_predictors else "distance ~ 1"
-    base_model = smf.mixedlm(formula_base, df, groups=df["Subject"]).fit()
-
-    results = []
-
-    # Loop over all subset sizes (1..len(candidates))
-    for k in range(1, len(candidate_predictors) + 1):
-        for subset in itertools.combinations(candidate_predictors, k):
-            predictors = list(base_predictors) + list(subset)
-            formula = "distance ~ " + " + ".join(predictors)
-
-            try:
-                model = smf.mixedlm(formula, df, groups=df["Subject"]).fit()
-            except Exception as e:
-                # Skip if model fails to converge
-                continue
-
-            # Compare to base model with LRT
-            lr_stat = 2 * (model.llf - base_model.llf)
-            lr_df = model.df_modelwc - base_model.df_modelwc
-            lr_pval = stats.chi2.sf(lr_stat, lr_df)
-
-            results.append({
-                "predictors": predictors,
-                "aic": model.aic,
-                "bic": model.bic,
-                "llf": model.llf,
-                "lrt_stat": lr_stat,
-                "lrt_df": lr_df,
-                "lrt_pval": lr_pval,
-            })
-
-    return results
-
-base = ["C(Hand)", "C(Location)", "TW6_LDLJ"]
-candidates = [
-    "Gender", "Age", "handedness", "physical_h_total_weighted",
-    "musical_h_total_weighted", "digital_h_total_weighted", "overall_h_total_weighted",
-    "cartesian_distances", "path_distances",
-    "TW6_sparc"
-]
-run_distance_model_selection_all(df, base_predictors=base, candidate_predictors=candidates)
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-def run_distance_model_selection(df, base_predictors=None, candidate_predictors=None):
+def compare_models(models, model_names):
     """
-    Sequentially add candidate predictors to a mixed-effects model predicting 'distance',
-    and compare models with AIC, BIC, and Likelihood Ratio Test.
+    Compare multiple statsmodels models (OLS or MixedLM) side by side using
+    log-likelihood, AIC, and BIC.
 
     Parameters:
-        df (DataFrame): Must contain 'distance' and 'Subject' plus predictors.
-        base_predictors (list[str]): Predictors always included in the model.
-        candidate_predictors (list[str]): Predictors to test one by one.
-
+        models: list of fitted statsmodels models
+        model_names: list of names for the models
     Returns:
-        results (list[dict]): Each entry has predictor, AIC, BIC, LRT p-value.
+        DataFrame summary of fit statistics
     """
-    import statsmodels.api as sm
-    import statsmodels.formula.api as smf
+    rows = []
+    for name, model in zip(model_names, models):
+        llf = model.llf
+        k = model.df_modelwc
+        n = model.nobs
+        aic = -2*llf + 2*k
+        bic = -2*llf + k*np.log(n)
 
-    if base_predictors is None:
-        base_predictors = []
-    if candidate_predictors is None:
-        candidate_predictors = []
-
-    # Start with base model
-    formula_base = "distance ~ " + " + ".join(base_predictors) if base_predictors else "distance ~ 1"
-    base_model = smf.mixedlm(formula_base, df, groups=df["Subject"]).fit()
-
-    results = []
-
-    for pred in candidate_predictors:
-        # Build formula with new predictor
-        formula_new = formula_base + " + " + pred
-        new_model = smf.mixedlm(formula_new, df, groups=df["Subject"]).fit()
-
-        # Likelihood ratio test (comparing nested models)
-        lr_stat = 2 * (new_model.llf - base_model.llf)
-        lr_df = new_model.df_modelwc - base_model.df_modelwc
-        import scipy.stats as stats
-        lr_pval = stats.chi2.sf(lr_stat, lr_df)
-
-        aic, bic = model_info(new_model)
-
-
-        results.append({
-            "added_predictor": pred,
-            "aic": aic,
-            "bic": bic,
-            "lrt_stat": lr_stat,
-            "lrt_df": lr_df,
-            "lrt_pval": lr_pval,
+        rows.append({
+            "Model": name,
+            "LogLik": llf,
+            "AIC": aic,
+            "BIC": bic
         })
+    return pd.DataFrame(rows)
 
-    return results
-
-
-# Example usage:
-
-base = ["C(Hand)", "C(Location)", "TW6_LDLJ", "TW6_sparc"]
-candidates = [
-    "Gender", "Age", "handedness", "physical_h_total_weighted",
-    "musical_h_total_weighted", "digital_h_total_weighted", "overall_h_total_weighted",
-    "cartesian_distances", "path_distances"]
-model_results = run_distance_model_selection(df, base_predictors=base, candidate_predictors=candidates)
-
-
-
-
-
-
-# find the best model based on AIC and BIC
-best_aic_model = min(model_results, key=lambda x: x['aic'])
-best_bic_model = min(model_results, key=lambda x: x['bic'])
-print("Best model by AIC:", best_aic_model)
-print("Best model by BIC:", best_bic_model)
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-def run_distance_models(df):
+def plot_predictions(model, df, response_col="durations"):
     """
-    Run an ANOVA and a mixed-effects model predicting 'distance' using Hand, Location and TW1_LDLJ.
-    Prints the results and returns a dictionary containing the ANOVA table, mixed-effects model summary,
-    AIC and BIC.
+    Plot actual vs. predicted values for a fitted statsmodels model.
     
     Parameters:
-        df (DataFrame): Input DataFrame containing columns 'distance', 'Hand', 'Location',
-            'TW1_LDLJ' and 'Subject'.
-            
-    Returns:
-        dict: Dictionary with keys: 'anova_table', 'mixed_model_summary', 'aic', 'bic'.
+        model: fitted statsmodels model (mixedlm or ols)
+        df: DataFrame used for fitting
+        response_col: the column name of the response variable
     """
-    import statsmodels.api as sm
-    import statsmodels.formula.api as smf
-    
-    # Run OLS and compute ANOVA table
-    model_ols = smf.ols('distance ~ C(Hand) + C(Location) + TW1_LDLJ', data=df).fit()
-    anova_table = sm.stats.anova_lm(model_ols, typ=2)
-    print("\nANOVA results:")
-    print(anova_table)
-    
-    # Run mixed-effects model with Subject as a random effect
-    model_mixed = smf.mixedlm("distance ~ C(Hand) + C(Location) + TW1_LDLJ", df, groups=df["Subject"])
-    result_mixed = model_mixed.fit()
-    print("\nMixed-effects results:")
-    print(result_mixed.summary())
-    
-    # Use the model_info function to retrieve AIC and BIC
-    aic1, bic1 = model_info(result_mixed)
-    print(f"Initial Model AIC: {aic1}, BIC: {bic1}")
-    
-    return {
-        "anova_table": anova_table,
-        "mixed_model_summary": result_mixed.summary(),
-        "aic": aic1,
-        "bic": bic1,
-        "aic/bic": aic1/bic1
-    }
+    # Predicted values
+    df["predicted"] = model.predict(df)
 
-# Run the models on the DataFrame
-results = run_distance_models(df)
+    plt.figure(figsize=(6, 6))
+    plt.scatter(df[response_col], df["predicted"], alpha=0.3)
+    plt.plot([df[response_col].min(), df[response_col].max()],
+             [df[response_col].min(), df[response_col].max()],
+             'r--', label="Perfect prediction")
 
+    plt.xlabel("Actual " + response_col)
+    plt.ylabel("Predicted " + response_col)
+    plt.title(f"Predicted vs Actual: {response_col}")
+    plt.legend()
+    plt.show()
 
-
-
-model = smf.ols('durations ~ C(Hand) + TW1_acc_peaks + TW1_jerk_peaks + TW1_LDLJ + TW1_sparc + C(Location)', data=df).fit()
-model = smf.ols('durations ~ C(Hand) + TW3_acc_peaks + TW3_jerk_peaks + TW3_LDLJ + TW3_sparc + C(Location)', data=df).fit()
-model = smf.ols('durations ~ C(Hand) + TW1_acc_peaks + TW1_jerk_peaks + TW1_LDLJ + TW1_sparc + TW3_acc_peaks + TW3_jerk_peaks + TW3_LDLJ + TW3_sparc + cartesian_distances + C(Location) + v_peaks', data=df).fit()
-
-model = smf.ols('distance ~ C(Hand) + TW1_acc_peaks + TW1_jerk_peaks + TW1_LDLJ + TW1_sparc + C(Location)', data=df).fit()
-model = smf.ols('distance ~ C(Hand) + TW3_acc_peaks + TW3_jerk_peaks + TW3_LDLJ + TW3_sparc + C(Location)', data=df).fit()
-model = smf.ols('distance ~ C(Hand) + TW1_acc_peaks + TW1_jerk_peaks + TW1_LDLJ + TW1_sparc + TW3_acc_peaks + TW3_jerk_peaks + TW3_LDLJ + TW3_sparc + cartesian_distances + C(Location) + v_peaks', data=df).fit()
-
-anova_table = sm.stats.anova_lm(model, typ=2)
-print("\nANOVA results:")
-print(anova_table)
-
-# Mixed-effects model with Subject as a random effect
-model_mixed = smf.mixedlm("durations ~ C(Hand) + TW1_acc_peaks + TW1_jerk_peaks + TW1_LDLJ + TW1_sparc + C(Location)", df, groups=df["Subject"])
-model_mixed = smf.mixedlm("durations ~ C(Hand) + TW3_acc_peaks + TW3_jerk_peaks + TW3_LDLJ + TW3_sparc + C(Location)", df, groups=df["Subject"])
-model_mixed = smf.mixedlm("durations ~ C(Hand) + TW1_acc_peaks + TW1_jerk_peaks + TW1_LDLJ + TW1_sparc + + TW3_acc_peaks + TW3_jerk_peaks + TW3_LDLJ + TW3_sparc + cartesian_distances + C(Location) + v_peaks", df, groups=df["Subject"])
-
-model_mixed = smf.mixedlm("distance ~ C(Hand) + TW1_acc_peaks + TW1_jerk_peaks + TW1_LDLJ + TW1_sparc + C(Location)", df, groups=df["Subject"])
-model_mixed = smf.mixedlm("distance ~ C(Hand) + TW3_acc_peaks + TW3_jerk_peaks + TW3_LDLJ + TW3_sparc + C(Location)", df, groups=df["Subject"])
-model_mixed = smf.mixedlm("distance ~ C(Hand) + TW1_acc_peaks + TW1_jerk_peaks + TW1_LDLJ + TW1_sparc + + TW3_acc_peaks + TW3_jerk_peaks + TW3_LDLJ + TW3_sparc + cartesian_distances + C(Location) + v_peaks", df, groups=df["Subject"])
-
-result_mixed = model_mixed.fit()
-print("\nMixed-effects results:")
-print(result_mixed.summary())
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-# Color by subject/hand so it’s easy to track.
-# 1:1 dashed line (perfect prediction line).
-# Linear fit per facet → so you see if each person/hand follows the trend.
-# Small point size + transparency → avoids overplotting with 30k+ points.
-# Faceting → each panel shows one subject (or hand), making it super obvious if some are systematically off.
 def plot_predictions_facet(model, df, response_col="durations", facet_by="Subject"):
     """
     Faceted scatter plots of actual vs. predicted values, grouped by Subject or Hand,
@@ -4001,317 +3560,786 @@ def plot_predictions_facet(model, df, response_col="durations", facet_by="Subjec
     plt.tight_layout()
     plt.show()
 
-
-# Suppose you already fit a model:
-m1 = smf.mixedlm("durations ~ TW1_LDLJ + TW1_sparc + cartesian_distances + C(Location)",
-                 df, groups=df["Subject"]).fit(reml=False)
-
-# mixed linear model for durations ~ LDLJ + SPARC + distance + location, with random intercepts for subjects
-# Facet by Subject
-
-plot_predictions_facet(m1, df, response_col="durations", facet_by="Subject")
-
-# Facet by Hand
-plot_predictions_facet(m1, df, response_col="durations", facet_by="Hand")
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-# Core mixed-effects model: duration ~ LDLJ
-# does smoothness (LDLJ/SPARC) explain movement duration beyond amplitude and location?
-model1 = smf.mixedlm(
-    "durations ~ TW1_LDLJ + cartesian_distances + C(Location)",
-    df, groups=df["Subject"]
-).fit()
-print(model1.summary())
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-# Core mixed-effects model: duration ~ LDLJ
-
-
-# test if SPARC (or jerk/accel peaks) adds explanatory power.
-model2 = smf.mixedlm(
-    "durations ~ TW1_LDLJ + TW1_sparc + cartesian_distances + C(Location)",
-    df, groups=df["Subject"]
-).fit()
-print(model2.summary())
-
-
-aic1, bic1 = model_info(model1)
-aic2, bic2 = model_info(model2)
-
-# compare fit statistics:
-print("Model 1 - AIC:", aic1, "BIC:", bic1)
-print("Model 2 - AIC:", aic2, "BIC:", bic2)
-print("Model 1 - AIC/BIC:", aic1/bic1)
-print("Model 2 - AIC/BIC:", aic2/bic2)
-# 👉 If model2 doesn’t lower AIC/BIC much, LDLJ may already capture what SPARC does.
-
-
-# Check for multicollinearity using VIF
-y, X = dmatrices("durations ~ TW1_LDLJ + TW1_sparc + TW1_jerk_peaks + TW1_acc_peaks", df, return_type='dataframe')
-vif_df = pd.DataFrame({
-    "Variable": X.columns,
-    "VIF": [variance_inflation_factor(X.values, i) for i in range(X.shape[1])]
-})
-print(vif_df)
-# 👉 Drop or choose between variables with VIF > 5–10 (they overlap too much).
-
-
-# Compare TW1 vs TW3 separately
-model_TW1 = smf.mixedlm(
-    "durations ~ TW1_LDLJ + TW1_sparc + cartesian_distances + C(Location)",
-    df, groups=df["Subject"]
-).fit()
-
-model_TW3 = smf.mixedlm(
-    "durations ~ TW3_LDLJ + TW3_sparc + cartesian_distances + C(Location)",
-    df, groups=df["Subject"]
-).fit()
-
-print(model_TW1.summary())
-print(model_TW3.summary())
-
-aic_TW1, bic_TW1 = model_info(model_TW1)
-aic_TW3, bic_TW3 = model_info(model_TW3)
-print("TW1 - AIC:", aic_TW1, "BIC:", bic_TW1)
-print("TW3 - AIC:", aic_TW3, "BIC:", bic_TW3)
-print("TW1 - AIC/BIC:", aic_TW1/bic_TW1)
-print("TW3 - AIC/BIC:", aic_TW3/bic_TW3)
-
-model_full = smf.mixedlm(
-    "durations ~ TW1_LDLJ + TW1_sparc + TW3_LDLJ + TW3_sparc + cartesian_distances + C(Location) + v_peaks",
-    df, groups=df["Subject"]
-).fit()
-print(model_full.summary())
-aic_full, bic_full = model_info(model_full)
-print("Full Model - AIC:", aic_full, "BIC:", bic_full)
-print("Full Model - AIC/BIC:", aic_full/bic_full)
-# Compare all models
-models = {
-    "TW1": (model_TW1, aic_TW1, bic_TW1),
-    "TW3": (model_TW3, aic_TW3, bic_TW3),
-    "Full": (model_full, aic_full, bic_full)
-}
-for name, (model, aic, bic) in models.items():
-    print(f"{name} Model - AIC: {aic}, BIC: {bic}, AIC/BIC: {aic/bic}")
-# 👉 Choose the model with the lowest AIC/BIC that balances fit and simplicity.
-
-
-
-
-def plot_predictions(model, df, response_col="durations"):
+def print_model_summaries(models):
+    for i, model in enumerate(models):
+        print(f"\nModel {i} results:")
+        print(model.summary())
+        aic_val, bic_val = model_info(model)
+        print("AIC:", aic_val)
+        print("BIC:", bic_val)
+
+def check_multicollinearity(df, model_choice="model3_1", custom_formula=None):
     """
-    Plot actual vs. predicted values for a fitted statsmodels model.
+    Checks multicollinearity by computing the VIF for predictors of a specified model.
     
     Parameters:
-        model: fitted statsmodels model (mixedlm or ols)
-        df: DataFrame used for fitting
-        response_col: the column name of the response variable
+        df (DataFrame): The data to analyze.
+        model_choice (str): Choose a predefined model ("model3_1" or "model14_1").
+                            If any other string is used, a custom formula must be provided via custom_formula.
+        custom_formula (str, optional): A custom regression formula as a string if model_choice is not predefined.
+        
+    Prints:
+        VIF values for the predictors based on the selected model or custom formula.
     """
-    # Predicted values
-    df["predicted"] = model.predict(df)
+    if model_choice == "model3_1":
+        formula = ("distance_log ~ C(Hand) + C(Dis_to_subject) + C(Dis_to_partition) + "
+                   "TW6_LDLJ + TW6_sparc + MotorAcuity + durations_log")
+        print("VIF for model3_1 predictors:")
+    elif model_choice == "model14_1":
+        formula = ("distance_log ~ C(Hand) + C(Dis_to_subject) + C(Dis_to_partition) + "
+                   "TW6_LDLJ + TW6_sparc + MotorAcuity + durations_log + sBBTResult")
+        print("VIF for model14_1 predictors:")
+    else:
+        if custom_formula:
+            formula = custom_formula
+            print("VIF for custom model predictors:")
+        else:
+            print("Invalid model choice. Please choose either 'model3_1', 'model14_1', or provide a custom_formula.")
+            return
 
-    plt.figure(figsize=(6, 6))
-    plt.scatter(df[response_col], df["predicted"], alpha=0.3)
-    plt.plot([df[response_col].min(), df[response_col].max()],
-             [df[response_col].min(), df[response_col].max()],
-             'r--', label="Perfect prediction")
+    y, X = dmatrices(formula, df, return_type='dataframe')
+    vif_df = pd.DataFrame({
+        "Variable": X.columns,
+        "VIF": [variance_inflation_factor(X.values, i) for i in range(X.shape[1])]
+    })
+    print(vif_df)
+    print("-" * 80)
 
-    plt.xlabel("Actual " + response_col)
-    plt.ylabel("Predicted " + response_col)
-    plt.title(f"Predicted vs Actual: {response_col}")
-    plt.legend()
+
+with open("/Users/yilinwu/Desktop/honours data/DataProcess/df.pkl", "rb") as f:
+    df = pickle.load(f)
+
+print("DataFrame loaded with shape:", df.shape)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+# ---------------------------------------------------------------------------------------------------------------------
+
+
+
+# --- Baseline control predictors (all models include these) ---
+# Hand, distance-to-subject, distance-to-partition, random intercepts for Subject (29 groups)
+
+# Model 0: Early baseline with TW6_LDLJ
+model0 = smf.mixedlm(
+    "distance ~ C(Hand) + C(Dis_to_subject) + C(Dis_to_partition) + TW6_LDLJ",
+    df, groups=df["Subject"]
+).fit(reml=True)
+
+# Model 1: Early baseline with TW6_LDLJ & TW6_sparc
+model1 = smf.mixedlm(
+    "distance ~ C(Hand) + C(Dis_to_subject) + C(Dis_to_partition) + TW6_LDLJ + TW6_sparc",
+    df, groups=df["Subject"]
+).fit(reml=True)
+
+# Model 2: Add MotorAcuity
+model2 = smf.mixedlm(
+    "distance ~ C(Hand) + C(Dis_to_subject) + C(Dis_to_partition) + TW6_LDLJ + TW6_sparc + MotorAcuity",
+    df, groups=df["Subject"]
+).fit(reml=True)
+
+# Model 3: Add durations (core baseline)
+model3 = smf.mixedlm(
+    "distance ~ C(Hand) + C(Dis_to_subject) + C(Dis_to_partition) + TW6_LDLJ + TW6_sparc + MotorAcuity + durations",
+    df, groups=df["Subject"]
+).fit(reml=True)
+
+# Model 3.1: Log-transform distance and durations
+model3_1= smf.mixedlm(
+    "distance_log ~ C(Hand) + C(Dis_to_subject) + C(Dis_to_partition) + TW6_LDLJ + TW6_sparc + MotorAcuity + durations_log",
+    df, groups=df["Subject"]
+).fit(reml=True)
+
+# --- Kinematic refinements ---
+
+# Model 4: Add v_peaks
+model4 = smf.mixedlm(
+    "distance ~ C(Hand) + C(Dis_to_subject) + C(Dis_to_partition) + TW6_LDLJ + TW6_sparc + MotorAcuity + durations + v_peaks",
+    df, groups=df["Subject"]
+).fit(reml=True)
+
+# Model 5: Add TW6_acc_peaks
+model5 = smf.mixedlm(
+    "distance ~ C(Hand) + C(Dis_to_subject) + C(Dis_to_partition) + TW6_LDLJ + TW6_sparc + MotorAcuity + durations + TW6_acc_peaks",
+    df, groups=df["Subject"]
+).fit(reml=True)
+
+# Model 6: Add TW6_jerk_peaks  (best-fitting model by AIC)
+model6 = smf.mixedlm(
+    "distance ~ C(Hand) + C(Dis_to_subject) + C(Dis_to_partition) + TW6_LDLJ + TW6_sparc + MotorAcuity + durations + TW6_jerk_peaks",
+    df, groups=df["Subject"]
+).fit(reml=True)
+
+# Model 7: Add cartesian_distances
+model7 = smf.mixedlm(
+    "distance ~ C(Hand) + C(Dis_to_subject) + C(Dis_to_partition) + TW6_LDLJ + TW6_sparc + MotorAcuity + durations + cartesian_distances",
+    df, groups=df["Subject"]
+).fit(reml=True)
+
+# Model 8: Add path_distances
+model8 = smf.mixedlm(
+    "distance ~ C(Hand) + C(Dis_to_subject) + C(Dis_to_partition) + TW6_LDLJ + TW6_sparc + MotorAcuity + durations + path_distances",
+    df, groups=df["Subject"]
+).fit(reml=True)
+
+# --- Demographics ---
+
+# Model 9: Add Gender and Age
+model9 = smf.mixedlm(
+    "distance ~ C(Hand) + C(Dis_to_subject) + C(Dis_to_partition) + TW6_LDLJ + TW6_sparc + MotorAcuity + durations + C(Gender) + Age",
+    df, groups=df["Subject"]
+).fit(reml=True)
+
+# --- Habits ---
+
+# Model 10: Add physical habit score
+model10 = smf.mixedlm(
+    "distance ~ C(Hand) + C(Dis_to_subject) + C(Dis_to_partition) + TW6_LDLJ + TW6_sparc + MotorAcuity + durations + physical_h_total_weighted",
+    df, groups=df["Subject"]
+).fit(reml=True)
+
+# Model 11: Add musical habit score
+model11 = smf.mixedlm(
+    "distance ~ C(Hand) + C(Dis_to_subject) + C(Dis_to_partition) + TW6_LDLJ + TW6_sparc + MotorAcuity + durations + musical_h_total_weighted",
+    df, groups=df["Subject"]
+).fit(reml=True)
+
+# Model 12: Add digital habit score
+model12 = smf.mixedlm(
+    "distance ~ C(Hand) + C(Dis_to_subject) + C(Dis_to_partition) + TW6_LDLJ + TW6_sparc + MotorAcuity + durations + digital_h_total_weighted",
+    df, groups=df["Subject"]
+).fit(reml=True)
+
+# Model 13: Add overall habit score
+model13 = smf.mixedlm(
+    "distance ~ C(Hand) + C(Dis_to_subject) + C(Dis_to_partition) + TW6_LDLJ + TW6_sparc + MotorAcuity + durations + overall_h_total_weighted",
+    df, groups=df["Subject"]
+).fit(reml=True)
+
+# --- sBBTResult ---
+# Model 14: Add sBBTResult
+model14 = smf.mixedlm(
+    "distance ~ C(Hand) + C(Dis_to_subject) + C(Dis_to_partition) + TW6_LDLJ + TW6_sparc + MotorAcuity + durations + sBBTResult",
+    df, groups=df["Subject"]
+).fit(reml=True)
+
+# Model 14_1: Log-transform distance and durations + sBBTResult
+model14_1= smf.mixedlm(
+    "distance_log ~ C(Hand) + C(Dis_to_subject) + C(Dis_to_partition) + TW6_LDLJ + TW6_sparc + MotorAcuity + durations_log + sBBTResult",
+    df, groups=df["Subject"]
+).fit(reml=True)
+
+
+model_duration = smf.mixedlm(
+    "durations_log ~ C(Hand) + C(Dis_to_subject) + C(Dis_to_partition) + TW6_LDLJ + TW6_sparc",
+    df, groups=df["Subject"]
+).fit(reml=True)
+model_distance = smf.mixedlm(
+    "distance_log ~ C(Hand) + C(Dis_to_subject) + C(Dis_to_partition) + TW6_LDLJ + TW6_sparc",
+    df, groups=df["Subject"]
+).fit(reml=True)
+
+model_motoracuity = smf.mixedlm(
+    "MotorAcuity ~ C(Hand) + C(Dis_to_subject) + C(Dis_to_partition) + TW6_LDLJ + TW6_sparc",
+    df, groups=df["Subject"]
+).fit(reml=True)
+
+print_model_summaries([model_duration, model_distance, model_motoracuity])
+
+# Calculate R squared (pseudo R² using r2_score on the predictions)
+
+r2_duration = r2_score(df["durations_log"], model_duration.predict(df))
+r2_distance = r2_score(df["distance_log"], model_distance.predict(df))
+r2_motoracuity = r2_score(df["MotorAcuity"], model_motoracuity.predict(df))
+
+print("\nR squared:")
+print("Duration model: {:.4f}".format(r2_duration))
+print("Distance model: {:.4f}".format(r2_distance))
+print("MotorAcuity model: {:.4f}".format(r2_motoracuity))
+
+
+
+
+
+
+# -------------------------------------------------------------------------------------------------------------------
+models = [model0, model1, model2, model3, model3_1, model4, model5, model6, model7, model8,
+          model9, model10, model11, model12, model13, model14, model14_1]
+print_model_summaries(models)
+# -------------------------------------------------------------------------------------------------------------------
+compare_models(
+    models,
+    ["Model 0", "Model 1", "Model 2", "Model 3", "Model 3.1", "Model 4", "Model 5", "Model 6",
+     "Model 7", "Model 8", "Model 9", "Model 10", "Model 11", "Model 12", "Model 13", "Model 14", "Model 14.1"]
+)
+# -------------------------------------------------------------------------------------------------------------------
+plot_predictions(model3_1, df, response_col="distance_log")
+plot_predictions_facet(model3_1, df, response_col="distance_log", facet_by="Subject")
+plot_predictions_facet(model3_1, df, response_col="distance_log", facet_by="Hand")
+# -------------------------------------------------------------------------------------------------------------------
+plot_predictions(model14_1, df, response_col="distance_log")
+plot_predictions_facet(model14_1, df, response_col="distance_log", facet_by="Subject")
+plot_predictions_facet(model14_1, df, response_col="distance_log", facet_by="Hand")
+# -------------------------------------------------------------------------------------------------------------------
+# 👉 Drop or choose between variables with VIF > 5–10 (they overlap too much).
+# 👉 Their correlation is very weak. They measure related but largely different things.
+
+# Check multicollinearity for model3_1
+check_multicollinearity(df, model_choice="model3_1")
+# Check multicollinearity for model14_1
+check_multicollinearity(df, model_choice="model14_1")
+
+# -------------------------------------------------------------------------------------------------------------------
+# check correlation between TW6_LDLJ and TW6_sparc using Spearman correlation
+corr, p_value = stats.spearmanr(df["TW6_LDLJ"].dropna(), df["TW6_sparc"].dropna())
+print(f"Spearman correlation between TW6_LDLJ and TW6_sparc: {corr}, p-value: {p_value}")
+# -------------------------------------------------------------------------------------------------------------------
+from statsmodels.sandbox.stats.multicomp import multipletests
+
+#
+# Compute subject‐level median stats for durations, distances, and MotorAcuity,
+# plus get the sBBT score (using the first non‐NaN value per subject per hand).
+hand_stats = (
+    df.groupby(["Subject", "Hand"])
+      .agg({
+          "durations": "median",
+          "distance": "median",
+          "MotorAcuity": "median",
+          "sBBTResult": lambda x: x.dropna().iloc[0] if not x.dropna().empty else np.nan
+      })
+      .reset_index()
+)
+
+print("Subject-level median stats by hand:")
+print(hand_stats)
+
+# For each hand separately, compute Spearman correlations for sBBT vs durations, distance and MotorAcuity.
+metrics = ["durations", "distance", "MotorAcuity"]
+for hand in hand_stats["Hand"].unique():
+    hand_df = hand_stats[hand_stats["Hand"] == hand]
+    pvals = []
+    corr_results = {}
+    for metric in metrics:
+        rho, p = spearmanr(hand_df["sBBTResult"], hand_df[metric], nan_policy="omit")
+        pvals.append(p)
+        corr_results[metric] = rho
+    # Apply FDR correction for multiple comparisons
+    reject, pvals_corrected, _, _ = multipletests(pvals, alpha=0.05, method="fdr_bh")
+    
+    print(f"\nHand: {hand}")
+    for i, metric in enumerate(metrics):
+        print(f"Spearman correlation (sBBT vs median {metric}): rho = {corr_results[metric]:.3f}, raw p = {pvals[i]:.3f}, adjusted p = {pvals_corrected[i]:.3f}")
+
+# Plot separate scatter plots for each hand.
+import matplotlib.pyplot as plt
+
+hands = hand_stats["Hand"].unique()
+fig, axs = plt.subplots(1, 3, figsize=(18, 5))
+for i, metric in enumerate(metrics):
+    for hand in hands:
+        hand_df = hand_stats[hand_stats["Hand"] == hand]
+        axs[i].scatter(hand_df["sBBTResult"], hand_df[metric], alpha=0.8, label=f"{hand}")
+    if metric == "durations":
+        axs[i].set_ylabel("Median Duration")
+        axs[i].set_title(f"sBBT vs Median Duration")
+    elif metric == "distance":
+        axs[i].set_ylabel("Median Distance")
+        axs[i].set_title(f"sBBT vs Median Distance")
+    elif metric == "MotorAcuity":
+        axs[i].set_ylabel("Median MotorAcuity")
+        axs[i].set_title(f"sBBT vs Median MotorAcuity")
+    axs[i].set_xlabel("sBBT Score")
+    axs[i].legend()
+
+plt.tight_layout()
+plt.show()
+
+
+# Compute subject-level best performance stats (per hand):
+# For durations and distance best performance are the minimum values,
+# and for MotorAcuity the best performance is the maximum value.
+hand_best_stats = (
+    df.groupby(["Subject", "Hand"])
+      .agg({
+          "durations": "min",         # best = shortest duration
+          "distance": "min",          # best = shortest distance
+          "MotorAcuity": "max",       # best = highest MotorAcuity
+          "sBBTResult": lambda x: x.dropna().iloc[0] if not x.dropna().empty else np.nan
+      })
+      .reset_index()
+)
+
+print("\nSubject-level best performance stats by hand:")
+print(hand_best_stats)
+
+# For each hand, compute Spearman correlations (best durations, distance, MotorAcuity vs sBBT) with multiple comparisons correction.
+for hand in hand_best_stats["Hand"].unique():
+    hand_df = hand_best_stats[hand_best_stats["Hand"] == hand]
+    pvals_best = []
+    corr_best = {}
+    for metric in metrics:
+        rho, p = spearmanr(hand_df["sBBTResult"], hand_df[metric], nan_policy="omit")
+        pvals_best.append(p)
+        corr_best[metric] = rho
+    reject, pvals_corrected_best, _, _ = multipletests(pvals_best, alpha=0.05, method="fdr_bh")
+    
+    print(f"\nHand: {hand}")
+    for i, metric in enumerate(metrics):
+        print(f"Spearman correlation (sBBT vs best {metric}): rho = {corr_best[metric]:.3f}, raw p = {pvals_best[i]:.3f}, adjusted p = {pvals_corrected_best[i]:.3f}")
+
+# Plot scatter plots for best performance metrics.
+fig, axs = plt.subplots(1, 3, figsize=(18, 5))
+for i, metric in enumerate(metrics):
+    for hand in hands:
+        hand_df = hand_best_stats[hand_best_stats["Hand"] == hand]
+        axs[i].scatter(hand_df["sBBTResult"], hand_df[metric], alpha=0.8, label=f"{hand}")
+    if metric == "durations":
+        axs[i].set_ylabel("Best (Shortest) Duration")
+        axs[i].set_title(f"sBBT vs Shortest Duration")
+    elif metric == "distance":
+        axs[i].set_ylabel("Best (Shortest) Distance")
+        axs[i].set_title(f"sBBT vs Shortest Distance")
+    elif metric == "MotorAcuity":
+        axs[i].set_ylabel("Best (Highest) MotorAcuity")
+        axs[i].set_title(f"sBBT vs Highest MotorAcuity")
+    axs[i].set_xlabel("sBBT Score")
+    axs[i].legend()
+
+plt.tight_layout()
+plt.show()
+
+
+
+
+
+
+
+import pandas as pd
+import statsmodels.formula.api as smf
+import statsmodels.api as sm
+from pingouin import partial_corr
+import numpy as np
+from statsmodels.stats.multitest import multipletests
+import os
+import math
+import pandas as pd
+from mpl_toolkits.mplot3d import Axes3D
+
+# ============================
+# 1. Fit Mixed-Effects Models
+# ============================
+
+model_duration = smf.mixedlm(
+    "durations ~ C(Hand) + C(Dis_to_subject) + C(Dis_to_partition) + TW6_LDLJ + TW6_sparc",
+    df, groups=df["Subject"]
+).fit(reml=True)
+
+model_distance = smf.mixedlm(
+    "distance ~ C(Hand) + C(Dis_to_subject) + C(Dis_to_partition) + TW6_LDLJ + TW6_sparc",
+    df, groups=df["Subject"]
+).fit(reml=True)
+
+model_motoracuity = smf.mixedlm(
+    "MotorAcuity ~ C(Hand) + C(Dis_to_subject) + C(Dis_to_partition) + TW6_LDLJ + TW6_sparc",
+    df, groups=df["Subject"]
+).fit(reml=True)
+
+# ============================
+# 2. Print Model Summaries
+# ============================
+
+print("\n=== Model: Duration ===")
+print(model_duration.summary())
+
+print("\n=== Model: Distance ===")
+print(model_distance.summary())
+
+print("\n=== Model: Motor Acuity ===")
+print(model_motoracuity.summary())
+
+# ============================
+# 3. Compute Marginal and Conditional R²
+# (variance explained by fixed vs. fixed+random)
+# ============================
+def r2_mixedlm(model, df, response):
+    """
+    Nakagawa & Schielzeth R² for mixed models:
+    - marginal R² (variance explained by fixed effects)
+    - conditional R² (variance explained by fixed + random effects)
+    """
+    fe_var = np.var(np.dot(model.model.exog, model.fe_params))
+    re_var = sum(model.cov_re.iloc[i, i] for i in range(model.cov_re.shape[0]))
+    resid_var = model.scale
+    total_var = fe_var + re_var + resid_var
+    
+    r2_marginal = fe_var / total_var
+    r2_conditional = (fe_var + re_var) / total_var
+    return {"response": response, "R2_marginal": r2_marginal, "R2_conditional": r2_conditional}
+
+r2_results = pd.DataFrame([
+    r2_mixedlm(model_duration, df, "durations"),
+    r2_mixedlm(model_distance, df, "distance"),
+    r2_mixedlm(model_motoracuity, df, "MotorAcuity")
+])
+
+print("\n=== Mixed Model R² Results ===")
+print(r2_results)
+
+# ============================
+# 4. Semi-Partial R² (per predictor)
+# Drop one predictor at a time → compare marginal R²
+# ============================
+
+predictors = ["C(Hand)", "C(Dis_to_subject)", "C(Dis_to_partition)", "TW6_LDLJ", "TW6_sparc"]
+
+def semi_partial_r2(full_formula, df, response, predictors):
+    results = []
+    full_model = smf.mixedlm(full_formula, df, groups=df["Subject"]).fit(reml=True)
+    full_r2 = r2_mixedlm(full_model, df, response)["R2_marginal"]
+
+    for pred in predictors:
+        reduced_formula = full_formula.replace(" + " + pred, "")
+        reduced_model = smf.mixedlm(reduced_formula, df, groups=df["Subject"]).fit(reml=True)
+        reduced_r2 = r2_mixedlm(reduced_model, df, response)["R2_marginal"]
+        semi_r2 = full_r2 - reduced_r2
+        results.append({"response": response, "predictor": pred, "semi_partial_R2": semi_r2})
+    
+    return pd.DataFrame(results)
+
+sp_r2_duration = semi_partial_r2(
+    "durations ~ C(Hand) + C(Dis_to_subject) + C(Dis_to_partition) + TW6_LDLJ + TW6_sparc",
+    df, "durations", predictors)
+
+sp_r2_distance = semi_partial_r2(
+    "distance ~ C(Hand) + C(Dis_to_subject) + C(Dis_to_partition) + TW6_LDLJ + TW6_sparc",
+    df, "distance", predictors)
+
+sp_r2_motoracuity = semi_partial_r2(
+    "MotorAcuity ~ C(Hand) + C(Dis_to_subject) + C(Dis_to_partition) + TW6_LDLJ + TW6_sparc",
+    df, "MotorAcuity", predictors)
+
+sp_r2_all = pd.concat([sp_r2_duration, sp_r2_distance, sp_r2_motoracuity])
+
+print("\n=== Semi-Partial R² (Variance Explained by Each Predictor) ===")
+print(sp_r2_all)
+
+# Now you can export `sp_r2_all` as a table for your thesis.
+
+
+# ============================
+
+# 08/07/DA - non_dominant - Trial /Users/yilinwu/Desktop/Yilin-Honours/Subject/Traj/2025/08/07/DA/DA_tBBT18.csv - Location 16
+
+
+# -----------------------------------------------------------------------
+# Find highest TW6_LDLJ
+max_ldlj = df['TW6_LDLJ'].max()
+row_with_max = df[df['TW6_LDLJ'] == max_ldlj]
+print("Maximum TW6_LDLJ:", max_ldlj)
+print("Found at:")
+for index, row in row_with_max.iterrows():
+    complete_trial_name = f"{row['Subject']} - {row['Hand']} - Trial {row['Trial']} - Location {row['Location']}"
+    print(complete_trial_name)
+# 08/07/DA - non_dominant - Trial /Users/yilinwu/Desktop/Yilin-Honours/Subject/Traj/2025/08/07/DA/DA_tBBT18.csv - Location 16
+
+# Find lowest TW6_LDLJ
+min_ldlj = df['TW6_LDLJ'].min()
+row_with_min = df[df['TW6_LDLJ'] == min_ldlj]
+print("\nMinimum TW6_LDLJ:", min_ldlj)
+print("Found at:")
+for index, row in row_with_min.iterrows():
+    complete_trial_name = f"{row['Subject']} - {row['Hand']} - Trial {row['Trial']} - Location {row['Location']}"
+    print(complete_trial_name)
+#07/30/JT - non_dominant - Trial /Users/yilinwu/Desktop/Yilin-Honours/Subject/Traj/2025/07/30/JT/JT_tBBT60.csv - Location 8
+
+
+### Plot hand trajectory with velocity-coded coloring and highlighted segments
+def plot_trajectory(results, subject='07/22/HW', hand='right', trial=1,
+                    file_path='/Users/yilinwu/Desktop/Yilin-Honours/Subject/Traj/2025/07/22/HW/HW_tBBT53.csv',
+                    overlay_trial=0, velocity_segment_only=False, plot_mode='all'):
+    """
+    Plots individual coordinate plots and two 3D trajectory plots for the specified trial.
+    Colors each trajectory point based on the instantaneous velocity for a selected segment 
+    if velocity_segment_only is True; otherwise all points are colored according to velocity.
+    Points outside a defined segment are colored lightgrey.
+    
+    Additionally, the 'plot_mode' option allows plotting:
+      - 'all': the whole trial.
+      - 'segment': only from the first highlight index to the last highlight index.
+    
+    Parameters:
+        results (dict): The results dictionary containing trajectory data.
+        subject (str): Subject key in the results dictionary.
+        hand (str): Hand key ('right' or 'left') in the results dictionary.
+        trial (int): The trial index to use for the main trajectory data.
+        file_path (str): The file key for selecting trajectory data.
+        overlay_trial (int): The trial index used to extract overlay indices for highlighting.
+        velocity_segment_only (bool): If True, apply velocity-coded color only within highlighted segments.
+        plot_mode (str): 'all' to plot the entire trial or 'segment' to plot only from the first to the last highlight.
+    """
+    import matplotlib.pyplot as plt
+    import matplotlib.gridspec as gridspec
+    import matplotlib.colors as mcolors
+
+    # Extract trajectory data for the given trial
+    traj_data = results[subject][hand][trial][file_path]['traj_data']
+    coord_prefix = "RFIN_" if hand == "right" else "LFIN_"
+    coord_x = np.array(traj_data[coord_prefix + "X"])
+    coord_y = np.array(traj_data[coord_prefix + "Y"])
+    coord_z = np.array(traj_data[coord_prefix + "Z"])
+    
+    # Extract overlay index (or indices) from the overlay_trial
+    overlay_index = results[subject][hand][overlay_trial][file_path]
+    highlight_indices = overlay_index if isinstance(overlay_index, (list, np.ndarray)) else [overlay_index]
+    highlight_indices = sorted(highlight_indices)
+    
+    n_points = len(coord_x)
+    
+    marker = 'RFIN' if hand == 'right' else 'LFIN'
+
+    # Compute instantaneous velocity from the trajectory space (assume constant sampling rate 200Hz)
+    vel = results[subject][hand][trial][file_path]['traj_space'][marker][1]
+    
+    # Normalize velocities between 0 and 1
+    v_min = np.min(vel)
+    v_max = np.max(vel)
+    if v_max - v_min > 0:
+        v_norm = (vel - v_min) / (v_max - v_min)
+    else:
+        v_norm = np.ones_like(vel)
+    
+    # Map velocity to colors via Viridis with exponential scaling for contrast
+    point_colors = [plt.cm.viridis(1 - (v_norm[i]**2)) for i in range(n_points)]
+    
+    # If velocity_segment_only is True, only the points within each paired segment retain their velocity color.
+    if velocity_segment_only and highlight_indices:
+        segments = []
+        for idx in range(0, len(highlight_indices) - 1, 2):
+            segments.append((highlight_indices[idx], highlight_indices[idx+1]))
+        for i in range(n_points):
+            in_segment = any(min(seg) <= i <= max(seg) for seg in segments)
+            if not in_segment:
+                point_colors[i] = mcolors.to_rgba('lightgrey')
+    
+    # Determine the indices to plot based on plot_mode option
+    if plot_mode == 'segment' and highlight_indices:
+        start_idx = min(highlight_indices[0], highlight_indices[-1])
+        end_idx = max(highlight_indices[0], highlight_indices[-1])
+    else:
+        start_idx = 0
+        end_idx = n_points - 1
+
+    # Slice the data to plot
+    plot_indices = np.arange(start_idx, end_idx + 1)
+    coord_x_plot = coord_x[plot_indices]
+    coord_y_plot = coord_y[plot_indices]
+    coord_z_plot = coord_z[plot_indices]
+    vel_plot    = np.array(vel)[plot_indices]
+    colors_plot = [point_colors[i] for i in plot_indices]
+    time_points = plot_indices / 200
+
+    # Create the plot layout: 4 rows on the left (velocity, X, Y, Z) and one 3D plot on the right
+    fig = plt.figure(figsize=(20, 10))
+    gs = gridspec.GridSpec(nrows=4, ncols=2, width_ratios=[1, 1.2])
+    
+    ax_vel = fig.add_subplot(gs[0, 0])
+    ax_vel.scatter(time_points, vel_plot, c=colors_plot, marker='o', s=5)
+    ax_vel.set_ylabel('Velocity')
+    ax_vel.set_title('Instantaneous Velocity')
+    
+    ax_x = fig.add_subplot(gs[1, 0])
+    ax_x.scatter(time_points, coord_x_plot, c=colors_plot, marker='o', s=5)
+    ax_x.set_ylabel('X')
+    
+    ax_y = fig.add_subplot(gs[2, 0])
+    ax_y.scatter(time_points, coord_y_plot, c=colors_plot, marker='o', s=5)
+    ax_y.set_ylabel('Y')
+    
+    ax_z = fig.add_subplot(gs[3, 0])
+    ax_z.scatter(time_points, coord_z_plot, c=colors_plot, marker='o', s=5)
+    ax_z.set_xlabel('Time (s)')
+    ax_z.set_ylabel('Z')
+    
+    # Overlay markers at the designated highlight indices (if they fall within our plot range)
+    for order, idx in enumerate(highlight_indices, start=1):
+        if start_idx <= idx <= end_idx:
+            t_val = idx / 200
+            color = 'green' if order % 2 == 1 else 'blue'
+            marker = 'o' if order % 2 == 1 else 'X'
+            ax_vel.scatter(t_val, vel[idx], color=color, marker=marker, s=50)
+            ax_x.scatter(t_val, coord_x[idx], color=color, marker=marker, s=50)
+            ax_y.scatter(t_val, coord_y[idx], color=color, marker=marker, s=50)
+            ax_z.scatter(t_val, coord_z[idx], color=color, marker=marker, s=50)
+    
+    # Right side: 3D Plot
+    ax3d = fig.add_subplot(gs[:, 1], projection='3d')
+    ax3d.scatter(coord_x_plot, coord_y_plot, coord_z_plot, c=colors_plot, marker='o', s=5)
+    ax3d.set_xlabel(coord_prefix + "X (mm)", fontsize=14, labelpad=0)
+    ax3d.set_ylabel(coord_prefix + "Y (mm)", fontsize=14, labelpad=0)
+    ax3d.set_zlabel(coord_prefix + "Z (mm)", fontsize=14, labelpad=0)
+    ax3d.xaxis.set_pane_color((1.0, 1.0, 1.0, 1.0))
+    ax3d.yaxis.set_pane_color((1.0, 1.0, 1.0, 1.0))
+    ax3d.zaxis.set_pane_color((1.0, 1.0, 1.0, 1.0))
+    ax3d.set_xlim([min(coord_x_plot), max(coord_x_plot)])
+    ax3d.set_ylim([min(coord_y_plot), max(coord_y_plot)])
+    ax3d.set_zlim([min(coord_z_plot), max(coord_z_plot)])
+
+
+    
+    # Overlay markers on the 3D plot for indices within plot range
+    for order, idx in enumerate(highlight_indices, start=1):
+        if start_idx <= idx <= end_idx:
+            color = 'green' if order % 2 == 1 else 'blue'
+            marker = 'o' if order % 2 == 1 else 'X'
+            ax3d.scatter(coord_x[idx], coord_y[idx], coord_z[idx], color=color, marker=marker, s=50)
+
+    # ax3d.text(coord_x[highlight_indices[0]], coord_y[highlight_indices[0]], coord_z[highlight_indices[0]],
+    #         "start", color='green', fontsize=20)
+    # ax3d.text(coord_x[highlight_indices[1]], coord_y[highlight_indices[1]], coord_z[highlight_indices[1]],
+    #         "end", color='blue', fontsize=20)    
+    plt.tight_layout()
+    plt.show()
+    
+    # Additional 3D Trajectory Plot for the first segment from first to last highlight, if possible
+    if len(highlight_indices) >= 2:
+        seg_start = highlight_indices[14]
+        seg_end = highlight_indices[15]
+        seg_indices = np.arange(seg_start, seg_end + 1)
+        seg_coord_x = coord_x[seg_indices]
+        seg_coord_y = coord_y[seg_indices]
+        seg_coord_z = coord_z[seg_indices]
+        seg_colors = [point_colors[i] for i in seg_indices]
+        
+        fig2 = plt.figure(figsize=(10, 8))
+        ax3d_seg = fig2.add_subplot(111, projection='3d')
+        ax3d_seg.scatter(seg_coord_x, seg_coord_y, seg_coord_z, c=seg_colors, marker='o', s=5)
+        ax3d_seg.scatter(coord_x[seg_start], coord_y[seg_start], coord_z[seg_start],
+                         color='green', marker='o', s=50, label='start')
+        ax3d_seg.scatter(coord_x[seg_end], coord_y[seg_end], coord_z[seg_end],
+                         color='blue', marker='X', s=50, label='end')
+        
+        ax3d_seg.set_xlabel(coord_prefix + "X (mm)", fontsize=14, labelpad=0)
+        ax3d_seg.set_ylabel(coord_prefix + "Y (mm)", fontsize=14, labelpad=0)
+        ax3d_seg.set_zlabel(coord_prefix + "Z (mm)", fontsize=14, labelpad=0)
+        # ax3d_seg.set_title("Selected 3D Trajectory Segment")
+        ax3d_seg.legend()
+        plt.tight_layout()
+        plt.show()
+
+plot_trajectory(results, subject='08/07/DA', hand='left', trial=1,
+                file_path='/Users/yilinwu/Desktop/Yilin-Honours/Subject/Traj/2025/08/07/DA/DA_tBBT18.csv',
+                overlay_trial=0, velocity_segment_only=True, plot_mode='segment')
+
+
+
+def plot_3d_trajectory_segment(results, test_windows_1, test_windows_6, subject, hand, trial, file_path, seg_index=0):
+    """
+    Extracts a 3D trajectory segment based on paired start and end indices from test_windows_1 
+    and overlays another segment extracted from test_windows_6 in the same 3D plot.
+    
+    Parameters:
+        results (dict): Dictionary containing trajectory data.
+        test_windows_1 (dict): Dictionary with paired start and end indices (first test window).
+        test_windows_6 (dict): Dictionary with paired start and end indices (second test window).
+        subject (str): Subject identifier.
+        hand (str): 'right' or 'left'.
+        trial (int): Trial index.
+        file_path (str): Path to the CSV file.
+        seg_index (int): Index of the segment to extract (default is 0).
+    """
+    import matplotlib.pyplot as plt
+    from mpl_toolkits.mplot3d import Axes3D  # for 3D plotting
+
+    # Get the full trajectory data
+    traj_data = results[subject][hand][trial][file_path]['traj_data']
+    coord_prefix = "RFIN_" if hand == "right" else "LFIN_"
+    coord_x_full = np.array(traj_data[coord_prefix + "X"])
+    coord_y_full = np.array(traj_data[coord_prefix + "Y"])
+    coord_z_full = np.array(traj_data[coord_prefix + "Z"])
+
+    # Get the paired start and end indices for the first test window
+    start_idx1, end_idx1 = test_windows_1[subject][hand][file_path][seg_index]
+    # Extract the segment from test_windows_1
+    traj_x1 = coord_x_full[start_idx1:end_idx1]
+    traj_y1 = coord_y_full[start_idx1:end_idx1]
+    traj_z1 = coord_z_full[start_idx1:end_idx1]
+
+    # Get the paired start and end indices for the second test window (test_windows_6)
+    start_idx6, end_idx6 = test_windows_6[subject][hand][file_path][seg_index]
+    # Extract the segment from test_windows_6
+    traj_x6 = coord_x_full[start_idx6:end_idx6]
+    traj_y6 = coord_y_full[start_idx6:end_idx6]
+    traj_z6 = coord_z_full[start_idx6:end_idx6]
+
+    # Plot the extracted trajectory segments in 3D
+    fig = plt.figure(figsize=(10, 8))
+    ax = fig.add_subplot(111, projection='3d')
+
+    # Plot Test Window 1 segment
+    ax.scatter(traj_x1, traj_y1, traj_z1, c='blue', marker='o', s=10, label='Test Window 1')
+    # Plot Test Window 6 segment
+    ax.scatter(traj_x6, traj_y6, traj_z6, c='lime', marker='^', s=80, label='Test Window 6')
+
+    # Highlight the start and end of test_windows_6
+    ax.scatter(coord_x_full[start_idx6], coord_y_full[start_idx6], coord_z_full[start_idx6],
+               c='red', marker='D', s=100, label='TW6 Start')
+    ax.scatter(coord_x_full[end_idx6 - 1], coord_y_full[end_idx6 - 1], coord_z_full[end_idx6 - 1],
+               c='black', marker='D', s=100, label='TW6 End')
+
+    ax.set_xlabel("X (mm)")
+    ax.set_ylabel("Y (mm)")
+    ax.set_zlabel("Z (mm)")
+    ax.legend()
     plt.show()
 
-plot_predictions(model1, df, response_col="durations")
-plot_predictions(model2, df, response_col="durations")
 
-
-
-
-
-def compare_models(models, model_names):
-    """
-    Compare multiple statsmodels models (OLS or MixedLM) side by side using
-    log-likelihood, AIC, and BIC.
-
-    Parameters:
-        models: list of fitted statsmodels models
-        model_names: list of names for the models
-    Returns:
-        DataFrame summary of fit statistics
-    """
-    rows = []
-    for name, model in zip(model_names, models):
-        llf = model.llf
-        k = model.df_modelwc
-        n = model.nobs
-        aic = -2*llf + 2*k
-        bic = -2*llf + k*np.log(n)
-
-        rows.append({
-            "Model": name,
-            "LogLik": llf,
-            "AIC": aic,
-            "BIC": bic
-        })
-    return pd.DataFrame(rows)
-
-
-# Fit models
-m1 = smf.mixedlm("durations ~ TW1_LDLJ + cartesian_distances + C(Location)",
-                 df, groups=df["Subject"]).fit(reml=False)
-
-m2 = smf.mixedlm("durations ~ TW1_LDLJ + TW1_sparc + cartesian_distances + C(Location)",
-                 df, groups=df["Subject"]).fit(reml=False)
-
-m3 = smf.mixedlm("durations ~ TW3_LDLJ + TW3_sparc + cartesian_distances + C(Location)",
-                 df, groups=df["Subject"]).fit(reml=False)
-
-# Compare side by side
-results_table = compare_models([m1, m2, m3], ["TW1 LDLJ", "TW1 LDLJ+SPARC", "TW3 LDLJ+SPARC"])
-print(results_table)
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-# Repeat the above for 'distance' as the dependent variable
-model_dist1 = smf.mixedlm(
-    "distance ~ TW1_LDLJ + cartesian_distances + C(Location)",
-    df, groups=df["Subject"]
-).fit()
-print(model_dist1.summary())
-model_dist2 = smf.mixedlm(
-    "distance ~ TW1_LDLJ + TW1_sparc + cartesian_distances + C(Location)",
-    df, groups=df["Subject"]
-).fit()
-print(model_dist2.summary())
-aic_dist1, bic_dist1 = model_info(model_dist1)
-aic_dist2, bic_dist2 = model_info(model_dist2)
-print("Distance Model 1 - AIC:", aic_dist1, "BIC:", bic_dist1)
-print("Distance Model 2 - AIC:", aic_dist2, "BIC:", bic_dist2)
-print("Distance Model 1 - AIC/BIC:", aic_dist1/bic_dist1)
-print("Distance Model 2 - AIC/BIC:", aic_dist2/bic_dist2)
-model_dist_TW1 = smf.mixedlm(
-    "distance ~ TW1_LDLJ + TW1_sparc + cartesian_distances + C(Location)",
-    df, groups=df["Subject"]
-).fit()
-model_dist_TW3 = smf.mixedlm(
-    "distance ~ TW3_LDLJ + TW3_sparc + cartesian_distances + C(Location)",
-    df, groups=df["Subject"]
-).fit()
-print(model_dist_TW1.summary())
-print(model_dist_TW3.summary())
-aic_dist_TW1, bic_dist_TW1 = model_info(model_dist_TW1)
-aic_dist_TW3, bic_dist_TW3 = model_info(model_dist_TW3)
-print("Distance TW1 - AIC:", aic_dist_TW1, "BIC:", bic_dist_TW1)
-print("Distance TW3 - AIC:", aic_dist_TW3, "BIC:", bic_dist_TW3)
-print("Distance TW1 - AIC/BIC:", aic_dist_TW1/bic_dist_TW1)
-print("Distance TW3 - AIC/BIC:", aic_dist_TW3/bic_dist_TW3)
-model_dist_full = smf.mixedlm(
-    "distance ~ TW1_LDLJ + TW1_sparc + TW3_LDLJ + TW3_sparc + cartesian_distances + C(Location) + v_peaks",
-    df, groups=df["Subject"]
-).fit()
-print(model_dist_full.summary())
-aic_dist_full, bic_dist_full = model_info(model_dist_full)
-print("Distance Full Model - AIC:", aic_dist_full, "BIC:", bic_dist_full)
-print("Distance Full Model - AIC/BIC:", aic_dist_full/bic_dist_full)
-# Compare all distance models
-dist_models = {
-    "TW1": (model_dist_TW1, aic_dist_TW1, bic_dist_TW1),
-    "TW3": (model_dist_TW3, aic_dist_TW3, bic_dist_TW3),
-    "Full": (model_dist_full, aic_dist_full, bic_dist_full)
-}
-for name, (model, aic, bic) in dist_models.items():
-    print(f"{name} Distance Model - AIC: {aic}, BIC: {bic}, AIC/BIC: {aic/bic}")
-# 👉 Choose the distance model with the lowest AIC/BIC that balances fit and simplicity.
-
-
-
-
-
-
-
-# Run ANOVA 
-model = smf.ols('durations ~ C(Hand) + TW1_acc_peaks + TW1_jerk_peaks + TW1_LDLJ + TW1_sparc + C(Location)', data=df).fit()
-model = smf.ols('durations ~ C(Hand) + TW3_acc_peaks + TW3_jerk_peaks + TW3_LDLJ + TW3_sparc + C(Location)', data=df).fit()
-model = smf.ols('durations ~ C(Hand) + TW1_acc_peaks + TW1_jerk_peaks + TW1_LDLJ + TW1_sparc + TW3_acc_peaks + TW3_jerk_peaks + TW3_LDLJ + TW3_sparc + cartesian_distances + C(Location) + v_peaks', data=df).fit()
-
-model = smf.ols('distance ~ C(Hand) + TW1_acc_peaks + TW1_jerk_peaks + TW1_LDLJ + TW1_sparc + C(Location)', data=df).fit()
-model = smf.ols('distance ~ C(Hand) + TW3_acc_peaks + TW3_jerk_peaks + TW3_LDLJ + TW3_sparc + C(Location)', data=df).fit()
-model = smf.ols('distance ~ C(Hand) + TW1_acc_peaks + TW1_jerk_peaks + TW1_LDLJ + TW1_sparc + TW3_acc_peaks + TW3_jerk_peaks + TW3_LDLJ + TW3_sparc + cartesian_distances + C(Location) + v_peaks', data=df).fit()
-
-anova_table = sm.stats.anova_lm(model, typ=2)
-print("\nANOVA results:")
-print(anova_table)
-
-# Mixed-effects model with Subject as a random effect
-model_mixed = smf.mixedlm("durations ~ C(Hand) + TW1_acc_peaks + TW1_jerk_peaks + TW1_LDLJ + TW1_sparc + C(Location)", df, groups=df["Subject"])
-model_mixed = smf.mixedlm("durations ~ C(Hand) + TW3_acc_peaks + TW3_jerk_peaks + TW3_LDLJ + TW3_sparc + C(Location)", df, groups=df["Subject"])
-model_mixed = smf.mixedlm("durations ~ C(Hand) + TW1_acc_peaks + TW1_jerk_peaks + TW1_LDLJ + TW1_sparc + + TW3_acc_peaks + TW3_jerk_peaks + TW3_LDLJ + TW3_sparc + cartesian_distances + C(Location) + v_peaks", df, groups=df["Subject"])
-
-model_mixed = smf.mixedlm("distance ~ C(Hand) + TW1_acc_peaks + TW1_jerk_peaks + TW1_LDLJ + TW1_sparc + C(Location)", df, groups=df["Subject"])
-model_mixed = smf.mixedlm("distance ~ C(Hand) + TW3_acc_peaks + TW3_jerk_peaks + TW3_LDLJ + TW3_sparc + C(Location)", df, groups=df["Subject"])
-model_mixed = smf.mixedlm("distance ~ C(Hand) + TW1_acc_peaks + TW1_jerk_peaks + TW1_LDLJ + TW1_sparc + + TW3_acc_peaks + TW3_jerk_peaks + TW3_LDLJ + TW3_sparc + cartesian_distances + C(Location) + v_peaks", df, groups=df["Subject"])
-
-result_mixed = model_mixed.fit()
-print("\nMixed-effects results:")
-print(result_mixed.summary())
+# Example usage:
+plot_3d_trajectory_segment(
+    results, 
+    test_windows_1, 
+    test_windows_6, 
+    subject='07/30/JT', 
+    hand="left", 
+    trial=1,
+    file_path='/Users/yilinwu/Desktop/Yilin-Honours/Subject/Traj/2025/07/30/JT/JT_tBBT60.csv',
+    seg_index=7
+)

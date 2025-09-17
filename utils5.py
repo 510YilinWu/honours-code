@@ -483,7 +483,7 @@ def save_combined_metrics_per_subject_acorss_TWs(all_combined_metrics_acorss_TWs
     for subject, metrics in all_combined_metrics_acorss_TWs.items():
         # Replace slashes in subject names to create valid file paths
         sanitized_subject = subject.replace("/", "_")
-        output_file = f"{output_folder}/{sanitized_subject}_combined_metrics_acorss_TWs.pkl"
+        output_file = f"{output_folder}/{sanitized_subject}_combined_metrics_acorss_phases.pkl"
         with open(output_file, 'wb') as f:
             pickle.dump(metrics, f)
         print(f"Combined metrics for subject {subject} saved to {output_file}")
@@ -502,7 +502,7 @@ def load_selected_subject_results_acorss_TWs(selected_subjects, DataProcess_fold
     """
     results = {}
     for subject in selected_subjects:
-        subject_filename = f"{subject.replace('/', '_')}_combined_metrics_acorss_TWs.pkl"
+        subject_filename = f"{subject.replace('/', '_')}_combined_metrics_acorss_phases.pkl"
         try:
             file_path = os.path.join(DataProcess_folder, subject_filename)
             with open(file_path, 'rb') as f:
@@ -515,7 +515,106 @@ def load_selected_subject_results_acorss_TWs(selected_subjects, DataProcess_fold
 
 
 
+# --- COMBINE DURATIONS, SPARC, LDLJ, AND DISTANCE, CALCULATED SPEED AND ACCURACY FOR ALL DATES ---
+def combine_metrics_for_all_dates_acorss_phases(
+    reach_metrics,
+    reach_sparc_ballistic_phase,
+    reach_sparc_corrective_phase,
+    reach_TW_metrics_ballistic_phase,
+    reach_TW_metrics_corrective_phase,
+    Block_Distance, all_dates):
+    """
+    Combines reach durations, ballistic/corrective SPARC and LDLJ, and distance metrics into a single dictionary
+    for all dates and hands.
 
+    Args:
+        reach_metrics (dict): Dictionary containing reach durations and other basic metrics.
+        reach_sparc_ballistic_phase (dict): SPARC metrics for the ballistic phase.
+        reach_sparc_corrective_phase (dict): SPARC metrics for the corrective phase.
+        reach_TW_metrics_ballistic_phase (dict): LDLJ metrics for the ballistic phase.
+        reach_TW_metrics_corrective_phase (dict): LDLJ metrics for the corrective phase.
+        Block_Distance (dict): Dictionary containing distance metrics.
+        all_dates (list): List of all dates to process.
+
+    Returns:
+        dict: Combined metrics for all dates and hands.
+    """
+    combined_metrics = {}
+
+    for date in all_dates:
+        combined_metrics[date] = {}
+        for hand in ['left', 'right']:
+            if (
+                date in reach_metrics['reach_durations'] and hand in reach_metrics['reach_durations'][date] and
+                date in reach_sparc_ballistic_phase and hand in reach_sparc_ballistic_phase[date] and
+                date in reach_sparc_corrective_phase and hand in reach_sparc_corrective_phase[date] and
+                date in reach_TW_metrics_ballistic_phase['reach_LDLJ'] and hand in reach_TW_metrics_ballistic_phase['reach_LDLJ'][date] and
+                date in reach_TW_metrics_corrective_phase['reach_LDLJ'] and hand in reach_TW_metrics_corrective_phase['reach_LDLJ'][date] and
+                date in Block_Distance and hand in Block_Distance[date]
+            ):
+                combined_metrics[date][hand] = {
+                    "durations": {k: np.float64(v) for k, v in reach_metrics['reach_durations'][date][hand].items()},
+                    "cartesian_distances": {k: np.float64(v) for k, v in reach_metrics['reach_cartesian_distances'][date][hand].items()},
+                    "path_distances": {k: np.float64(v) for k, v in reach_metrics['reach_path_distances'][date][hand].items()},
+                    "v_peaks": {k: np.float64(v) for k, v in reach_metrics['reach_v_peaks'][date][hand].items()},
+                    "v_peak_indices": {k: np.float64(v) for k, v in reach_metrics['reach_v_peak_indices'][date][hand].items()},
+                    "ballistic_acc_peaks": {k: np.float64(v) for k, v in reach_TW_metrics_ballistic_phase['reach_acc_peaks'][date][hand].items()},
+                    "ballistic_jerk_peaks": {k: np.float64(v) for k, v in reach_TW_metrics_ballistic_phase['reach_jerk_peaks'][date][hand].items()},
+                    "ballistic_LDLJ": {k: np.float64(v) for k, v in reach_TW_metrics_ballistic_phase['reach_LDLJ'][date][hand].items()},
+                    "corrective_acc_peaks": {k: np.float64(v) for k, v in reach_TW_metrics_corrective_phase['reach_acc_peaks'][date][hand].items()},
+                    "corrective_jerk_peaks": {k: np.float64(v) for k, v in reach_TW_metrics_corrective_phase['reach_jerk_peaks'][date][hand].items()},
+                    "corrective_LDLJ": {k: np.float64(v) for k, v in reach_TW_metrics_corrective_phase['reach_LDLJ'][date][hand].items()},
+                    "ballistic_sparc": {k: np.float64(v) for k, v in reach_sparc_ballistic_phase[date][hand].items()},
+                    "corrective_sparc": {k: np.float64(v) for k, v in reach_sparc_corrective_phase[date][hand].items()},
+                    "distance": {k: np.float64(v) for k, v in Block_Distance[date][hand].items()}
+                }
+
+    return combined_metrics
+
+
+
+
+# --- PROCESS AND SAVE COMBINED METRICS FOR ALL SUBJECTS ---
+def process_and_save_combined_metrics_acorss_phases(
+    Block_Distance, reach_metrics,
+    reach_TW_metrics_ballistic_phase, reach_TW_metrics_corrective_phase,
+    reach_sparc_ballistic_phase, reach_sparc_corrective_phase,
+    All_dates, DataProcess_folder):
+    """
+    Combines multiple processing steps into one function:
+    1. Updates Block_Distance keys to match filenames in reach_metrics.
+    2. Combines durations, SPARC, LDLJ, and distance metrics for all dates,
+        now using ballistic and corrective phase metrics.
+    3. Saves combined metrics per subject as pickle files.
+
+    Args:
+        Block_Distance (dict): Dictionary containing block distance data.
+        reach_metrics (dict): Dictionary containing reach metrics data.
+        reach_TW_metrics_ballistic_phase (dict): LDLJ metrics for the ballistic phase.
+        reach_TW_metrics_corrective_phase (dict): LDLJ metrics for the corrective phase.
+        reach_sparc_ballistic_phase (dict): SPARC metrics for the ballistic phase.
+        reach_sparc_corrective_phase (dict): SPARC metrics for the corrective phase.
+        All_dates (list): List of all dates to process.
+        DataProcess_folder (str): Folder where the pickle files will be saved.
+        input_adjustment (optional): Additional input for adjusting metrics.
+
+    Returns:
+        None
+    """
+    # Step 1: Update Block_Distance keys using ballistic-phase SPARC and LDLJ metrics
+    update_block_distance_keys(Block_Distance, reach_metrics, reach_sparc_ballistic_phase, reach_TW_metrics_ballistic_phase)
+
+    # Step 2: Combine metrics for all dates using ballistic and corrective phase metrics.
+
+    all_combined_metrics_acorss_phases = combine_metrics_for_all_dates_acorss_phases(
+        reach_metrics,
+        reach_sparc_ballistic_phase,
+        reach_sparc_corrective_phase,
+        reach_TW_metrics_ballistic_phase,
+        reach_TW_metrics_corrective_phase,
+        Block_Distance, All_dates)
+    # Step 3: Save combined metrics per subject as pickle files.
+    save_combined_metrics_per_subject_acorss_TWs(all_combined_metrics_acorss_phases, DataProcess_folder)
 
 
 # -------------------------------------------------------------------------------------------------------------------

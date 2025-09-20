@@ -232,43 +232,43 @@ def compute_test_window_7(results, reach_speed_segments, reach_metrics):
 #     }
 
 
-def calculate_phase_indices_for_file(results, reach_speed_segments_2, subject, hand, file_path):
-    """
-    Calculates two phase segmentation for one reach file for the given subject, hand, and file.
-    Phase1: from reach_speed_segments_2 start to ballistic_end (determined via peak detection on the velocity time window).
-    Phase2: from ballistic_end to reach_speed_segments_2 end.
-    Returns a dictionary structured as:
-      phase_data[segment] = {
-          "phase1": (start, ballistic_end),
-          "phase2": (ballistic_end, end)
-      }
-    """
-    phase_data = {}
-    marker = 'RFIN' if hand == 'right' else 'LFIN'
-    traj_data = results[subject][hand][1][file_path]['traj_space'][marker]
-    velocity_full = traj_data[1]  # time window used for phase detection
+# def calculate_phase_indices_for_file(results, reach_speed_segments_2, subject, hand, file_path):
+#     """
+#     Calculates two phase segmentation for one reach file for the given subject, hand, and file.
+#     Phase1: from reach_speed_segments_2 start to ballistic_end (determined via peak detection on the velocity time window).
+#     Phase2: from ballistic_end to reach_speed_segments_2 end.
+#     Returns a dictionary structured as:
+#       phase_data[segment] = {
+#           "phase1": (start, ballistic_end),
+#           "phase2": (ballistic_end, end)
+#       }
+#     """
+#     phase_data = {}
+#     marker = 'RFIN' if hand == 'right' else 'LFIN'
+#     traj_data = results[subject][hand][1][file_path]['traj_space'][marker]
+#     velocity_full = traj_data[1]  # time window used for phase detection
 
-    seg_ranges2 = reach_speed_segments_2[subject][hand][file_path]
+#     seg_ranges2 = reach_speed_segments_2[subject][hand][file_path]
     
-    # Loop over each reach segment.
-    for seg_index, seg_range in enumerate(seg_ranges2):
-        start_seg, end_seg = seg_range
+#     # Loop over each reach segment.
+#     for seg_index, seg_range in enumerate(seg_ranges2):
+#         start_seg, end_seg = seg_range
         
-        # Determine ballistic_end as the first peak in the negative time window.
-        time_window = velocity_full[start_seg:end_seg]
-        peaks1, _ = find_peaks(-np.array(time_window), prominence=100)
-        if peaks1.size > 0:
-            if peaks1.size > 1:
-                candidate = peaks1[np.argmax(np.array(time_window)[peaks1])]
-                ballistic_end = start_seg + candidate
-            else:
-                ballistic_end = start_seg + peaks1[0]
-        else:
-            ballistic_end = start_seg
+#         # Determine ballistic_end as the first peak in the negative time window.
+#         time_window = velocity_full[start_seg:end_seg]
+#         peaks1, _ = find_peaks(-np.array(time_window), prominence=100)
+#         if peaks1.size > 0:
+#             if peaks1.size > 1:
+#                 candidate = peaks1[np.argmax(np.array(time_window)[peaks1])]
+#                 ballistic_end = start_seg + candidate
+#             else:
+#                 ballistic_end = start_seg + peaks1[0]
+#         else:
+#             ballistic_end = start_seg
         
-        phase_data[seg_index] = ballistic_end
+#         phase_data[seg_index] = ballistic_end
     
-    return phase_data
+#     return phase_data
 
 
 
@@ -833,83 +833,20 @@ def run_analysis_and_plot(results, reach_speed_segments, test_windows,
 #                             best_peak = max(scores, key=lambda x: x[0])[1]
 #                             filtered_peaks1 = [best_peak]
 
-
-
-
-
 #                     # Adjust ballistic_end if a filtered peak exists.
 #                     if filtered_peaks1:
 #                         ballistic_end = filtered_peaks1[0] + latency_end_idx
                     
-#                     file_phase_data[seg_index] = {
-#                         "latency_end_idx": latency_end_idx,
-#                         "ballistic_end": ballistic_end,
-#                         "verification_start_idx": verification_start_idx
-#                     }
-                    
+#                     # file_phase_data[seg_index] = {
+#                     #     "latency_end_idx": latency_end_idx,
+#                     #     "ballistic_end": ballistic_end,
+#                     #     "verification_start_idx": verification_start_idx
+#                     # }
+#                     file_phase_data[seg_index] = ballistic_end
+
 #                 all_phase_data[subject][hand][file_path] = file_phase_data
 
 #     return all_phase_data
-
-
-def calculate_phase_indices_all_files(results, reach_speed_segments_2):
-    """
-    Calculates two phase segmentation for all reach segments across all files for all subjects and hands.
-    Phase1: from reach_speed_segments_2 start to ballistic_end (determined via peak detection on the time window).
-    Phase2: from ballistic_end to reach_speed_segments_2 end.
-    Returns a dictionary structured as:
-      all_phase_data[subject][hand][file][segment] = {
-          "phase1": (start, ballistic_end),
-          "phase2": (ballistic_end, end)
-      }
-    """
-    all_phase_data = {}
-
-    # Iterate over all subjects.
-    for subject in results:
-        all_phase_data[subject] = {}
-        # Iterate over all hands for the subject.
-        for hand in results[subject]:
-            all_phase_data[subject][hand] = {}
-            # Loop over every file for the specified subject and hand.
-            for file_path in results[subject][hand][1]:
-                # Use velocity from the trajectory data as the time window for peak detection.
-                marker = 'RFIN' if hand == 'right' else 'LFIN'
-                traj_data = results[subject][hand][1][file_path]['traj_space'][marker]
-                velocity_full = traj_data[1]  # time window used for phase detection
-
-                # Retrieve segmentation ranges from reach_speed_segments_2.
-                seg_ranges2 = reach_speed_segments_2[subject][hand][file_path]
-                
-                file_phase_data = {}
-                
-                # Loop over every reach segment.
-                for seg_index, seg_range in enumerate(seg_ranges2):
-                    start_seg, end_seg = seg_range
-                    
-                    # Determine ballistic_end as the first peak in the negative time window.
-                    # The phase is split into:
-                    #   Phase 1: start_seg to ballistic_end
-                    #   Phase 2: ballistic_end to end_seg
-                    time_window = velocity_full[start_seg:end_seg]
-                    peaks1, _ = find_peaks(-np.array(time_window), prominence=100)
-                    if peaks1.size > 0:
-                        if peaks1.size > 1:
-                            candidate = peaks1[np.argmax(time_window[peaks1])]
-                            ballistic_end = start_seg + candidate
-                        else:
-                            ballistic_end = start_seg + peaks1[0]
-                    else:
-                        ballistic_end = start_seg
-                    
-                    file_phase_data[seg_index] = ballistic_end
-                    
-                all_phase_data[subject][hand][file_path] = file_phase_data
-
-    return all_phase_data
-
-
-
 
 
 
@@ -1264,3 +1201,101 @@ def plot_3d_trajectory_video_with_icon_all_phase_data(results, reach_speed_segme
     writer = FFMpegWriter(fps=30, metadata=dict(artist="Me"), bitrate=1800)
     ani.save(video_save_path, writer=writer)
     plt.close(fig)
+
+
+import numpy as np
+from scipy.signal import find_peaks, savgol_filter
+
+def calculate_ballistic_end_all_files(results, reach_speed_segments_1, reach_speed_segments_2):
+    """
+    Detects ballistic_end indices (with jerk-based refinement) for all reach segments
+    across all files for all subjects and hands.
+    
+    Returns:
+      all_ballistic_data[subject][hand][file][segment] = ballistic_end
+    """
+    all_ballistic_data = {}
+
+    for subject in results:
+        all_ballistic_data[subject] = {}
+        for hand in results[subject]:
+            all_ballistic_data[subject][hand] = {}
+            
+            for file_path in results[subject][hand][1]:
+                # Extract trajectory arrays
+                marker = 'RFIN' if hand == 'right' else 'LFIN'
+                traj_data = results[subject][hand][1][file_path]['traj_space'][marker]
+                position_full = traj_data[0]
+                velocity_full = traj_data[1]
+                jerk_full = traj_data[3]
+
+                seg_ranges1 = reach_speed_segments_1[subject][hand][file_path]
+                seg_ranges2 = reach_speed_segments_2[subject][hand][file_path]
+
+                file_ballistic_data = {}
+                
+                for seg_index, seg_range in enumerate(seg_ranges2):
+                    start_seg, end_seg = seg_range
+
+                    # --- Initial ballistic_end estimate (displacement-based) ---
+                    coord_x_seg = np.array(position_full[start_seg:end_seg])
+                    if len(coord_x_seg) > 1:
+                        ballistic_diffs = np.abs(np.diff(coord_x_seg))
+                        ballistic_total = np.sum(ballistic_diffs)
+                        ballistic_threshold = 0.25 * ballistic_total
+                        ballistic_cum = np.insert(np.cumsum(ballistic_diffs), 0, 0)
+                        indices = np.where(ballistic_cum > ballistic_threshold)[0]
+                        if indices.size > 0:
+                            ballistic_end = start_seg + indices[0]
+                        else:
+                            ballistic_end = start_seg
+                    else:
+                        ballistic_end = start_seg
+
+
+                    # --- Refinement step using jerk ---
+                    start_idx2, end_idx2 = seg_ranges2[seg_index]
+                    jerk_seg2 = np.array(jerk_full[start_idx2:end_idx2])
+                    vel_seg2 = np.array(velocity_full[start_idx2:end_idx2])  # <--- FIX HERE
+
+                    if len(jerk_seg2) > 5:
+                        jerk_smooth = savgol_filter(jerk_seg2, window_length=11, polyorder=3)
+                    else:
+                        jerk_smooth = jerk_seg2
+
+                    minima, _ = find_peaks(-jerk_smooth, prominence=0.05 * np.max(np.abs(jerk_smooth)))
+
+                    filtered_peaks = []
+                    best_peak = None
+
+                    if len(minima) > 0:
+                        scores = []
+                        max_vel = np.max(vel_seg2)
+                        vel_thresh = 0.6 * max_vel  # only consider top 60% velocity
+
+                        for p in minima:
+                            candidate_abs = start_idx2 + p
+
+                            # Require high velocity
+                            if vel_seg2[p] < vel_thresh:
+                                continue
+
+                            # Score candidate: deeper minima + closer to ballistic_end is better
+                            drop = jerk_smooth[p-1] - jerk_smooth[p]
+                            dist = abs(candidate_abs - ballistic_end)
+                            score = drop / (dist + 1e-6)
+
+                            scores.append((score, p))
+
+                        if scores:
+                            best_peak = max(scores, key=lambda x: x[0])[1]
+                            filtered_peaks = [best_peak]
+
+                    if filtered_peaks:
+                        ballistic_end = start_idx2 + filtered_peaks[0]
+
+                    file_ballistic_data[seg_index] = ballistic_end
+
+                all_ballistic_data[subject][hand][file_path] = file_ballistic_data
+
+    return all_ballistic_data

@@ -1,0 +1,4 @@
+Metric,Overall Median,Overall IQR,Ballistic Median,Ballistic IQR,Correction Median,Correction IQR
+durations,-0.448,0.268,-0.281,0.163,-0.319,0.279
+distance,0.055,0.152,0.039,0.106,0.036,0.116
+MotorAcuity,-0.278,0.089,-0.186,0.104,-0.203,0.099

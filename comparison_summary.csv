@@ -1,0 +1,13 @@
+Metric,Comparison,Original p,Corrected p,Z,r (effect size)
+durations,TW vs Zero,3.725e-09,0.000,-4.703,-0.873
+durations,Ballistic vs Zero,3.725e-09,0.000,-4.703,-0.873
+durations,Correction vs Zero,3.725e-09,0.000,-4.703,-0.873
+durations,Ballistic vs Correction,1.316e-01,0.144,-1.524,-0.283
+distance,TW vs Zero,3.863e-02,0.058,-2.065,-0.383
+distance,Ballistic vs Zero,1.816e-03,0.003,-3.016,-0.560
+distance,Correction vs Zero,4.803e-02,0.058,-1.979,-0.367
+distance,Ballistic vs Correction,4.946e-01,0.495,-0.703,-0.130
+MotorAcuity,TW vs Zero,3.725e-09,0.000,-4.703,-0.873
+MotorAcuity,Ballistic vs Zero,3.725e-09,0.000,-4.703,-0.873
+MotorAcuity,Correction vs Zero,3.725e-09,0.000,-4.703,-0.873
+MotorAcuity,Ballistic vs Correction,4.552e-02,0.058,-2.000,-0.371

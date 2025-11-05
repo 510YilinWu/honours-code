@@ -820,6 +820,23 @@ updated_metrics_acorss_phases, Cutoff_counts_per_subject_per_hand_acorss_phases,
 
 
 
+total_segments = 0
+nan_count = 0
+for subject, hands in updated_metrics_acorss_phases.items():
+    for hand, metrics in hands.items():
+        if 'durations' in metrics:
+            for trial, segments in metrics['durations'].items():
+                for seg in segments:
+                    total_segments += 1
+                    if np.isnan(seg):
+                        nan_count += 1
+print("Total movement segments:", total_segments)
+print("Total NaN segments:", nan_count)
+
+
+
+
+
 # -------------------------------------------------------------------------------------------------------------------
 # 1. sBBT task performance: Dominant vs Non-Dominant hand
 sbbt_plot_config = dict(
@@ -1152,6 +1169,1325 @@ def plot_sbbt_boxplot(sBBTResult, config):
 
 plot_sbbt_boxplot(sBBTResult, sbbt_plot_config)
 # -------------------------------------------------------------------------------------------------------------------
+
+#sast
+# -----------------------------------------------------------------------
+# cacualte the 5% time window duration for each 
+def calculate_total_reach_duration(test_windows_7):
+    """
+    Calculate the total reach duration for each subject, hand, and trial using test_windows_7.
+    Duration is calculated as the difference between the start and end of each reach.
+
+    Args:
+        test_windows_7 (dict): Dictionary containing test window 7 indices for each subject, hand, and trial.
+
+    Returns:
+        dict: A dictionary with total reach duration for each subject, hand, and trial.
+    """
+    total_reach_duration = {}
+
+    for subject, hands in test_windows_7.items():
+        total_reach_duration[subject] = {}
+        for hand, trials in hands.items():
+            total_reach_duration[subject][hand] = {}
+            for trial, segments in trials.items():
+                if segments:  # Ensure there are segments
+                    total_duration = sum((end - start) for start, end in segments) / 200  # Convert to seconds assuming fs=200 Hz
+                    total_reach_duration[subject][hand][trial] = total_duration
+
+    return total_reach_duration
+total_reach_duration_results = calculate_total_reach_duration(test_windows_7)
+total_reach_duration_results = calculate_total_reach_duration(reach_speed_segments)
+
+
+# Extract the median total duration for each participant and each hand
+participant_hand_medians = {
+    subject: {
+        hand: np.nanmedian([np.nanmedian(trial_durations) for trial_durations in trials.values()])
+        for hand, trials in hands.items()
+    }
+    for subject, hands in total_reach_duration_results.items()
+}
+
+# Swap left/right total time results for specific subjects and rename keys as 'non_dominant' and 'dominant'
+def swap_and_rename_participant_hand_medians(participant_hand_medians, all_dates):
+    """
+    Swap left/right median results for specific subjects and rename keys as 'non_dominant' and 'dominant'.
+
+    Args:
+        participant_hand_medians (dict): A dictionary with median total durations for each subject and hand.
+        all_dates (list): List of all subject dates.
+
+    Returns:
+        dict: Modified participant hand medians with swapped and renamed keys.
+    """
+    # Subjects for which left/right metrics should be swapped
+    subjects_to_swap = {all_dates[20], all_dates[22]}
+
+    # Create swapped and renamed copy
+    modified_medians = {}
+    for subj, hands in participant_hand_medians.items():
+        if subj in subjects_to_swap:
+            swapped_hands = {
+                'non_dominant': hands.get('right', np.nan),
+                'dominant': hands.get('left', np.nan)
+            }
+        else:
+            swapped_hands = {
+                'non_dominant': hands.get('left', np.nan),
+                'dominant': hands.get('right', np.nan)
+            }
+        modified_medians[subj] = swapped_hands
+
+    return modified_medians
+
+participant_hand_medians = swap_and_rename_participant_hand_medians(participant_hand_medians, All_dates)
+
+
+# Plot participant_hand_medians
+def plot_participant_hand_medians(participant_hand_medians):
+    """
+    Plot a box chart of participant hand medians for non-dominant and dominant hands.
+
+    Args:
+        participant_hand_medians (dict): A dictionary containing median total times for non-dominant and dominant hands.
+    """
+    non_dominant_times = [times['non_dominant'] for times in participant_hand_medians.values()]
+    dominant_times = [times['dominant'] for times in participant_hand_medians.values()]
+
+    # Remove None values for plotting
+    paired_non_dominant = []
+    paired_dominant = []
+    for nd, d in zip(non_dominant_times, dominant_times):
+        if nd is not None and d is not None:
+            paired_non_dominant.append(nd)
+            paired_dominant.append(d)
+
+    # Perform Wilcoxon signed-rank test
+    if paired_non_dominant and paired_dominant:
+        stat, p_value = wilcoxon(paired_non_dominant, paired_dominant)
+        print(f"Wilcoxon signed-rank test: statistic={stat}, p-value={p_value}")
+        print("Significant difference between hands." if p_value < 0.05 else "No significant difference between hands.")
+    else:
+        print("Not enough paired data for Wilcoxon test.")
+        p_value = None
+
+    # Plot boxplot
+    data = [non_dominant_times, dominant_times]
+    plt.boxplot(data, labels=['Non-Dominant Hand', 'Dominant Hand'])
+    plt.ylabel('Median Total Time (s)')
+    plt.title('Median Total Time Taken per Participant by Hand')
+
+    # Overlay data points and connect them
+    for i, (non_dominant, dominant) in enumerate(zip(non_dominant_times, dominant_times)):
+        if non_dominant is not None and dominant is not None:
+            plt.plot([1, 2], [non_dominant, dominant], 'k-', alpha=0.5)  # Connect points with a line
+        if non_dominant is not None:
+            plt.scatter(1, non_dominant, color='blue', alpha=0.7)  # Non-dominant hand data point
+        if dominant is not None:
+            plt.scatter(2, dominant, color='orange', alpha=0.7)  # Dominant hand data point
+
+    # Add significance annotation
+    if p_value is not None:
+        sig_levels = [(0.001, "***"), (0.01, "**"), (0.05, "*"), (1.0, "ns")]
+        significance = next((label for threshold, label in sig_levels if p_value <= threshold), "ns")
+        y_max = max(max(non_dominant_times), max(dominant_times)) * 1.1
+        plt.plot([1, 2], [y_max, y_max], 'k-', lw=1.5)  # Line for significance
+        plt.text(1.5, y_max, significance, ha='center', va='bottom', fontsize=12)
+
+    plt.show()
+
+plot_participant_hand_medians(participant_hand_medians)
+
+
+
+
+
+
+
+def calculate_total_reach_duration(test_windows_7):
+    """
+    Calculate the total reach duration for each subject, hand, trial, and reach using test_windows_7.
+    Duration is calculated as the difference between the start and end of each reach.
+
+    Args:
+        test_windows_7 (dict): Dictionary containing test window 7 indices for each subject, hand, and trial.
+
+    Returns:
+        dict: A dictionary with total reach duration for each subject, hand, trial, and reach.
+    """
+    total_reach_duration = {}
+
+    for subject, hands in test_windows_7.items():
+        total_reach_duration[subject] = {}
+        for hand, trials in hands.items():
+            total_reach_duration[subject][hand] = {}
+            for trial, segments in trials.items():
+                if segments:  # Ensure there are segments
+                    reach_durations = [(end - start) / 200 for start, end in segments]  # Convert to seconds assuming fs=200 Hz
+                    total_reach_duration[subject][hand][trial] = reach_durations
+
+    return total_reach_duration
+
+TW_reach_duration_results = calculate_total_reach_duration(test_windows_7)
+TW_reach_duration_results = swap_and_rename_participant_hand_medians(TW_reach_duration_results, All_dates)
+
+
+
+
+
+def calculate_total_time_per_trial(iBBT_reach_speed_segments):
+    """
+    Calculate the total time taken for each subject per trial for iBBT.
+    Time is calculated as the difference between the start of the first reach and the end of the last reach.
+
+    Args:
+        iBBT_reach_speed_segments (dict): Dictionary containing reach speed segments for each subject and trial.
+
+    Returns:
+        dict: A dictionary with total time taken for each subject per trial.
+    """
+    total_time_per_trial = {}
+
+    for subject, hands in iBBT_reach_speed_segments.items():
+        total_time_per_trial[subject] = {}
+        for hand, trials in hands.items():
+            total_time_per_trial[subject][hand] = {}
+            for trial, segments in trials.items():
+                if segments:  # Ensure there are segments
+                    start_time = segments[0][0]  # Start time of the first reach
+                    end_time = segments[-1][1]  # End time of the last reach
+                    total_time = end_time - start_time
+                    total_time_per_trial[subject][hand][trial] = total_time/200  # Convert to seconds assuming fs=200 Hz
+
+    return total_time_per_trial
+tBBT_total_time_results = calculate_total_time_per_trial(reach_speed_segments)
+# Swap left/right total time results for specific subjects and rename keys as 'non_dominant' and 'dominant'
+def swap_and_rename_total_time_results(total_time_results, all_dates):
+    """
+    Swap left/right total time results for specific subjects and rename keys as 'non_dominant' and 'dominant'.
+
+    Args:
+        total_time_results (dict): A dictionary with total time taken for each subject per trial.
+        all_dates (list): List of all subject dates.
+
+    Returns:
+        dict: Modified total time results with swapped and renamed keys.
+    """
+    # Subjects for which left/right metrics should be swapped
+    subjects_to_swap = {all_dates[20], all_dates[22]}
+
+    # Create swapped and renamed copy
+    modified_results = {}
+    for subj, hands in total_time_results.items():
+        if subj in subjects_to_swap:
+            swapped_hands = {
+                'non_dominant': hands.get('right', {}),
+                'dominant': hands.get('left', {})
+            }
+        else:
+            swapped_hands = {
+                'non_dominant': hands.get('left', {}),
+                'dominant': hands.get('right', {})
+            }
+        modified_results[subj] = swapped_hands
+
+    return modified_results
+tBBT_total_time_results = swap_and_rename_total_time_results(tBBT_total_time_results, All_dates)
+
+def plot_total_time_box_chart_with_overlay_and_stats(total_time_per_trial):
+    """
+    Plot a box chart of average total time taken for each participant for each hand,
+    with data points overlaid and connected between the same participants.
+    Perform a Wilcoxon signed-rank test between the hands and annotate significance.
+    Also, return the mean total time for each hand for each participant.
+
+    Args:
+        total_time_per_trial (dict): A dictionary with total time taken for each subject per trial.
+
+    Returns:
+        dict: A dictionary containing the mean total time for non-dominant and dominant hands for each participant.
+    """
+    non_dominant_times = []
+    dominant_times = []
+    participant_ids = []
+    mean_times_per_participant = {}
+
+    for subject, hands in total_time_per_trial.items():
+        non_dominant_hand_times = []
+        dominant_hand_times = []
+        for hand, trials in hands.items():
+            for trial, total_time in trials.items():
+                if hand == 'non_dominant':
+                    non_dominant_hand_times.append(total_time)
+                elif hand == 'dominant':
+                    dominant_hand_times.append(total_time)
+        if non_dominant_hand_times or dominant_hand_times:
+            participant_ids.append(subject)
+        mean_non_dominant = sum(non_dominant_hand_times) / len(non_dominant_hand_times) if non_dominant_hand_times else None
+        mean_dominant = sum(dominant_hand_times) / len(dominant_hand_times) if dominant_hand_times else None
+        non_dominant_times.append(mean_non_dominant)
+        dominant_times.append(mean_dominant)
+        mean_times_per_participant[subject] = {
+            "non_dominant": mean_non_dominant,
+            "dominant": mean_dominant
+        }
+
+    # Remove None values for statistical test
+    paired_non_dominant = []
+    paired_dominant = []
+    for nd, d in zip(non_dominant_times, dominant_times):
+        if nd is not None and d is not None:
+            paired_non_dominant.append(nd)
+            paired_dominant.append(d)
+
+    # Perform Wilcoxon signed-rank test
+    if paired_non_dominant and paired_dominant:
+        stat, p_value = wilcoxon(paired_non_dominant, paired_dominant)
+        print(f"Wilcoxon signed-rank test: statistic={stat}, p-value={p_value}")
+        print("Significant difference between hands." if p_value < 0.05 else "No significant difference between hands.")
+    else:
+        print("Not enough paired data for Wilcoxon test.")
+        p_value = None
+
+    # Calculate mean total time for each hand
+    mean_non_dominant = sum(paired_non_dominant) / len(paired_non_dominant) if paired_non_dominant else None
+    mean_dominant = sum(paired_dominant) / len(paired_dominant) if paired_dominant else None
+    print(f"Mean total time - Non-Dominant Hand: {mean_non_dominant:.2f}s, Dominant Hand: {mean_dominant:.2f}s")
+
+    data = [non_dominant_times, dominant_times]
+    plt.boxplot(data, labels=['Non-Dominant Hand', 'Dominant Hand'])
+    plt.ylabel('Average Total Time (s)')
+    plt.title('Average Total Time Taken per Participant by Hand')
+
+    # Overlay data points and connect them
+    for i, (non_dominant, dominant) in enumerate(zip(non_dominant_times, dominant_times)):
+        if non_dominant is not None and dominant is not None:
+            plt.plot([1, 2], [non_dominant, dominant], 'k-', alpha=0.5)  # Connect points with a line
+        if non_dominant is not None:
+            plt.scatter(1, non_dominant, color='blue', alpha=0.7)  # Non-dominant hand data point
+        if dominant is not None:
+            plt.scatter(2, dominant, color='orange', alpha=0.7)  # Dominant hand data point
+
+    # Add significance annotation
+    if p_value is not None:
+        sig_levels = [(0.001, "***"), (0.01, "**"), (0.05, "*"), (1.0, "ns")]
+        significance = next((label for threshold, label in sig_levels if p_value <= threshold), "ns")
+        y_max = max(max(non_dominant_times), max(dominant_times)) * 1.1
+        plt.plot([1, 2], [y_max, y_max], 'k-', lw=1.5)  # Line for significance
+        plt.text(1.5, y_max, significance, ha='center', va='bottom', fontsize=12)
+
+    plt.show()
+
+    return mean_times_per_participant
+
+tBBT_mean_total_times = plot_total_time_box_chart_with_overlay_and_stats(tBBT_total_time_results)
+
+def plot_correlation_between_tbbt_and_sbbt(tBBT_mean_total_times, sBBTResult):
+    """
+    Plot correlation between tBBT mean total times and sBBT scores for non-dominant and dominant hands.
+    Compute and display Spearman correlation coefficients and p-values.
+
+    Args:
+        tBBT_mean_total_times (dict): Dictionary containing mean total times for non-dominant and dominant hands.
+        sBBTResult (DataFrame): DataFrame containing sBBT scores for non-dominant and dominant hands.
+    """
+    import matplotlib.pyplot as plt
+
+    # Extract non-dominant and dominant data for correlation
+    tBBT_non_dominant = [times['non_dominant'] for subject, times in tBBT_mean_total_times.items()]
+    tBBT_dominant = [times['dominant'] for subject, times in tBBT_mean_total_times.items()]
+    sBBT_non_dominant = sBBTResult['non_dominant'].tolist()
+    sBBT_dominant = sBBTResult['dominant'].tolist()
+
+    # Compute Spearman correlation for non-dominant hand
+    corr_non_dominant, p_value_non_dominant = spearmanr(tBBT_non_dominant, sBBT_non_dominant)
+    print(f"Non-Dominant Hand Spearman Correlation: {corr_non_dominant:.2f}, p-value: {p_value_non_dominant:.4f}")
+
+    # Compute Spearman correlation for dominant hand
+    corr_dominant, p_value_dominant = spearmanr(tBBT_dominant, sBBT_dominant)
+    print(f"Dominant Hand Spearman Correlation: {corr_dominant:.2f}, p-value: {p_value_dominant:.4f}")
+
+    # Plot scatter plot and linear regression for non-dominant hand
+    plt.figure(figsize=(12, 6))
+    plt.subplot(1, 2, 1)
+    plt.scatter(tBBT_non_dominant, sBBT_non_dominant, color='blue', alpha=0.7, label='Data Points')
+    # Linear regression for visual purposes
+    slope, intercept = np.polyfit(tBBT_non_dominant, sBBT_non_dominant, 1)
+    regression_line = np.polyval([slope, intercept], tBBT_non_dominant)
+    plt.plot(tBBT_non_dominant, regression_line, color='red', label='Linear Fit')
+    plt.title(f"Non-Dominant Hand\nSpearman Correlation: {corr_non_dominant:.2f} (p={p_value_non_dominant:.4f})")
+    plt.xlabel("tBBT Non-Dominant Mean Total Time (s)")
+    plt.ylabel("sBBT Non-Dominant Score \n(num blocks transfer in 60s)")
+    plt.legend()
+
+    # Plot scatter plot and linear regression for dominant hand
+    plt.subplot(1, 2, 2)
+    plt.scatter(tBBT_dominant, sBBT_dominant, color='orange', alpha=0.7, label='Data Points')
+    # Linear regression for visual purposes
+    slope, intercept = np.polyfit(tBBT_dominant, sBBT_dominant, 1)
+    regression_line = np.polyval([slope, intercept], tBBT_dominant)
+    plt.plot(tBBT_dominant, regression_line, color='red', label='Linear Fit')
+    plt.title(f"Dominant Hand\nSpearman Correlation: {corr_dominant:.2f} (p={p_value_dominant:.4f})")
+    plt.xlabel("tBBT Dominant Mean Total Time (s)")
+    plt.ylabel("sBBT Dominant Score \n(num blocks transfer in 60s)")
+    plt.legend()
+
+    plt.tight_layout()
+    plt.show()
+plot_correlation_between_tbbt_and_sbbt(tBBT_mean_total_times, sBBTResult)
+
+
+
+plot_config_summary = dict(
+    # -----------------------------
+    # General Plot Settings
+    # -----------------------------
+    general=dict(
+        figsize=(5, 4),
+        scale_factor=1,
+        axis_label_font=14,
+        tick_label_font=14,
+        title_font=16,
+        show_title=False,
+        show_grid=False,
+        x_ticks=True,
+        y_ticks=True,
+        tick_direction="out",   # always outwards
+        annotate_n=True,
+        n_loc=(0.95, 1.05),
+        n_unit="participants",  # can be "blocks", "participants", "cm", "locations", or None
+        random_jitter=0.04,
+        show_whiskers=False,
+        show_points=True,
+        marker_size=50,
+        alpha=0.4,
+        label_offset=0.09,
+        hide_spines=True,
+        showGrid=False
+    ),
+
+    # -----------------------------
+    # Axis Labeling Rules (common style)
+    # -----------------------------
+    axis_labels=dict(
+        duration="Duration (s)",
+        distance="Error (mm)",
+        correlation="Correlation",
+        y_unit="blocks"  # added from sbbt_plot_config
+    ),
+    axis_colors=dict(
+        x={
+            "Duration (s)": {"start": "fast", "end": "slow", "colors": ["green", "red"]}
+        },
+        y={
+            "Error (mm)": {"start": "accurate", "end": "inaccurate", "colors": ["green", "red"]}
+        }
+    ),
+
+    # -----------------------------
+    # Plot-Type Specific Options
+    # -----------------------------
+    scatter=dict(
+        show_points=True,
+        annotate_corr=True,
+        corr_line_y0=True,
+        ylim_centered_at_zero=True,
+        use_axis_colors=True,
+        corr_display="rho_only"
+    ),
+    line=dict(
+        show_markers=False,
+        show_error_shade=False,
+        linewidth=4,
+        use_axis_colors=True
+    ),
+    heatmap=dict(
+        colormap="coolwarm",
+        show_colorbar=True,
+        colorbar_label="Correlation",
+        center_zero=True,
+        use_axis_colors=True
+    ),
+    box=dict(
+        bar_width=0.5,
+        bar_edge_width=1.5,
+        bar_colors={"Non-dominant": "#A9A9A9", "Dominant": "#F0F0F0"},
+        order=("Non-dominant", "Dominant"),
+        bar_spacing=0.1,
+        show_whiskers=False,
+        show_points=True,
+        annotate_sig=True,
+        sig_levels=[(0.001, "***"), (0.01, "**"), (0.05, "*"), (1.0, "ns")],
+        test_type="greater",
+        sig_y_loc=90,
+        sig_line=True,
+        sig_line_width=1.5,
+        sig_line_color="black",
+        sig_marker_size=40,
+        sig_text_offset=-0.05,
+        use_axis_colors=True
+    ),
+
+    # -----------------------------
+    # Statistical Options
+    # -----------------------------
+    stats=dict(
+        compare_correlation="fisher_z",
+        test_type_options=["greater", "less", "two-sided"]
+    ),
+
+    # -----------------------------
+    # Optional / Misc Features
+    # -----------------------------
+    misc=dict(
+        bar_spacing=0.1,
+        placement_icon=True,
+        annotate_sig=True
+    )
+)
+
+
+# # 2.1 within each placemnet location
+
+def plot_reach_scatter_and_spearman(subject, hand, reach_index, config=plot_config_summary):
+    """
+    Plots a scatter plot of durations vs. distances for a given subject, hand, and reach index
+    across trials and calculates the Spearman correlation and p-value.
+    
+    Also performs a Shapiro-Wilk normality test on the x (durations) and y (distances) data before calculating
+    the Spearman correlation. A linear regression line is overlaid on the scatter plot.
+    
+    Parameters:
+        subject (str): Subject identifier (e.g., "07/22/HW")
+        hand (str): Hand identifier (e.g., "non_dominant")
+        reach_index (int): Index of the reach (0-indexed)
+        config (dict): Plot configuration dictionary
+        
+    Returns:
+        tuple: Spearman correlation coefficient and p-value
+    """
+
+    durations = []
+    distances = []
+
+    # Gather duration and distance values
+    for trial, rep_durations in TW_reach_duration_results[subject][hand].items():
+        duration = rep_durations[reach_index]
+        distance = updated_metrics_acorss_phases[subject][hand]['distance'][trial][reach_index]
+        durations.append(duration)
+        distances.append(distance)
+    
+    # Perform normality tests
+    stat_dur, p_dur = shapiro(durations)
+    stat_dist, p_dist = shapiro(distances)
+    print(f"Normality test for durations: W = {stat_dur:.4f}, p-value = {p_dur:.4f}")
+    print(f"Normality test for distances: W = {stat_dist:.4f}, p-value = {p_dist:.4f}")
+
+    # Calculate Spearman correlation
+    corr, pval = spearmanr(durations, distances)
+    
+    # Determine significance stars based on p-value
+    if pval < 0.001:
+        stars = "***"
+    elif pval < 0.01:
+        stars = "**"
+    elif pval < 0.05:
+        stars = "*"
+    else:
+        stars = "ns"
+
+    # General settings
+    gen = config['general']
+    scatter_cfg = config['scatter']
+    axis_labels = config['axis_labels']
+    axis_colors = config['axis_colors']
+    tick_direction = gen.get('tick_direction', 'out')
+    
+    fig, ax = plt.subplots(figsize=gen['figsize'])
+
+    # Scatter points
+    ax.scatter(
+        durations,
+        distances,
+        s=gen['marker_size'],
+        alpha=gen['alpha'],
+        color="black"
+    )
+    
+    # Overlay linear regression line based on the original durations (without jitter)
+    durations_arr = np.array(durations)
+    distances_arr = np.array(distances)
+    if len(durations_arr) > 1:
+        slope, intercept = np.polyfit(durations_arr, distances_arr, 1)
+        # Create line values for the regression line
+        x_line = np.linspace(min(durations_arr), max(durations_arr), 100)
+        y_line = slope * x_line + intercept
+        ax.plot(x_line, y_line, color="black", linewidth=2, label="Linear regression")
+        # ax.legend(fontsize=gen['tick_label_font'])
+    
+    # Axis labels
+    ax.set_xlabel(axis_labels['duration'], fontsize=gen['axis_label_font'])
+    ax.set_ylabel(axis_labels['distance'], fontsize=gen['axis_label_font'])
+    
+    # Axis ticks
+    if gen['x_ticks']:
+        ax.tick_params(axis='x', labelsize=gen['tick_label_font'], direction=tick_direction)
+    else:
+        ax.set_xticks([])
+    if gen['y_ticks']:
+        ax.tick_params(axis='y', labelsize=gen['tick_label_font'], direction=tick_direction)
+    else:
+        ax.set_yticks([])
+    
+    # Annotate Spearman correlation along with significance stars
+    if scatter_cfg.get('annotate_corr', True):
+        ax.text(
+            0.55, 0.95,
+            f"ρ = {corr:.2f} {stars}",
+            transform=ax.transAxes,
+            fontsize=gen['tick_label_font'],
+            verticalalignment='top'
+        )
+        
+    # Sample size annotation with unit as placements
+    n = len(durations)
+    ax.text(
+        0.55, 0.75,
+        f"n = {n} placements",
+        transform=ax.transAxes,
+        fontsize=gen['tick_label_font'],
+        verticalalignment='bottom'
+    )
+    
+    # Grid
+    ax.grid(gen['show_grid'])
+    
+    # Always hide top and right spines
+    if gen.get('hide_spines', True):
+        ax.spines["top"].set_visible(False)
+        ax.spines["right"].set_visible(False)
+    
+    # Apply axis color ramps
+    if scatter_cfg.get('use_axis_colors', True):
+        # X-axis color bar
+        x_colors = axis_colors['x'].get(axis_labels['duration'], None)
+        if x_colors:
+            ax.annotate(
+                x_colors['start'],
+                xy=(0, -gen['label_offset']),
+                xycoords=('axes fraction', 'axes fraction'),
+                fontsize=gen['tick_label_font'],
+                ha='left',
+                va='top',
+                color=x_colors['colors'][0]
+            )
+            ax.annotate(
+                x_colors['end'],
+                xy=(1, -gen['label_offset']),
+                xycoords=('axes fraction', 'axes fraction'),
+                fontsize=gen['tick_label_font'],
+                ha='right',
+                va='top',
+                color=x_colors['colors'][-1]
+            )
+        
+        # Y-axis color bar
+        y_colors = axis_colors['y'].get(axis_labels['distance'], None)
+        if y_colors:
+            ax.annotate(
+                y_colors['start'],
+                xy=(-gen['label_offset'], 0),
+                xycoords=('axes fraction', 'axes fraction'),
+                fontsize=gen['tick_label_font'],
+                ha='right',
+                va='bottom',
+                color=y_colors['colors'][0]
+            )
+            ax.annotate(
+                y_colors['end'],
+                xy=(-gen['label_offset'], 1),
+                xycoords=('axes fraction', 'axes fraction'),
+                fontsize=gen['tick_label_font'],
+                ha='right',
+                va='top',
+                color=y_colors['colors'][-1]
+            )
+    
+    plt.tight_layout()
+    plt.show()
+    
+    return corr, pval
+
+corr_value, p_value = plot_reach_scatter_and_spearman("07/22/HW", "non_dominant", 0, config=plot_config_summary)
+
+# Calculate and return Spearman correlation, p-value, data points, and hyperbolic fit parameters (a, b) for durations vs distances for each subject, hand, and reach index
+def calculate_duration_distance_reach_indices(TW_reach_duration_results):
+    """
+    Calculates Spearman correlation, p-value, data points, and hyperbolic fit parameters (a, b)
+    for durations vs distances for each subject, hand, and reach index.
+
+    Parameters:
+        TW_reach_duration_results (dict): Reach duration results data.
+
+    Returns:
+        dict: Dictionary containing results for each subject, hand, and reach index.
+    """
+    results = {}
+
+    for subject in TW_reach_duration_results.keys():
+        results[subject] = {}
+        for hand in ['non_dominant', 'dominant']:
+            results[subject][hand] = {}
+            for reach_index in range(16):
+                x_values = []
+                y_values = []
+
+                trials = TW_reach_duration_results[subject][hand].keys()
+
+                for trial in trials:
+                    trial_x = np.array(TW_reach_duration_results[subject][hand][trial])
+                    trial_y = np.array(updated_metrics_acorss_phases[subject][hand]['distance'][trial])
+
+                    if reach_index < len(trial_x) and reach_index < len(trial_y):
+                        x_values.append(trial_x[reach_index])
+                        y_values.append(trial_y[reach_index])
+
+                # Remove NaN values
+                x_values = np.array(x_values)
+                y_values = np.array(y_values)
+                valid_indices = ~np.isnan(x_values) & ~np.isnan(y_values)
+                x_values = x_values[valid_indices]
+                y_values = y_values[valid_indices]
+
+                # Calculate Spearman correlation
+                if len(x_values) > 1 and len(y_values) > 1:
+                    spearman_corr, p_value = spearmanr(x_values, y_values)
+                else:
+                    spearman_corr, p_value = np.nan, np.nan
+
+                # Store results
+                results[subject][hand][reach_index] = {
+                    "spearman_corr": spearman_corr,
+                    "p_value": p_value,
+                    "data_points": len(x_values)
+                }
+
+    return results
+
+SAT_corr_within_results = calculate_duration_distance_reach_indices(TW_reach_duration_results)
+
+
+def heatmap_spearman_correlation_reach_indices(results, hand="both", simplified=False, 
+                                                return_medians=False, overlay_median=False, config=None):
+    """
+    Plots a heatmap of Spearman correlations for the specified hand(s) and optionally returns the column and row medians.
+    Optionally overlays a green square on each row at the cell closest to the row median.
+    
+    Parameters:
+        results (dict): Results containing Spearman correlations for each subject and hand.
+        hand (str): Which hand to plot; "non_dominant", "dominant", or "both". Default is "both".
+        simplified (bool): If True, plots a compact version with no annotations and no subject labels.
+                           When hand == "both", each hand is plotted as a subplot.
+        return_medians (bool): If True, returns a dictionary containing column and row medians.
+        overlay_median (bool): If True, overlays a green square on each row at the cell closest to the row median.
+        config (dict): Plot configuration dictionary. If provided, the "heatmap" and "general" sub-dictionaries will be used.
+        
+    Returns:
+        dict or None: If return_medians is True, returns a dictionary with keys corresponding to each hand 
+                      (or the chosen hand) and values as dictionaries with 'column_medians' and 'row_medians'.
+    """
+    import matplotlib.pyplot as plt
+    import matplotlib.image as mpimg
+
+    reach_indices = list(range(16))
+    medians = {}
+
+    # Get heatmap settings from config if provided, else use defaults
+    if config is None:
+        h_cfg = {}
+        general_cfg = {"figsize": (5, 4), "axis_label_font": 14, "tick_label_font": 12}
+    else:
+        h_cfg = config.get("heatmap", {})
+        general_cfg = config.get("general", {"figsize": (5, 4), "axis_label_font": 14, "tick_label_font": 12})
+    # cmap = h_cfg.get("colormap", "coolwarm")
+    # cmap = LinearSegmentedColormap.from_list("custom_diverging", [(223/255, 148/255, 157/255), (1, 1, 1), (111/255, 94/255, 79/255)])
+    # User-provided colors
+    end_left = "#ffd6e9"   # light pink
+    mid_left = "#ffbcda"   # medium pink
+    center   = "#ffffff"   # neutral beige
+    mid_right = "#c79274"  # warm brown
+    end_right = "#946656"  # dark brown
+
+    # Arrange symmetrically around the center
+    symmetric_colors = [end_left, mid_left, center, mid_right, end_right]
+
+    # Create a diverging colormap
+    cmap = mpl.colors.LinearSegmentedColormap.from_list("SymmetricPalette", symmetric_colors)
+
+    show_colorbar = h_cfg.get("show_colorbar", True)
+    colorbar_label = h_cfg.get("colorbar_label", "Correlation")
+    center_zero = h_cfg.get("center_zero", True)
+    vmin = -1 if center_zero else None
+    vmax = 1 if center_zero else None
+    # Prepare cbar_kws with an additional fontsize setting
+    cbar_kws = {"label": colorbar_label, "ticks": np.linspace(vmin, vmax, 5)} if show_colorbar else None
+    fig_size = (8, 6)
+    axis_label_font = general_cfg.get("axis_label_font", 14)
+    tick_label_font = general_cfg.get("tick_label_font", 12)
+
+    # Define a legend patch for the median overlay (black square)
+    median_patch = Patch(facecolor='none', edgecolor='black', lw=2, label='Participant\nmedian\ncorrelation')
+    
+    if hand == "both":
+        if simplified:
+            fig, axes = plt.subplots(1, 2, figsize=fig_size)
+        else:
+            fig, axes = plt.subplots(2, 1, figsize=fig_size)
+        
+        for idx, h in enumerate(["non_dominant", "dominant"]):
+            subjects = list(results.keys())
+            data = []
+            for subject in subjects:
+                if h in results[subject]:
+                    correlations = [
+                        results[subject][h].get(ri, {}).get("spearman_corr", np.nan)
+                        for ri in reach_indices
+                    ]
+                    data.append(correlations)
+            df = pd.DataFrame(data, index=subjects, columns=reach_indices)
+            ax = axes[idx] if isinstance(axes, (list, np.ndarray)) else axes
+            sns.heatmap(
+                df,
+                annot=not simplified,
+                fmt=".2f",
+                cmap=cmap,
+                cbar=show_colorbar,
+                cbar_kws=cbar_kws,
+                xticklabels=list(range(1, 17)),
+                yticklabels=[] if simplified else subjects,
+                vmin=vmin,
+                vmax=vmax,
+                ax=ax
+            )
+            # Adjust colorbar tick label font size
+            if show_colorbar and ax.collections:
+                cbar = ax.collections[0].colorbar
+                if cbar is not None:
+                    cbar.ax.tick_params(labelsize=tick_label_font)
+                    cbar.ax.yaxis.label.set_size(tick_label_font)
+
+            ax.set_xlabel("Location", fontsize=axis_label_font)
+            ax.set_xticklabels(range(1, 17), fontsize=tick_label_font, rotation=0)
+            ax.set_ylabel("Subjects", fontsize=axis_label_font)
+            if overlay_median:
+                import matplotlib.patches as patches
+                for i, subject in enumerate(df.index):
+                    row_data = df.loc[subject].dropna()
+                    if row_data.empty:
+                        continue
+                    median_val = np.median(row_data.values)
+                    col_idx = np.argmin(np.abs(df.loc[subject].values - median_val))
+                    ax.add_patch(patches.Rectangle((col_idx, i), 1, 1, fill=False, edgecolor='black', lw=2))
+                # Add legend explaining the black square
+                ax.legend(handles=[median_patch], loc='upper right', fontsize=tick_label_font)
+            if return_medians:
+                medians[h] = {
+                    "column_medians": df.median(axis=0).to_dict(),
+                    "row_medians": df.median(axis=1).to_dict()
+                }
+        plt.tight_layout()
+        plt.show()
+    
+    else:
+        subjects = list(results.keys())
+        data = []
+        for subject in subjects:
+            if hand in results[subject]:
+                correlations = [
+                    results[subject][hand].get(ri, {}).get("spearman_corr", np.nan)
+                    for ri in reach_indices
+                ]
+                data.append(correlations)
+        fig, ax = plt.subplots(figsize=fig_size)
+        df = pd.DataFrame(data, index=subjects, columns=reach_indices)
+        sns.heatmap(
+            df,
+            annot=not simplified,
+            fmt=".2f",
+            cmap=cmap,
+            cbar=show_colorbar,
+            cbar_kws=cbar_kws,
+            xticklabels=list(range(1, 17)),
+            yticklabels=[] if simplified else subjects,
+            vmin=vmin,
+            vmax=vmax,
+            ax=ax
+        )
+        # Adjust colorbar tick label font size
+        if show_colorbar and ax.collections:
+            cbar = ax.collections[0].colorbar
+            if cbar is not None:
+                cbar.ax.tick_params(labelsize=tick_label_font)
+                cbar.ax.yaxis.label.set_size(tick_label_font)
+
+        ax.set_xlabel("Location", fontsize=axis_label_font)
+        ax.set_xticklabels(range(1, 17), fontsize=tick_label_font, rotation=0)
+        ax.set_ylabel("Participant", fontsize=axis_label_font)
+        ax.set_yticklabels([] if simplified else ax.get_yticklabels())
+        
+        # Insert the placement location icon on the right side of the plot
+        try:
+            icon_img = mpimg.imread('/Users/yilinwu/Desktop/Thesis/PlacementLocationIcon_RBOX.png')
+            imagebox = OffsetImage(icon_img, zoom=0.2)
+            ab = AnnotationBbox(imagebox, (1.25, -0.18), xycoords='axes fraction', frameon=False)
+            ax.add_artist(ab)
+        except Exception as e:
+            print("Error loading icon image:", e)
+        
+        if overlay_median:
+            import matplotlib.patches as patches
+            for i, subject in enumerate(df.index):
+                row_data = df.loc[subject].dropna()
+                if row_data.empty:
+                    continue
+                median_val = np.median(row_data.values)
+                col_idx = np.argmin(np.abs(df.loc[subject].values - median_val))
+                ax.add_patch(patches.Rectangle((col_idx, i), 1, 1, fill=False, edgecolor='black', lw=2))
+            # Add legend for the black square overlay
+            ax.legend(handles=[median_patch], loc=(0.8, -0.27), fontsize=tick_label_font, frameon=False)
+        plt.tight_layout()
+        plt.show()
+        if return_medians:
+            medians[hand] = {
+                "column_medians": df.median(axis=0).to_dict(),
+                "row_medians": df.median(axis=1).to_dict()
+            }
+    
+    if return_medians:
+        return medians
+
+heatmap_medians = heatmap_spearman_correlation_reach_indices(
+    SAT_corr_within_results, hand="non_dominant", simplified=True, 
+    return_medians=True, overlay_median=True, config=plot_config_summary
+)
+
+def boxplot_spearman_corr_with_stats_reach_indices_by_subject(results, config=plot_config_summary):
+    """
+    Creates a box plot of median Spearman correlations for each subject,
+    separated by non_dominant and dominant hands, using the formatting defined in plot_config_summary.
+    Also annotates significance (using stars) by drawing a common horizontal line above both boxes for
+    hand vs 0 comparisons and a line across both boxes for paired between-hand comparisons with stars indicating significance.
+    
+    Multiple comparisons are corrected using the Benjamini–Hochberg FDR procedure.
+    
+    Additionally, it reports the Wilcoxon signed‐rank test for each comparison with the median scores for each group,
+    the sample size (N), the degrees of freedom (N - 1), the Z-statistic (rounded to two decimal places),
+    the exact p-value, and the effect size (r).
+    
+    Parameters:
+        results (dict): Results containing Spearman correlations for each subject and hand.
+        config (dict): Plot configuration dictionary.
+    """
+    import matplotlib.pyplot as plt
+
+    # Extract configuration settings.
+    general_cfg = config.get("general", {"figsize": (5, 4), "axis_label_font": 14, "tick_label_font": 14, "alpha": 0.4})
+    box_cfg = config.get("box", {"bar_colors": {"Non-dominant": "#A9A9A9", "Dominant": "#F0F0F0"},
+                                 "sig_levels": [(0.001, "***"), (0.01, "**"), (0.05, "*"), (1.0, "ns")],
+                                 "sig_y_loc": 90,
+                                 "sig_line": True,
+                                 "sig_line_width": 1.5,
+                                 "sig_line_color": "black",
+                                 "sig_marker_size": 40,
+                                 "sig_text_offset": -0.05,
+                                 "hand_sig_offset": 0.2,
+                                 "group_sig_offset": 0.4})
+    figsize = general_cfg.get("figsize", (5, 4))
+    axis_label_font = general_cfg.get("axis_label_font", 14)
+    tick_label_font = general_cfg.get("tick_label_font", 14)
+    alpha = general_cfg.get("alpha", 0.4)
+    sig_marker_size = box_cfg.get("sig_marker_size", 40)
+    sig_text_offset = box_cfg.get("sig_text_offset", -0.05)
+    
+    # New offset parameters for significance lines and text
+    hand_sig_offset = box_cfg.get("hand_sig_offset", 0.2)
+    group_sig_offset = box_cfg.get("group_sig_offset", 0.4)
+    
+    # Collect median correlations for each subject for both hands.
+    median_corr_non = []
+    median_corr_dom = []
+    paired_non = []
+    paired_dom = []
+    for subject in results.keys():
+        subject_non = None
+        subject_dom = None
+        for hand in ['non_dominant', 'dominant']:
+            if hand in results[subject]:
+                # Gather correlations for reach indices 0-15.
+                correlations = [
+                    results[subject][hand].get(reach_index, {}).get("spearman_corr", float('nan'))
+                    for reach_index in range(16)
+                ]
+                # Remove NaNs.
+                correlations = [r for r in correlations if r is not None and not (isinstance(r, float) and np.isnan(r))]
+                if correlations:
+                    med_corr = np.median(correlations)
+                    if hand == 'non_dominant':
+                        median_corr_non.append(med_corr)
+                        subject_non = med_corr
+                    elif hand == 'dominant':
+                        median_corr_dom.append(med_corr)
+                        subject_dom = med_corr
+        # Collect only paired subjects.
+        if (subject_non is not None) and (subject_dom is not None):
+            paired_non.append(subject_non)
+            paired_dom.append(subject_dom)
+    
+    # Create a DataFrame for plotting.
+    data = []
+    for x in median_corr_non:
+        data.append({"Hand": "Non-dominant", "Correlation": x})
+    for x in median_corr_dom:
+        data.append({"Hand": "Dominant", "Correlation": x})
+    df_plot = pd.DataFrame(data)
+    
+    # Define hand order and retrieve the custom palette from box config.
+    hand_order = ["Non-dominant", "Dominant"]
+    palette = box_cfg.get("bar_colors", {"Non-dominant": "#A9A9A9", "Dominant": "#F0F0F0"})
+    
+    # Plotting using the configuration settings.
+    fig, ax = plt.subplots(figsize=figsize)
+    sns.boxplot(x="Hand", y="Correlation", data=df_plot,
+                order=hand_order, palette=palette, ax=ax, linewidth=1.5)
+
+    sns.swarmplot(x="Hand", y="Correlation", data=df_plot,
+                  order=hand_order, color='black', size=6, alpha=alpha, ax=ax)
+
+    ax.set_xlabel("Hand", fontsize=axis_label_font)
+    # Set y-axis label to just "Correlation"
+    ax.set_ylabel("Correlation", fontsize=axis_label_font)
+    ax.set_ylim(-0.5, 0.5)
+    ax.set_yticks([-0.5, 0, 0.5])
+    ax.tick_params(axis='y', labelsize=tick_label_font)
+    # Set x tick label size as 14
+    ax.tick_params(axis='x', labelsize=14)
+    
+    # Annotate sample size (n) at position (0.75, 0.95) with unit participants.
+    n = len(results)
+    ax.text(0.75, 0.95, f"n = {n} participants", transform=ax.transAxes,
+            ha="center", va="center", fontsize=tick_label_font)
+
+    # ---------------------------
+    # Compute individual tests
+    # ---------------------------
+    computed_p = {}
+    group_stars = "ns"
+    stars_non = "ns"
+    stars_dom = "ns"
+    
+    # Group comparison: paired test between non-dominant and dominant.
+    if (len(paired_non) > 0) and (len(paired_dom) > 0):
+        try:
+            stat_group, p_group = wilcoxon(paired_non, paired_dom)
+            computed_p["group"] = p_group
+            
+            med_nd_group = np.median(paired_non) if paired_non else 0
+            med_dom_group = np.median(paired_dom) if paired_dom else 0
+            group_line_y = max(med_nd_group, med_dom_group) + group_sig_offset
+        except Exception:
+            ax.text(0.5, 0.95, "Group comparison failed", ha="center", va="bottom", 
+                    fontsize=sig_marker_size, transform=ax.get_xaxis_transform())
+    # Non-dominant vs 0.
+    if median_corr_non:
+        try:
+            stat_non, p_non = wilcoxon(median_corr_non)
+            computed_p["non_dominant"] = p_non
+        except Exception:
+            ax.text(0, 0.95, "Non-dominant: NA", ha="center", va="bottom", 
+                    fontsize=sig_marker_size, transform=ax.get_xaxis_transform())
+    else:
+        ax.text(0, 0.95, "No data (Non-dominant)", ha="center", va="bottom", 
+                fontsize=sig_marker_size, transform=ax.get_xaxis_transform())
+    # Dominant vs 0.
+    if median_corr_dom:
+        try:
+            stat_dom, p_dom = wilcoxon(median_corr_dom)
+            computed_p["dominant"] = p_dom
+        except Exception:
+            ax.text(1, 0.95, "Dominant: NA", ha="center", va="bottom", 
+                    fontsize=sig_marker_size, transform=ax.get_xaxis_transform())
+    else:
+        ax.text(1, 0.95, "No data (Dominant)", ha="center", va="bottom", 
+                fontsize=sig_marker_size, transform=ax.get_xaxis_transform())
+    
+    # Apply Benjamini–Hochberg FDR correction to the collected p-values.
+    if computed_p:
+        keys = list(computed_p.keys())
+        pvals = [computed_p[k] for k in keys]
+        _, pvals_adj, _, _ = multipletests(pvals, alpha=0.05, method='fdr_bh')
+        computed_p_adj = dict(zip(keys, pvals_adj))
+    else:
+        computed_p_adj = {}
+
+    # Determine significance stars using adjusted p-values.
+    def get_stars(pvalue, levels):
+        for threshold, symbol in levels:
+            if pvalue < threshold:
+                return symbol
+        return "ns"
+    
+    if "group" in computed_p_adj:
+        group_stars = get_stars(computed_p_adj["group"], box_cfg.get("sig_levels", [(0.001, "***"), (0.01, "**"), (0.05, "*"), (1.0, "ns")]))
+    if "non_dominant" in computed_p_adj:
+        stars_non = get_stars(computed_p_adj["non_dominant"], box_cfg.get("sig_levels", [(0.001, "***"), (0.01, "**"), (0.05, "*"), (1.0, "ns")]))
+    if "dominant" in computed_p_adj:
+        stars_dom = get_stars(computed_p_adj["dominant"], box_cfg.get("sig_levels", [(0.001, "***"), (0.01, "**"), (0.05, "*"), (1.0, "ns")]))
+    
+    # ---------------------------
+    # Annotate Group Comparison
+    # ---------------------------
+    if ("group" in computed_p_adj) and (len(paired_non) > 0):
+        effective_group_size = sig_marker_size if group_stars != "ns" else 16
+        med_nd_group = np.median(paired_non) if paired_non else 0
+        med_dom_group = np.median(paired_dom) if paired_dom else 0
+        line_y = max(med_nd_group, med_dom_group) + group_sig_offset
+        if box_cfg.get("sig_line", True):
+            ax.plot([0, 1], [line_y, line_y], color=box_cfg.get("sig_line_color", "black"),
+                    linewidth=box_cfg.get("sig_line_width", 1.5))
+        text_offset = abs(sig_text_offset) if group_stars == "ns" else sig_text_offset
+        ax.text(0.5, line_y + text_offset, group_stars, ha="center", va="bottom", fontsize=effective_group_size)
+    
+    # ---------------------------
+    # Annotate Non-dominant vs 0
+    # ---------------------------
+    if median_corr_non:
+        effective_non_size = sig_marker_size if stars_non != "ns" else 16
+        text_offset_non = abs(sig_text_offset) if stars_non == "ns" else sig_text_offset
+        ax.text(0, np.median(median_corr_non) + hand_sig_offset + text_offset_non, 
+                stars_non, ha="center", va="bottom", fontsize=effective_non_size)
+    # ---------------------------
+    # Annotate Dominant vs 0
+    # ---------------------------
+    if median_corr_dom:
+        effective_dom_size = sig_marker_size if stars_dom != "ns" else 16
+        text_offset_dom = abs(sig_text_offset) if stars_dom == "ns" else sig_text_offset
+        ax.text(1, np.median(median_corr_dom) + hand_sig_offset + text_offset_dom,
+                stars_dom, ha="center", va="bottom", fontsize=effective_dom_size)
+        
+    for spine in ["right", "top"]:
+        ax.spines[spine].set_visible(False)
+    ax.tick_params(top=False)
+    ax.axhline(0.5, color='white', linestyle='-', linewidth=2)
+
+    plt.tight_layout()
+    plt.show()
+    
+    # ---- Reporting Wilcoxon Test Details ----
+    print("\nWilcoxon Signed-Rank Test Reports:")
+    # For paired between-hand comparisons.
+    if (len(paired_non) > 0) and (len(paired_dom) > 0) and ("group" in computed_p_adj):
+        N_group = len(paired_non)
+        df_group = N_group - 1
+        med_nd_group = np.median(paired_non)
+        med_dom_group = np.median(paired_dom)
+        expected_group = N_group * (N_group + 1) / 4
+        sd_group = math.sqrt(N_group * (N_group + 1) * (2 * N_group + 1) / 24)
+        # Recalculate original group test for reporting if possible.
+        try:
+            stat_group, _ = wilcoxon(paired_non, paired_dom)
+        except Exception:
+            stat_group = float('nan')
+        Z_group = (stat_group - expected_group) / sd_group if sd_group > 0 else float('nan')
+        r_group = abs(Z_group) / math.sqrt(N_group)
+        print(f"Paired Comparison (Non-dominant vs Dominant):")
+        print(f"  Non-dominant median = {med_nd_group}, Dominant median = {med_dom_group}, N = {N_group}, df = {df_group}")
+        print(f"  Adjusted p = {computed_p_adj['group']}, Z = {Z_group:.2f}, Effect Size (r) = {r_group:.2f}")
+    else:
+        print("Not enough paired data for between-hand comparison.")
+
+    # For non-dominant vs 0.
+    if median_corr_non and ("non_dominant" in computed_p_adj):
+        N_nd = len(median_corr_non)
+        df_nd = N_nd - 1
+        med_nd = np.median(median_corr_non)
+        expected_nd = N_nd*(N_nd+1)/4
+        sd_nd = math.sqrt(N_nd*(N_nd+1)*(2*N_nd+1)/24)
+        try:
+            stat_non, _ = wilcoxon(median_corr_non)
+        except Exception:
+            stat_non = float('nan')
+        Z_nd = (stat_non - expected_nd) / sd_nd if sd_nd > 0 else float('nan')
+        r_nd = abs(Z_nd) / math.sqrt(N_nd)
+        print(f"\nNon-dominant vs 0:")
+        print(f"  Median = {med_nd}, N = {N_nd}, df = {df_nd}, IQR = {np.percentile(median_corr_non, 75) - np.percentile(median_corr_non, 25)}")
+        print(f"  Adjusted p = {computed_p_adj['non_dominant']}, Z = {Z_nd:.2f}, Effect Size (r) = {r_nd:.2f}")
+    else:
+        print("\nNo data for non-dominant vs 0 comparison.")
+
+    # For dominant vs 0.
+    if median_corr_dom and ("dominant" in computed_p_adj):
+        N_dom = len(median_corr_dom)
+        df_dom = N_dom - 1
+        med_dom = np.median(median_corr_dom)
+        expected_dom = N_dom*(N_dom+1)/4
+        sd_dom = math.sqrt(N_dom*(N_dom+1)*(2*N_dom+1)/24)
+        try:
+            stat_dom, _ = wilcoxon(median_corr_dom)
+        except Exception:
+            stat_dom = float('nan')
+        Z_dom = (stat_dom - expected_dom) / sd_dom if sd_dom > 0 else float('nan')
+        r_dom = abs(Z_dom) / math.sqrt(N_dom)
+        print(f"\nDominant vs 0:")
+        print(f"  Median = {med_dom}, N = {N_dom}, df = {df_dom}, IQR = {np.percentile(median_corr_dom, 75) - np.percentile(median_corr_dom, 25)}")
+        print(f"  Adjusted p = {computed_p_adj['dominant']}, Z = {Z_dom:.2f}, Effect Size (r) = {r_dom:.2f}")
+    else:
+        print("\nNo data for dominant vs 0 comparison.")
+
+boxplot_spearman_corr_with_stats_reach_indices_by_subject(SAT_corr_within_results, config=plot_config_summary)
+
+
+
+# -------------------------------------------------------------------------------------------------------------------
+
+# Compute median for each movement across trials for all subjects and hands
+def compute_median_across_all(TW_reach_duration_results):
+    """
+    Compute the median duration for each movement (1 to 16) across trials for all subjects and hands.
+
+    Args:
+        TW_reach_duration_results (dict): Dictionary containing reach durations for each subject, hand, and trial.
+
+    Returns:
+        dict: A nested dictionary with median durations for each movement (1 to 16) for all subjects and hands.
+              Structure: {subject: {hand: [median_durations]}}
+    """
+    median_results = {}
+
+    for subject, hands in TW_reach_duration_results.items():
+        median_results[subject] = {}
+        for hand, trials in hands.items():
+            movement_durations = [[] for _ in range(16)]  # Initialize a list for 16 movements
+
+            # Iterate through trials and collect durations for each movement
+            for trial, durations in trials.items():
+                for i, duration in enumerate(durations):
+                    movement_durations[i].append(duration)
+
+            # Compute the median for each movement
+            median_durations = [np.median(durations) if durations else np.nan for durations in movement_durations]
+            median_results[subject][hand] = median_durations
+
+    return median_results
+
+TW_median_results = compute_median_across_all(TW_reach_duration_results)
+
+# Extract the median for each subject and each hand
+TW_subject_hand_medians = {
+    subject: {
+        hand: np.nanmedian(medians) if medians else np.nan
+        for hand, medians in hands.items()
+    }
+    for subject, hands in TW_median_results.items()
+}
+
+
+# Swap left/right total time results for specific subjects and rename keys as 'non_dominant' and 'dominant'
+def swap_and_rename_total_time_results(total_time_results, all_dates):
+    """
+    Swap left/right total time results for specific subjects and rename keys as 'non_dominant' and 'dominant'.
+
+    Args:
+        total_time_results (dict): A dictionary with total time taken for each subject per trial.
+        all_dates (list): List of all subject dates.
+
+    Returns:
+        dict: Modified total time results with swapped and renamed keys.
+    """
+    # Subjects for which left/right metrics should be swapped
+    subjects_to_swap = {all_dates[20], all_dates[22]}
+
+    # Create swapped and renamed copy
+    modified_results = {}
+    for subj, hands in total_time_results.items():
+        if subj in subjects_to_swap:
+            swapped_hands = {
+                'non_dominant': hands.get('right', {}),
+                'dominant': hands.get('left', {})
+            }
+        else:
+            swapped_hands = {
+                'non_dominant': hands.get('left', {}),
+                'dominant': hands.get('right', {})
+            }
+        modified_results[subj] = swapped_hands
+
+    return modified_results
+TW_subject_hand_medians = swap_and_rename_total_time_results(TW_subject_hand_medians, All_dates)
+
+
+def plot_correlation_between_ibbt_and_sbbt(TW_subject_hand_medians, sBBTResult):
+    """
+    Plot correlation between TW_subject_hand_medians and sBBT scores for non-dominant and dominant hands.
+    Compute and display Spearman correlation coefficients and p-values.
+
+    Args:
+        TW_subject_hand_medians (dict): Dictionary containing median total times for non-dominant and dominant hands.
+        sBBTResult (DataFrame): DataFrame containing sBBT scores for non-dominant and dominant hands.
+    """
+    import matplotlib.pyplot as plt
+
+    # Extract non-dominant and dominant data for correlation
+    TW_non_dominant = [times['non_dominant'] for subject, times in TW_subject_hand_medians.items()]
+    TW_dominant = [times['dominant'] for subject, times in TW_subject_hand_medians.items()]
+    sBBT_non_dominant = sBBTResult['non_dominant'].tolist()
+    sBBT_dominant = sBBTResult['dominant'].tolist()
+
+    # Compute Spearman correlation for non-dominant hand
+    corr_non_dominant, p_value_non_dominant = spearmanr(TW_non_dominant, sBBT_non_dominant)
+    print(f"Non-Dominant Hand Spearman Correlation: {corr_non_dominant:.2f}, p-value: {p_value_non_dominant:.4f}")
+
+    # Compute Spearman correlation for dominant hand
+    corr_dominant, p_value_dominant = spearmanr(TW_dominant, sBBT_dominant)
+    print(f"Dominant Hand Spearman Correlation: {corr_dominant:.2f}, p-value: {p_value_dominant:.4f}")
+
+    # Plot scatter plot and linear regression for non-dominant hand
+    plt.figure(figsize=(13, 6))
+    plt.subplot(1, 2, 1)
+    plt.scatter(TW_non_dominant, sBBT_non_dominant, color='blue', alpha=0.7, label='Data Points')
+    # Linear regression for visual purposes
+    slope, intercept = np.polyfit(TW_non_dominant, sBBT_non_dominant, 1)
+    regression_line = np.polyval([slope, intercept], TW_non_dominant)
+    plt.plot(TW_non_dominant, regression_line, color='red', label='Linear Fit')
+    plt.title(f"Non-Dominant Hand\nSpearman Correlation: {corr_non_dominant:.2f} (p={p_value_non_dominant:.4f})")
+    plt.xlabel("TW Non-Dominant Median Total Time (s)")
+    plt.ylabel("sBBT Non-Dominant Score \n (num blocks transfer in 60s)")
+    # plt.legend()
+
+    # Plot scatter plot and linear regression for dominant hand
+    plt.subplot(1, 2, 2)
+    plt.scatter(TW_dominant, sBBT_dominant, color='orange', alpha=0.7, label='Data Points')
+    # Linear regression for visual purposes
+    slope, intercept = np.polyfit(TW_dominant, sBBT_dominant, 1)
+    regression_line = np.polyval([slope, intercept], TW_dominant)
+    plt.plot(TW_dominant, regression_line, color='red', label='Linear Fit')
+    plt.title(f"Dominant Hand\nSpearman Correlation: {corr_dominant:.2f} (p={p_value_dominant:.4f})")
+    plt.xlabel("TW Dominant Median Total Time (s)")
+    plt.ylabel("sBBT Dominant Score \n (num blocks transfer in 60s)")
+    # plt.legend()
+
+    plt.tight_layout()
+    plt.show()
+plot_correlation_between_ibbt_and_sbbt(TW_subject_hand_medians, sBBTResult)
+
+
+
+
+
+
+
+
+
 # -------------------------------------------------------------------------------------------------------------------
 # 2. tBBT task performance: Duration and Distance Trade-off
 
@@ -1265,175 +2601,175 @@ plot_config_summary = dict(
 
 # -------------------------------------------------------------------------------------------------------------------
 ### Plot hand trajectory with velocity-coded coloring and highlighted segments
-def plot_trajectory(results, subject='07/22/HW', hand='right', trial=1,
-                    file_path='/Users/yilinwu/Desktop/Yilin-Honours/Subject/Traj/2025/07/22/HW/HW_tBBT53.csv',
-                    overlay_trial=0, velocity_segment_only=False, plot_mode='all'):
-    """
-    Plots the instantaneous velocity and a 3D trajectory for the specified trial.
-    Colors each trajectory point based on the instantaneous velocity.
-    Points outside highlighted segments are colored lightgrey when velocity_segment_only is True.
+# def plot_trajectory(results, subject='07/22/HW', hand='right', trial=1,
+#                     file_path='/Users/yilinwu/Desktop/Yilin-Honours/Subject/Traj/2025/07/22/HW/HW_tBBT53.csv',
+#                     overlay_trial=0, velocity_segment_only=False, plot_mode='all'):
+#     """
+#     Plots the instantaneous velocity and a 3D trajectory for the specified trial.
+#     Colors each trajectory point based on the instantaneous velocity.
+#     Points outside highlighted segments are colored lightgrey when velocity_segment_only is True.
     
-    Options:
-      - plot_mode: 'all' to plot the entire trial or 'segment' to plot only from the first to the last highlight.
+#     Options:
+#       - plot_mode: 'all' to plot the entire trial or 'segment' to plot only from the first to the last highlight.
     
-    Parameters:
-        results (dict): The results dictionary containing trajectory data.
-        subject (str): Subject key in the results dictionary.
-        hand (str): Hand key ('right' or 'left') in the results dictionary.
-        trial (int): The trial index to use for the main trajectory data.
-        file_path (str): The file key for selecting trajectory data.
-        overlay_trial (int): The trial index used to extract overlay indices for highlighting.
-        velocity_segment_only (bool): If True, apply velocity-coded color only within highlighted segments.
-        plot_mode (str): 'all' to plot the entire trial or 'segment' to plot only from the first to the last highlight.
-    """
-    import matplotlib.pyplot as plt
-    # Removed unused import of gridspec
-    import matplotlib.colors as mcolors
+#     Parameters:
+#         results (dict): The results dictionary containing trajectory data.
+#         subject (str): Subject key in the results dictionary.
+#         hand (str): Hand key ('right' or 'left') in the results dictionary.
+#         trial (int): The trial index to use for the main trajectory data.
+#         file_path (str): The file key for selecting trajectory data.
+#         overlay_trial (int): The trial index used to extract overlay indices for highlighting.
+#         velocity_segment_only (bool): If True, apply velocity-coded color only within highlighted segments.
+#         plot_mode (str): 'all' to plot the entire trial or 'segment' to plot only from the first to the last highlight.
+#     """
+#     import matplotlib.pyplot as plt
+#     # Removed unused import of gridspec
+#     import matplotlib.colors as mcolors
 
-    # Extract trajectory data for the given trial
-    traj_data = results[subject][hand][trial][file_path]['traj_data']
-    coord_prefix = "RFIN_" if hand == "right" else "LFIN_"
-    coord_x = np.array(traj_data[coord_prefix + "X"])
-    coord_y = np.array(traj_data[coord_prefix + "Y"])
-    coord_z = np.array(traj_data[coord_prefix + "Z"])
+#     # Extract trajectory data for the given trial
+#     traj_data = results[subject][hand][trial][file_path]['traj_data']
+#     coord_prefix = "RFIN_" if hand == "right" else "LFIN_"
+#     coord_x = np.array(traj_data[coord_prefix + "X"])
+#     coord_y = np.array(traj_data[coord_prefix + "Y"])
+#     coord_z = np.array(traj_data[coord_prefix + "Z"])
     
-    # Extract overlay index (or indices) from the overlay_trial
-    overlay_index = results[subject][hand][overlay_trial][file_path]
-    highlight_indices = overlay_index if isinstance(overlay_index, (list, np.ndarray)) else [overlay_index]
-    highlight_indices = sorted(highlight_indices)
+#     # Extract overlay index (or indices) from the overlay_trial
+#     overlay_index = results[subject][hand][overlay_trial][file_path]
+#     highlight_indices = overlay_index if isinstance(overlay_index, (list, np.ndarray)) else [overlay_index]
+#     highlight_indices = sorted(highlight_indices)
     
-    n_points = len(coord_x)
-    marker = "RFIN" if hand == "right" else "LFIN"
+#     n_points = len(coord_x)
+#     marker = "RFIN" if hand == "right" else "LFIN"
 
-    # Extract instantaneous velocity from trajectory space (assume constant sampling rate = 200Hz)
-    vel = results[subject][hand][trial][file_path]['traj_space'][marker][1]
+#     # Extract instantaneous velocity from trajectory space (assume constant sampling rate = 200Hz)
+#     vel = results[subject][hand][trial][file_path]['traj_space'][marker][1]
     
-    # Normalize velocities between 0 and 1
-    v_min = np.min(vel)
-    v_max = np.max(vel)
-    if v_max - v_min > 0:
-        v_norm = (vel - v_min) / (v_max - v_min)
-    else:
-        v_norm = np.ones_like(vel)
+#     # Normalize velocities between 0 and 1
+#     v_min = np.min(vel)
+#     v_max = np.max(vel)
+#     if v_max - v_min > 0:
+#         v_norm = (vel - v_min) / (v_max - v_min)
+#     else:
+#         v_norm = np.ones_like(vel)
     
-    # Map velocity to colors using the viridis colormap with an exponential scaling for contrast
-    point_colors = [plt.cm.viridis(1 - (v_norm[i]**2)) for i in range(n_points)]
+#     # Map velocity to colors using the viridis colormap with an exponential scaling for contrast
+#     point_colors = [plt.cm.viridis(1 - (v_norm[i]**2)) for i in range(n_points)]
     
-    # If velocity_segment_only is True, only retain velocity colors within highlighted segments.
-    if velocity_segment_only and highlight_indices:
-        segments = []
-        for i in range(0, len(highlight_indices) - 1, 2):
-            segments.append((highlight_indices[i], highlight_indices[i+1]))
-        for i in range(n_points):
-            in_segment = any(min(seg) <= i <= max(seg) for seg in segments)
-            if not in_segment:
-                point_colors[i] = mcolors.to_rgba('lightgrey')
+#     # If velocity_segment_only is True, only retain velocity colors within highlighted segments.
+#     if velocity_segment_only and highlight_indices:
+#         segments = []
+#         for i in range(0, len(highlight_indices) - 1, 2):
+#             segments.append((highlight_indices[i], highlight_indices[i+1]))
+#         for i in range(n_points):
+#             in_segment = any(min(seg) <= i <= max(seg) for seg in segments)
+#             if not in_segment:
+#                 point_colors[i] = mcolors.to_rgba('lightgrey')
     
-    # Determine the indices to plot based on the plot_mode option
-    if plot_mode == 'segment' and highlight_indices:
-        start_idx = min(highlight_indices)
-        end_idx = max(highlight_indices)
-    else:
-        start_idx = 0
-        end_idx = n_points - 1
+#     # Determine the indices to plot based on the plot_mode option
+#     if plot_mode == 'segment' and highlight_indices:
+#         start_idx = min(highlight_indices)
+#         end_idx = max(highlight_indices)
+#     else:
+#         start_idx = 0
+#         end_idx = n_points - 1
 
-    plot_indices = np.arange(start_idx, end_idx + 1)
-    coord_x_plot = coord_x[plot_indices]
-    coord_y_plot = coord_y[plot_indices]
-    coord_z_plot = coord_z[plot_indices]
-    vel_plot    = np.array(vel)[plot_indices]
-    colors_plot = [point_colors[i] for i in plot_indices]
-    time_points = plot_indices / 200  # Time axis in seconds
+#     plot_indices = np.arange(start_idx, end_idx + 1)
+#     coord_x_plot = coord_x[plot_indices]
+#     coord_y_plot = coord_y[plot_indices]
+#     coord_z_plot = coord_z[plot_indices]
+#     vel_plot    = np.array(vel)[plot_indices]
+#     colors_plot = [point_colors[i] for i in plot_indices]
+#     time_points = plot_indices / 200  # Time axis in seconds
 
-    # Create the plot layout: two subplots arranged vertically (one top, one bottom)
-    # Increase the bottom (3D) subplot by adjusting height_ratios and reduce vertical gap.
-    fig = plt.figure(figsize=(12, 10))
-    gs = gridspec.GridSpec(nrows=2, ncols=1, height_ratios=[1, 2.5])
-    plt.subplots_adjust(hspace=0.01)  # reduce gap between subplots
+#     # Create the plot layout: two subplots arranged vertically (one top, one bottom)
+#     # Increase the bottom (3D) subplot by adjusting height_ratios and reduce vertical gap.
+#     fig = plt.figure(figsize=(12, 10))
+#     gs = gridspec.GridSpec(nrows=2, ncols=1, height_ratios=[1, 2.5])
+#     plt.subplots_adjust(hspace=0.01)  # reduce gap between subplots
     
-    # Top subplot: Plot instantaneous velocity over time.
-    ax_vel = fig.add_subplot(gs[0, 0])
-    ax_vel.scatter(time_points, vel_plot, c=colors_plot, marker='o', s=5)
-    ax_vel.set_xlabel('Time (s)', fontsize=16)
-    ax_vel.set_ylabel('velocity\nmagnitude\n(mm/s)', fontsize=16)
-    ax_vel.set_ylim([0, 1500])
-    ax_vel.set_yticks([0, 750, 1500])
-    ax_vel.set_yticklabels([0, 750, 1500], fontsize=16)
-    ax_vel.spines['top'].set_visible(False)
-    ax_vel.spines['right'].set_visible(False)
-    ax_vel.grid(False)
-    # Set the velocity axis on top
-    ax_vel.set_zorder(2)
-    ax_vel.patch.set_alpha(0.0)
-    # Add subplot label (A)
-    # ax_vel.text(-0.2, 0.95, "(A)", transform=ax_vel.transAxes, fontsize=20)
-    # ax_vel.text(-0.2, -0.45, "(B)", transform=ax_vel.transAxes, fontsize=20)
+#     # Top subplot: Plot instantaneous velocity over time.
+#     ax_vel = fig.add_subplot(gs[0, 0])
+#     ax_vel.scatter(time_points, vel_plot, c=colors_plot, marker='o', s=5)
+#     ax_vel.set_xlabel('Time (s)', fontsize=16)
+#     ax_vel.set_ylabel('velocity\nmagnitude\n(mm/s)', fontsize=16)
+#     ax_vel.set_ylim([0, 1500])
+#     ax_vel.set_yticks([0, 750, 1500])
+#     ax_vel.set_yticklabels([0, 750, 1500], fontsize=16)
+#     ax_vel.spines['top'].set_visible(False)
+#     ax_vel.spines['right'].set_visible(False)
+#     ax_vel.grid(False)
+#     # Set the velocity axis on top
+#     ax_vel.set_zorder(2)
+#     ax_vel.patch.set_alpha(0.0)
+#     # Add subplot label (A)
+#     # ax_vel.text(-0.2, 0.95, "(A)", transform=ax_vel.transAxes, fontsize=20)
+#     # ax_vel.text(-0.2, -0.45, "(B)", transform=ax_vel.transAxes, fontsize=20)
 
     
-    # Overlay markers at the designated highlight indices (if they fall within the plot range).
-    for order, idx in enumerate(highlight_indices, start=1):
-        if start_idx <= idx <= end_idx:
-            t_val = idx / 200
-            color = 'black' if order % 2 == 1 else 'grey'
-            marker_sym = 'o'
-            ax_vel.scatter(t_val, vel[idx], color=color, marker=marker_sym, s=40)
+#     # Overlay markers at the designated highlight indices (if they fall within the plot range).
+#     for order, idx in enumerate(highlight_indices, start=1):
+#         if start_idx <= idx <= end_idx:
+#             t_val = idx / 200
+#             color = 'black' if order % 2 == 1 else 'grey'
+#             marker_sym = 'o'
+#             ax_vel.scatter(t_val, vel[idx], color=color, marker=marker_sym, s=40)
     
-    # Bottom subplot: Plot the 3D trajectory.
-    ax3d = fig.add_subplot(gs[1, 0], projection='3d')
-    ax3d.scatter(coord_x_plot, coord_y_plot, coord_z_plot, c=colors_plot, marker='o', s=5)
-    ax3d.set_xlabel("X (mm)", fontsize=16)
-    ax3d.set_ylabel("Y (mm)", fontsize=16)
-    ax3d.set_zlabel("Z (mm)", fontsize=16)
-    ax3d.set_xticks([-250, 0, 250])
-    ax3d.set_xticklabels([-250, 0, 250])
-    ax3d.set_yticks([-50, 50, 150])
-    ax3d.set_yticklabels([-50, 50, 150])
-    ax3d.set_zticks([800, 950, 1100])
-    ax3d.set_zticklabels([800, 950, 1100])
-    ax3d.set_xlim([-250, 250])
-    ax3d.set_ylim([-50, 150])
-    ax3d.set_zlim([800, 1100])
-    ax3d.set_box_aspect([10, 4, 6])
-    # Set the 3D axis behind the velocity plot
-    ax3d.set_zorder(1)
+#     # Bottom subplot: Plot the 3D trajectory.
+#     ax3d = fig.add_subplot(gs[1, 0], projection='3d')
+#     ax3d.scatter(coord_x_plot, coord_y_plot, coord_z_plot, c=colors_plot, marker='o', s=5)
+#     ax3d.set_xlabel("X (mm)", fontsize=16)
+#     ax3d.set_ylabel("Y (mm)", fontsize=16)
+#     ax3d.set_zlabel("Z (mm)", fontsize=16)
+#     ax3d.set_xticks([-250, 0, 250])
+#     ax3d.set_xticklabels([-250, 0, 250])
+#     ax3d.set_yticks([-50, 50, 150])
+#     ax3d.set_yticklabels([-50, 50, 150])
+#     ax3d.set_zticks([800, 950, 1100])
+#     ax3d.set_zticklabels([800, 950, 1100])
+#     ax3d.set_xlim([-250, 250])
+#     ax3d.set_ylim([-50, 150])
+#     ax3d.set_zlim([800, 1100])
+#     ax3d.set_box_aspect([10, 4, 6])
+#     # Set the 3D axis behind the velocity plot
+#     ax3d.set_zorder(1)
     
-    # Overlay markers on the 3D plot corresponding to highlight indices.
-    for order, idx in enumerate(highlight_indices, start=1):
-        if start_idx <= idx <= end_idx:
-            color = 'black' if order % 2 == 1 else 'grey'
-            marker_sym = 'o'
-            ax3d.scatter(coord_x[idx], coord_y[idx], coord_z[idx], color=color, marker=marker_sym, s=30)
+#     # Overlay markers on the 3D plot corresponding to highlight indices.
+#     for order, idx in enumerate(highlight_indices, start=1):
+#         if start_idx <= idx <= end_idx:
+#             color = 'black' if order % 2 == 1 else 'grey'
+#             marker_sym = 'o'
+#             ax3d.scatter(coord_x[idx], coord_y[idx], coord_z[idx], color=color, marker=marker_sym, s=30)
 
-    plt.tight_layout()
-    plt.show()
+#     plt.tight_layout()
+#     plt.show()
     
-    # Optional: Create an additional 3D plot for a selected segment if at least 4 highlight indices exist.
-    if len(highlight_indices) >= 4:
-        seg_start = highlight_indices[2]
-        seg_end = highlight_indices[3]
-        seg_indices = np.arange(seg_start, seg_end + 1)
-        seg_coord_x = coord_x[seg_indices]
-        seg_coord_y = coord_y[seg_indices]
-        seg_coord_z = coord_z[seg_indices]
-        seg_colors = [point_colors[i] for i in seg_indices]
+#     # Optional: Create an additional 3D plot for a selected segment if at least 4 highlight indices exist.
+#     if len(highlight_indices) >= 4:
+#         seg_start = highlight_indices[2]
+#         seg_end = highlight_indices[3]
+#         seg_indices = np.arange(seg_start, seg_end + 1)
+#         seg_coord_x = coord_x[seg_indices]
+#         seg_coord_y = coord_y[seg_indices]
+#         seg_coord_z = coord_z[seg_indices]
+#         seg_colors = [point_colors[i] for i in seg_indices]
         
-        fig2 = plt.figure(figsize=(10, 8))
-        ax3d_seg = fig2.add_subplot(111, projection='3d')
-        ax3d_seg.scatter(seg_coord_x, seg_coord_y, seg_coord_z, c=seg_colors, marker='o', s=5)
-        ax3d_seg.scatter(coord_x[seg_start], coord_y[seg_start], coord_z[seg_start],
-                         color='green', marker='o', s=50, label='start')
-        ax3d_seg.scatter(coord_x[seg_end], coord_y[seg_end], coord_z[seg_end],
-                         color='blue', marker='X', s=50, label='end')
-        ax3d_seg.set_xlabel(f"{coord_prefix}X (mm)", fontsize=14)
-        ax3d_seg.set_ylabel(f"{coord_prefix}Y (mm)", fontsize=14)
-        ax3d_seg.set_zlabel(f"{coord_prefix}Z (mm)", fontsize=14)
-        ax3d_seg.legend()
-        plt.tight_layout()
-        plt.show()
+#         fig2 = plt.figure(figsize=(10, 8))
+#         ax3d_seg = fig2.add_subplot(111, projection='3d')
+#         ax3d_seg.scatter(seg_coord_x, seg_coord_y, seg_coord_z, c=seg_colors, marker='o', s=5)
+#         ax3d_seg.scatter(coord_x[seg_start], coord_y[seg_start], coord_z[seg_start],
+#                          color='green', marker='o', s=50, label='start')
+#         ax3d_seg.scatter(coord_x[seg_end], coord_y[seg_end], coord_z[seg_end],
+#                          color='blue', marker='X', s=50, label='end')
+#         ax3d_seg.set_xlabel(f"{coord_prefix}X (mm)", fontsize=14)
+#         ax3d_seg.set_ylabel(f"{coord_prefix}Y (mm)", fontsize=14)
+#         ax3d_seg.set_zlabel(f"{coord_prefix}Z (mm)", fontsize=14)
+#         ax3d_seg.legend()
+#         plt.tight_layout()
+#         plt.show()
 
-plot_trajectory(results, subject='07/22/HW', hand='left', trial=1,
-                file_path='/Users/yilinwu/Desktop/Yilin-Honours/Subject/Traj/2025/07/22/HW/HW_tBBT02.csv',
-                overlay_trial=0, velocity_segment_only=True, plot_mode='segment')
+# plot_trajectory(results, subject='07/22/HW', hand='left', trial=1,
+#                 file_path='/Users/yilinwu/Desktop/Yilin-Honours/Subject/Traj/2025/07/22/HW/HW_tBBT02.csv',
+#                 overlay_trial=0, velocity_segment_only=True, plot_mode='segment')
 
 def plot_trajectory(results, subject='07/22/HW', hand='right', trial=1,
                     file_path='/Users/yilinwu/Desktop/Yilin-Honours/Subject/Traj/2025/07/22/HW/HW_tBBT53.csv',
@@ -7074,6 +8410,107 @@ def calculate_median_across_trials(metrics_data, metrics_data_zscore=None):
 
 subject_medians = calculate_median_across_trials(updated_metrics_acorss_phases, updated_metrics_zscore_by_trial)
 
+def plot_median_metrics(subject_medians, hand_order=["non_dominant", "dominant"], figsize=(8, 4)):
+    """
+    Plots boxplots of median Duration per hand using the subject_medians dictionary.
+    Performs a paired test between hands using only the Wilcoxon signed‐rank test.
+    """
+    import matplotlib.pyplot as plt
+
+    # Font scaling from configuration.
+    axis_label_font = plot_config_summary["general"]["axis_label_font"] * 3
+    tick_label_font = plot_config_summary["general"]["tick_label_font"] * 2.5
+
+    # Convert subject_medians into a DataFrame for Duration.
+    data = []
+    for subject, hands in subject_medians.items():
+        for hand, metrics in hands.items():
+            data.append({
+                "Subject": subject,
+                "Hand": hand,
+                "Duration": metrics.get("durations", float("nan"))
+            })
+    df = pd.DataFrame(data)
+
+    # Map hand keys to labels.
+    hand_labels = {"dominant": "Dominant", "non_dominant": "Non-dominant"}
+    df["Hand"] = df["Hand"].map(hand_labels)
+    hand_order_labels = [hand_labels[h] for h in hand_order]
+
+    # Create figure.
+    fig, ax = plt.subplots(figsize=figsize)
+
+    # Draw boxplot and swarmplot.
+    sns.boxplot(
+        data=df, x="Hand", y="Duration", order=hand_order_labels, ax=ax,
+        palette=["#A9A9A9", "#F0F0F0"], width=0.8
+    )
+    sns.swarmplot(
+        data=df, x="Hand", y="Duration", order=hand_order_labels,
+        ax=ax, color='black', size=16, alpha=0.4
+    )
+
+    # Formatting.
+    ax.set_xlabel("Hand", fontsize=axis_label_font)
+    ax.set_ylabel("Duration (s)", fontsize=axis_label_font)
+    ax.set_ylim(0, 1.2)
+    ax.set_yticks([0, 0.6, 1.2])
+    ax.tick_params(labelsize=tick_label_font)
+    ax.yaxis.grid(False)
+    ax.spines["top"].set_visible(False)
+    ax.spines["right"].set_visible(False)
+
+    # ---- Collect p-value for the paired hand-to-hand test ----
+    pvals = {}
+    test_method = "Wilcoxon"
+    try:
+        df_wide = df.pivot(index="Subject", columns="Hand", values="Duration").dropna()
+        if all(h in df_wide.columns for h in hand_order_labels):
+            # Use Wilcoxon signed-rank test only.
+            stat, p_val = wilcoxon(df_wide[hand_order_labels[0]], df_wide[hand_order_labels[1]])
+            pvals["paired"] = p_val
+            # Compute z-value and effect size r if sample size is sufficient
+            n = len(df_wide)
+            expected = n * (n + 1) / 4
+            std_dev = np.sqrt(n * (n + 1) * (2 * n + 1) / 24)
+            z_val = (stat - expected) / std_dev if std_dev > 0 else np.nan
+            r_val = abs(z_val) / np.sqrt(n) if n > 0 else np.nan
+        else:
+            pvals["paired"] = np.nan
+            z_val = np.nan
+            r_val = np.nan
+    except Exception:
+        pvals["paired"] = np.nan
+        z_val = np.nan
+        r_val = np.nan
+
+    # Annotate paired test result without FDR correction.
+    sig_levels = [(0.001, "***"), (0.01, "**"), (0.05, "*"), (1.0, "ns")]
+    stars_paired = "ns"
+    if not np.isnan(pvals.get("paired", np.nan)):
+        for thr, sym in sig_levels:
+            if pvals["paired"] < thr:
+                stars_paired = sym
+                break
+    if stars_paired != "ns":
+        y_max = df["Duration"].max()
+        ax.plot([0, 1], [y_max + 0.055 * (1.2 - 0)]*2, color="black", linewidth=1.5)
+        ax.text(0.5, y_max + 0.04 * (1.2 - 0), stars_paired,
+                ha="center", va="bottom", fontsize=50)
+        print(f"{test_method} Duration (paired test): z = {z_val:.2f}, p = {pvals.get('paired', np.nan)}, r = {r_val:.2f}, stars = {stars_paired}")
+    else:
+        print(f"{test_method} Duration (paired test): z = {z_val}, p = {pvals.get('paired', np.nan)}, r = {r_val}")
+    plt.tight_layout()
+    plt.show()
+
+    print(f"median duration non-dominant: {df[df['Hand']=='Non-dominant']['Duration'].median()}, IQR: {df[df['Hand']=='Non-dominant']['Duration'].quantile(0.75) - df[df['Hand']=='Non-dominant']['Duration'].quantile(0.25)}")
+    print(f"median duration dominant: {df[df['Hand']=='Dominant']['Duration'].median()}, IQR: {df[df['Hand']=='Dominant']['Duration'].quantile(0.75) - df[df['Hand']=='Dominant']['Duration'].quantile(0.25)}")
+# Example usage:
+plot_median_metrics(subject_medians, hand_order=["non_dominant", "dominant"], figsize=(8, 8))
+
+
+
+
 
 def plot_median_metrics(subject_medians, overall_median_motor_acuity, hand_order=["non_dominant", "dominant"], figsize=(12, 4)):
     """
@@ -7208,6 +8645,8 @@ def plot_median_metrics(subject_medians, overall_median_motor_acuity, hand_order
     print(f"median motor acuity dominant: {df_z[df_z['Hand']=='Dominant']['MotorAcuity'].median()}, IQR: {df_z[df_z['Hand']=='Dominant']['MotorAcuity'].quantile(0.75) - df_z[df_z['Hand']=='Dominant']['MotorAcuity'].quantile(0.25)}")
 # Example usage:
 plot_median_metrics(subject_medians, overall_median_motor_acuity, hand_order=["non_dominant", "dominant"], figsize=(23, 10))
+
+
 
 def plot_median_metrics(subject_medians, overall_median_motor_acuity, hand_order=["non_dominant", "dominant"], figsize=(12, 4)):
     """
@@ -8448,7 +9887,7 @@ def plot_phase_metrics_custom(subject_medians, metrics_groups, phases=None, figs
       - Bottom row: Ballistic vs Correction comparison for non-dominant hand only.
     In the TW plot, the bars are white with the Dominant bar hatched.
     In the Ballistic vs Correction plot, the ballistic phase bars are blue and the correction phase bars are yellow.
-    Performs paired t-tests with FDR correction and prints the corrected p-values along with t-statistics.
+    Performs paired t-tests with FDR correction and prints the corrected p-values, t-statistics, and effect sizes.
     """
     import matplotlib.pyplot as plt
     import numpy as np
@@ -8500,12 +9939,13 @@ def plot_phase_metrics_custom(subject_medians, metrics_groups, phases=None, figs
                 averages[phase][hand] = np.nanmean(vals) if vals else np.nan
                 std_devs[phase][hand] = np.nanstd(vals, ddof=1) if vals else 0
 
-        # Collect p-values and t-statistics for two comparisons:
+        # Collect p-values, t-statistics and effect sizes for two comparisons:
         # 1. TW: Dominant vs Non-dominant for phase "TW".
-        # 2. Ballistic vs Correction for non_dominant hand.
+        # 2. Ballistic vs Correction comparison for non_dominant hand.
         all_pvals = []
         pval_labels = []
         all_tstats = []
+        all_effect_sizes = []
 
         # TW comparison.
         tw_phase = "TW"
@@ -8520,9 +9960,16 @@ def plot_phase_metrics_custom(subject_medians, metrics_groups, phases=None, figs
         else:
             t_stat_tw = np.nan
             p_val_tw = np.nan
+        # Compute effect size: Cohen's d for paired samples.
+        if len(dom_vals) > 0 and len(dom_vals) == len(nondom_vals):
+            diff_tw = np.array(dom_vals) - np.array(nondom_vals)
+            cohen_d_tw = np.mean(diff_tw) / np.std(diff_tw, ddof=1) if np.std(diff_tw, ddof=1) != 0 else np.nan
+        else:
+            cohen_d_tw = np.nan
         all_pvals.append(p_val_tw)
         pval_labels.append(("dom_vs_nondom", "TW"))
         all_tstats.append(t_stat_tw)
+        all_effect_sizes.append(cohen_d_tw)
 
         # Ballistic vs Correction comparison for non_dominant only.
         ball_vals = aggregated["ballistic"]["non_dominant"]
@@ -8536,22 +9983,31 @@ def plot_phase_metrics_custom(subject_medians, metrics_groups, phases=None, figs
         else:
             t_stat_bc = np.nan
             p_val_bc = np.nan
+        # Compute effect size for BC comparison.
+        if ball_vals and len(ball_vals) == len(corr_vals):
+            diff_bc = np.array(ball_vals) - np.array(corr_vals)
+            cohen_d_bc = np.mean(diff_bc) / np.std(diff_bc, ddof=1) if np.std(diff_bc, ddof=1) != 0 else np.nan
+        else:
+            cohen_d_bc = np.nan
         all_pvals.append(p_val_bc)
         pval_labels.append(("ball_vs_corr", "non_dominant"))
         all_tstats.append(t_stat_bc)
+        all_effect_sizes.append(cohen_d_bc)
 
         # Apply FDR correction for these tests.
         _, all_pvals_corr, _, _ = multipletests(all_pvals, alpha=0.05, method="fdr_bh")
         corrected_dict = {label: p_corr for label, p_corr in zip(pval_labels, all_pvals_corr)}
         tstats_dict = {label: t_stat for label, t_stat in zip(pval_labels, all_tstats)}
+        effects_dict = {label: effect for label, effect in zip(pval_labels, all_effect_sizes)}
 
-        # Print corrected p-values with t statistics.
+        # Print corrected p-values with t statistics and effect sizes.
         print(f"Metric: {metric_prefix}")
         for label in pval_labels:
             test_type, identifier = label
             t_stat_val = tstats_dict[label]
             p_corr = corrected_dict[label]
-            print(f"  Test: {test_type} for {identifier}, t-statistic: {t_stat_val:.3f}, corrected p-value: {p_corr}")
+            effect_size = effects_dict[label]
+            print(f"  Test: {test_type} for {identifier}, t-statistic: {t_stat_val:.3f}, corrected p-value: {p_corr:.3f}, effect size (Cohen's d): {effect_size:.3f}")
 
         # ----- Plot TW (Ballistic + Correction) comparison in top row of column 'col' -----
         ax_tw = axes[0, col]
@@ -9043,7 +10499,7 @@ def plot_sbbt_vs_median_metrics(subject_medians, All_dates, sBBTResult, overall_
         ax.set_yticks(y_ticks)
         ax.tick_params(axis='x', labelsize=gen['tick_label_font'], direction=tick_direction)
         ax.tick_params(axis='y', labelsize=gen['tick_label_font'], direction=tick_direction)
-        ax.set_title(hand)
+        ax.set_title(hand, fontsize=16)
         
         # Correlation annotation (only annotate if significant)
         if p < 0.05:
@@ -10023,6 +11479,409 @@ def plot_smoothness_tradeoff(hypothesis):
 # Example usage for the two hypotheses:
 plot_smoothness_tradeoff("sBBT_duration")
 
+# -------------------------------------------------------------------------------------------------------------------
+
+
+
+
+def plot_smoothness_tradeoff(hypothesis):
+    """
+    Plots a speed–accuracy tradeoff where Duration is shown on the x-axis and Error on the y-axis.
+    For "speed_accuracy": longer durations (x) yield lower errors (y).
+    
+    Parameters
+    ----------
+    hypothesis : str
+        Use "speed_accuracy" to plot Duration vs Error.
+    """
+    import matplotlib.pyplot as plt
+
+    if hypothesis == "speed_accuracy":
+        # X-axis: Duration (s). For example, from 0.5 to 2.0 s.
+        x = np.linspace(0.5, 2.0, 20)
+        # Y-axis: Error (mm). Assume a linear tradeoff: longer durations lead to lower errors.
+        # When duration is 0.5 s, error is high; when duration is 2.0 s, error is low.
+        y = -2 * x + 5  # e.g., at x=0.5, y=4 mm; at x=2.0, y=1 mm.
+        x_label = "Duration (s)"
+        y_label = "Error (mm)"
+        # Define axis color configurations for annotations.
+        x_axis_colors = {"start": "    fast     ", "end": "    slow     ", "colors": ["green", "red"]}
+        y_axis_colors = {"start": "accurate", "end": "inaccurate", "colors": ["green", "red"]}
+    else:
+        # Fallback: identity plot.
+        x = np.linspace(0, 1, 20)
+        y = x
+        x_label = "X"
+        y_label = "Y"
+        x_axis_colors = {}
+        y_axis_colors = {}
+
+    # Configuration dictionary.
+    cfg = {
+        "general": {
+            "figsize": (5, 4),
+            "axis_label_font": 20,
+            "tick_label_font": 20,
+            "title_font": 16,
+            "label_offset": 0.12,
+            "showGrid": True
+        },
+        "line": {
+            "linewidth": 2,
+            "show_markers": True
+        },
+        "axis_labels": {
+            "duration": "Duration (s)",
+            "error": "Error (mm)"
+        },
+        "axis_colors": {
+            "x": { "Duration (s)": x_axis_colors },
+            "y": { "Error (mm)": y_axis_colors }
+        }
+    }
+
+    general = cfg["general"]
+    line_cfg = cfg["line"]
+    axis_labels = cfg["axis_labels"]
+    axis_colors = cfg["axis_colors"]
+    label_offset = general.get("label_offset", 0.08)
+    showGrid = general.get("showGrid", False)
+
+    fig, ax = plt.subplots(figsize=general["figsize"])
+
+    # Plot the tradeoff line.
+    ax.scatter(
+        x,
+        y,
+        color='black',
+        # linewidth=line_cfg.get("linewidth", 2),
+        marker='o' if line_cfg.get("show_markers", False) else None
+    )
+
+    # Set proper axis labels.
+    ax.set_xlabel(axis_labels.get("duration", "Duration (s)"), fontsize=general["axis_label_font"])
+    ax.set_ylabel(axis_labels.get("error", "Error (mm)"), fontsize=general["axis_label_font"])
+
+    # Remove default ticks.
+    ax.set_xticks([])
+    ax.set_yticks([])
+
+    # Ensure spines are visible only on left and bottom.
+    ax.spines['bottom'].set_visible(True)
+    ax.spines['left'].set_visible(True)
+    ax.spines['top'].set_visible(False)
+    ax.spines['right'].set_visible(False)
+
+    # Compute ranges for annotation offsets.
+    x_range = x.max() - x.min()
+    y_range = y.max() - y.min()
+
+    # X-axis annotations.
+    x_cfg = axis_colors.get("x", {}).get(axis_labels.get("duration", "Duration (s)"), {})
+    if x_cfg:
+        ax.text(x[0], y.min() - label_offset * y_range, x_cfg["start"],
+                color=x_cfg["colors"][0], ha="center", va="top",
+                fontsize=general["tick_label_font"])
+        ax.text(x[-1], y.min() - label_offset * y_range, x_cfg["end"],
+                color=x_cfg["colors"][1], ha="center", va="top",
+                fontsize=general["tick_label_font"])
+
+    # Y-axis annotations.
+    y_cfg = axis_colors.get("y", {}).get(axis_labels.get("error", "Error (mm)"), {})
+    if y_cfg:
+        ax.text(x.min() - label_offset * x_range, y[-1], y_cfg["start"],
+                color=y_cfg["colors"][0], ha="right", va="center",
+                fontsize=general["tick_label_font"])
+        ax.text(x.min() - label_offset * x_range, y[0], y_cfg["end"],
+                color=y_cfg["colors"][1], ha="right", va="bottom",
+                fontsize=general["tick_label_font"])
+
+    ax.set_aspect('auto')
+    plt.tight_layout()
+    plt.grid(showGrid)
+    plt.show()
+
+plot_smoothness_tradeoff("speed_accuracy")
+
+
+def plot_smoothness_tradeoff(hypothesis):
+    """
+    Plots a trade-off line based on the hypothesis.
+    
+    Two supported hypotheses:
+    
+    1. "sBBT_duration": When movements are faster (shorter durations), the sBBT score (number of blocks)
+       is higher. For example, if duration ranges from 0.5 to 2.5 s, then:
+           - At 0.5 s, sBBT score is 10 (fast performance)
+           - At 2.5 s, sBBT score is 0 (slow performance)
+       The relationship is: sBBT_score = 12.5 - 5 * duration.
+       
+    2. "sBBT_error": When error increases, the sBBT score is also higher. For example, if error ranges 
+       from 1 to 4 mm, then:
+           - At 1 mm, sBBT score is 0 
+           - At 4 mm, sBBT score is 10 
+       The relationship is: sBBT_score = (error - 1) / 0.3.
+    
+    Parameters
+    ----------
+    hypothesis : str
+        Either "sBBT_duration" or "sBBT_error".
+    """
+    import matplotlib.pyplot as plt
+
+    if hypothesis == "sBBT_duration":
+        # x-axis: Duration (s) from 0.5 to 2.5.
+        x = np.linspace(0.5, 2.5, 20)
+        # Inverse relationship: higher sBBT score means shorter duration.
+        # Solve: duration = -0.2*score + 2.5  => score = 12.5 - 5*duration.
+        y = 12.5 - 5 * x  
+        x_label = "Duration (s)"
+        y_label = "sBBT Score (no. of blocks)"
+        # For duration: lower values imply fast performance.
+        x_axis_colors = {"start": "fast", "end": "slow", "colors": ["green", "red"]}
+        # For sBBT score: lower is low score, higher is high score.
+        y_axis_colors = {"start": "     low     ", "end": "    high     ", "colors": ["red", "green"]}
+    elif hypothesis == "sBBT_error":
+        # x-axis: Error (mm) from 1 to 4.
+        x = np.linspace(1, 4, 20)
+        # Direct relationship: higher error gives higher sBBT score.
+        # Given: error = 0.3*score + 1  => score = (error - 1) / 0.3.
+        y = (x - 1) / 0.3  
+        x_label = "Error (mm)"
+        y_label = "sBBT Score (no. of blocks)"
+        x_axis_colors = {"start": "low error", "end": "high error", "colors": ["green", "red"]}
+        y_axis_colors = {"start": "low", "end": "high", "colors": ["red", "green"]}
+    else:
+        # Fallback: identity plot.
+        x = np.linspace(0, 1, 20)
+        y = x
+        x_label = "X"
+        y_label = "Y"
+        x_axis_colors = {}
+        y_axis_colors = {}
+
+    # Configuration dictionary.
+    cfg = {
+        "general": {
+            "figsize": (5, 4),
+            "axis_label_font": 20,
+            "tick_label_font": 20,
+            "title_font": 16,
+            "label_offset": 0.12,
+            "showGrid": True
+        },
+        "line": {
+            "linewidth": 2,
+            "show_markers": True
+        },
+        "axis_labels": {
+            "x": x_label,
+            "y": y_label
+        },
+        "axis_colors": {
+            "x": {x_label: x_axis_colors},
+            "y": {y_label: y_axis_colors}
+        }
+    }
+
+    general = cfg["general"]
+    line_cfg = cfg["line"]
+    axis_labels_cfg = cfg["axis_labels"]
+    axis_colors_cfg = cfg["axis_colors"]
+    label_offset = general.get("label_offset", 0.08)
+    showGrid = general.get("showGrid", False)
+
+    fig, ax = plt.subplots(figsize=general["figsize"])
+
+    # Plot the trade-off line.
+    ax.scatter(
+        x,
+        y,
+        color='black',
+        # linewidth=line_cfg.get("linewidth", 2),
+        marker='o' if line_cfg.get("show_markers", False) else None
+    )
+
+    # Set proper axis labels.
+    ax.set_xlabel(axis_labels_cfg.get("x", "X"), fontsize=general["axis_label_font"])
+    ax.set_ylabel(axis_labels_cfg.get("y", "Y"), fontsize=general["axis_label_font"])
+
+    # Remove default ticks.
+    ax.set_xticks([])
+    ax.set_yticks([])
+
+    # Ensure spines are visible only on left and bottom.
+    ax.spines['bottom'].set_visible(True)
+    ax.spines['left'].set_visible(True)
+    ax.spines['top'].set_visible(False)
+    ax.spines['right'].set_visible(False)
+
+    # Compute ranges for annotation offsets.
+    x_range = x.max() - x.min()
+    y_range = y.max() - y.min()
+
+    # X-axis annotations.
+    x_cfg = axis_colors_cfg.get("x", {}).get(axis_labels_cfg.get("x", ""), {})
+    if x_cfg:
+        ax.text(x[0], y.min() - 1.5 * label_offset * y_range, x_cfg["start"],
+                color=x_cfg["colors"][0], ha="center", va="top",
+                fontsize=general["tick_label_font"])
+        ax.text(x[-1], y.min() - 1.5 * label_offset * y_range, x_cfg["end"],
+                color=x_cfg["colors"][1], ha="center", va="top",
+                fontsize=general["tick_label_font"])
+
+    # Y-axis annotations.
+    y_cfg = axis_colors_cfg.get("y", {}).get(axis_labels_cfg.get("y", ""), {})
+    if y_cfg:
+        ax.text(x.min() - label_offset * x_range, y[-1], y_cfg["start"],
+                color=y_cfg["colors"][0], ha="right", va="center",
+                fontsize=general["tick_label_font"])
+        ax.text(x.min() - label_offset * x_range, y[0], y_cfg["end"],
+                color=y_cfg["colors"][1], ha="right", va="bottom",
+                fontsize=general["tick_label_font"])
+
+    ax.set_aspect('auto')
+    plt.tight_layout()
+    plt.grid(showGrid)
+    plt.show()
+
+# Example usage for the two hypotheses:
+plot_smoothness_tradeoff("sBBT_duration")
+
+def plot_smoothness_tradeoff(hypothesis):
+    """
+    Plots a smoothness vs performance tradeoff line plot based on hypothesis.
+    
+    Parameters
+    ----------
+    hypothesis : str
+        One of "speed", "accuracy", "motor_acuity"
+    """
+    # X-axis: Smoothness (0 = unsmooth, 1 = very smooth)
+    x = np.linspace(0, 1, 20)
+
+    # Define Y-axis based on hypothesis
+    if hypothesis == "speed":  # smoother movements are faster
+        y = -1.5 * x + 2  # duration (s)
+        y_label = "Duration (s)"
+        y_axis_colors = {"start": "    fast     ", "end": "    slow     ", "colors": ["green", "red"]}
+    elif hypothesis == "accuracy":  # smoother movements are more accurate
+        y = -10 * x + 20  # error (mm)
+        y_label = "Error (mm)"
+        y_axis_colors = {"start": "accurate", "end": "inaccurate", "colors": ["green", "red"]}
+    elif hypothesis == "motor_acuity":  # smoother movements are both faster & accurate
+        y = 15 * x - 5  # motor acuity
+        y_label = "Motor Acuity"
+        y_axis_colors = {"start": "Fast &\naccurate", "end": "Slow &\ninaccurate", "colors": ["green","red" ]} 
+    else:
+        raise ValueError("Invalid hypothesis")
+
+    # Plot configuration
+    cfg = dict(
+        general=dict(
+            figsize=(5, 4),
+            axis_label_font=20,
+            tick_label_font=20,
+            title_font=16,
+            label_offset=0.12,
+            showGrid=True
+        ),
+        line=dict(
+            linewidth=2,
+            show_markers=True
+        ),
+        axis_labels=dict(
+            smoothness="Smoothness",
+            duration="Duration (s)",
+            distance="Error (mm)",
+            motor_acuity="Motor Acuity"
+        ),
+        axis_colors=dict(
+            x={
+                "Smoothness": {"start": "unsmooth", "end": "smooth", "colors": ["red", "green"]}
+            },
+            y={
+                y_label: y_axis_colors
+            }
+        )
+    )
+
+    general = cfg["general"]
+    line_cfg = cfg["line"]
+    axis_labels = cfg["axis_labels"]
+    axis_colors = cfg["axis_colors"]
+    label_offset = general.get("label_offset", 0.08)
+    showGrid = general.get("showGrid", False)
+
+    # Create figure and axis
+    fig, ax = plt.subplots(figsize=general["figsize"])
+
+    # Plot line
+    ax.scatter(
+        x,
+        y,
+        color='black',
+        # linewidth=line_cfg.get("linewidth", 2),
+        marker='o' if line_cfg.get("show_markers", False) else None
+    )
+
+    # Set axis labels
+    ax.set_xlabel(axis_labels.get("smoothness", "Smoothness"), fontsize=general["axis_label_font"])
+    ax.set_ylabel(y_label, fontsize=general["axis_label_font"])
+
+    # Remove numeric ticks
+    ax.set_xticks([])
+    ax.set_yticks([])
+
+    # Restore x/y spines
+    ax.spines['bottom'].set_visible(True)
+    ax.spines['left'].set_visible(True)
+    ax.spines['top'].set_visible(False)
+    ax.spines['right'].set_visible(False)
+
+    # Axis ranges for offsetting labels
+    x_range = x.max() - x.min()
+    y_range = y.max() - y.min()
+
+    # X-axis labels
+    x_cfg = axis_colors.get("x", {}).get(axis_labels.get("smoothness", "Smoothness"), {})
+    if x_cfg:
+        ax.text(x[0], y.min() - 1.5*label_offset*y_range, x_cfg["start"],
+                color=x_cfg["colors"][0], ha="center", va="top",
+                fontsize=general["tick_label_font"])
+        ax.text(x[-1], y.min() - 1.5*label_offset*y_range, x_cfg["end"],
+                color=x_cfg["colors"][1], ha="center", va="top",
+                fontsize=general["tick_label_font"])
+
+    # Y-axis labels
+    y_cfg = axis_colors.get("y", {}).get(y_label, {})
+    if y_cfg:
+        ax.text(x.min() - label_offset*x_range, y[-1], y_cfg["start"],
+                color=y_cfg["colors"][0], ha="right", va="center",
+                fontsize=general["tick_label_font"])
+        ax.text(x.min() - label_offset*x_range, y[0], y_cfg["end"],
+                color=y_cfg["colors"][1], ha="right", va="center",
+                fontsize=general["tick_label_font"])
+
+    # plt.title(f"Hypothesis: {hypothesis.replace('_', ' ').capitalize()}", fontsize=general["title_font"])
+    ax.set_aspect('auto')
+
+    plt.tight_layout()
+    plt.grid(showGrid)
+    plt.show()
+
+
+# Example usage
+plot_smoothness_tradeoff("speed")
+plot_smoothness_tradeoff("accuracy")
+plot_smoothness_tradeoff("motor_acuity")
+
+
+
+
+
+
+
 
 
 ## -------------------------------------------------------------------------------------------------------------------
@@ -10842,6 +12701,156 @@ plot_grouped_median_correlations(saved_heatmaps, hand='non_dominant', overlay_po
 plot_grouped_median_correlations(saved_heatmaps, hand='dominant', overlay_points=True, figuresize=(8, 4), metric='LDLJ')
 plot_grouped_median_correlations(saved_heatmaps, hand='non_dominant', overlay_points=True, figuresize=(8, 4), metric='sparc')
 plot_grouped_median_correlations(saved_heatmaps, hand='dominant', overlay_points=True, figuresize=(8, 4), metric='sparc')
+
+
+# -------------------------------------------------------------------------------------------------------------------
+def plot_grouped_median_correlations(saved_heatmaps, hand='non_dominant', overlay_points=True, figuresize=(10, 5), metric='ldlj'):
+    import numpy as np
+    import matplotlib.pyplot as plt
+    from scipy.stats import ttest_1samp, shapiro
+    from statsmodels.stats.multitest import multipletests
+
+    axis_labels = dict(
+        duration="Duration (s)",
+        distance="Error (mm)",
+        correlation="Correlation"
+    )
+
+    # Define significance levels; annotate only if p < 0.05 (i.e., ignore 'ns')
+    sig_levels = [(0.001, "***"), (0.01, "**"), (0.05, "*"), (1.0, "ns")]
+
+    prefix = metric
+    # Only plot TW phase
+    phases = ['TW']
+    # Only plot durations and distance
+    metrics = ['durations', 'distance']
+
+    data_dicts = {}
+    for m in metrics:
+        data_dicts[m] = {}
+        for p in phases:
+            key = (f"{p.lower() if p != 'TW' else p}_{prefix}", m)
+            data_dicts[m][p] = saved_heatmaps[key]['medians'][hand]['row_medians']
+
+    def compute_median_and_error(data):
+        vals = np.array(list(data.values()))
+        median = np.median(vals)
+        sem = np.std(vals, ddof=1) / np.sqrt(len(vals)) if len(vals) > 1 else 0.0
+        return median, sem
+
+    # Increase width of box: update width value.
+    width = 0.6
+
+    # Compute aggregated values for plotting boxplots (no transformation)
+    all_vals, all_errs = [], []
+    for m in metrics:
+        vals, errs = [], []
+        for p in phases:
+            v, e = compute_median_and_error(data_dicts[m][p])
+            vals.append(v)
+            errs.append(e)
+        all_vals.append(vals)
+        all_errs.append(errs)
+    all_vals = np.array(all_vals)
+    all_errs = np.array(all_errs)
+
+    categories = ["SPARC vs Duration (s)", "SPARC vs Error (mm)"]
+    x = np.arange(len(categories))
+    colors = ['white']  # Only one phase, so one color
+
+    fig, ax = plt.subplots(figsize=figuresize)
+
+    bar_positions = {}  # store actual x positions of each box for line plotting
+
+    # Create box plots and overlay dot plots for each metric in phase TW.
+    for i, p in enumerate(phases):
+        for j, m in enumerate(metrics):
+            # Center the box on the tick
+            pos = x[j]
+            values = np.array(list(data_dicts[m][p].values()))
+            ax.boxplot(values, positions=[pos], widths=width, patch_artist=True, showfliers=False,
+                       boxprops=dict(facecolor=colors[i], color='black'),
+                       medianprops=dict(color='black'))
+            if overlay_points:
+                # Overlay dots directly without jitter for a clear view.
+                sns.swarmplot(x=[pos]*len(values), y=values, ax=ax, color='black', alpha=0.5)
+            bar_positions[(m, p)] = pos
+
+    # Statistical comparisons: compare each TW phase vs Zero.
+    pvals = []
+    comparisons = []
+    for m in metrics:
+        phase_vals = {p: np.array(list(data_dicts[m][p].values())) for p in phases}
+        for phase_name in phases:
+            stat_norm, p_norm = shapiro(phase_vals[phase_name])
+            t_stat, p_val = ttest_1samp(phase_vals[phase_name], 0)
+            pvals.append(p_val)
+            comparisons.append((m, phase_name, 'Zero', p_val))
+
+    # FDR correction
+    _, pvals_corrected, _, _ = multipletests(pvals, alpha=0.05, method='fdr_bh')
+
+    # Annotate significance lines (comparing each metric's TW vs Zero)
+    y_max = 0.5
+    for idx, (m, p1, p2, _) in enumerate(comparisons):
+        if pvals_corrected[idx] < 0.05:
+            x1 = bar_positions[(m, p1)]
+            for thresh, star in sig_levels:
+                if pvals_corrected[idx] <= thresh and thresh < 1.0:
+                    ax.text(x1, y_max - 0.2, star, ha='center', va='bottom', fontsize=20)
+                    break
+
+    # Legend for phases (only one phase, so just add the label)
+    from matplotlib.patches import Patch
+    legend_elements = [Patch(facecolor=colors[i], edgecolor='black', label=phases[i]) for i in range(len(phases))]
+    # ax.legend(handles=legend_elements, fontsize=14, frameon=False, loc='upper right', bbox_to_anchor=(1, 1.1))
+
+    # Final touches
+    ax.axhline(0, color='lightgrey', linestyle='-', linewidth=1)
+    ax.set_xticks(x)
+    ax.set_xlabel("")
+
+    ax.set_xticklabels(categories, fontsize=14)
+    ax.set_ylabel(axis_labels["correlation"], fontsize=14)
+    ax.set_ylim(-1, 1)
+    ax.set_yticks([-1, 0, 1])
+    ax.set_yticklabels([-1, 0, 1], fontsize=14)
+    ax.grid(False)
+    ax.spines["top"].set_visible(False)
+    ax.spines["right"].set_visible(False)
+
+    # Annotation for sample size
+    all_subjects = set()
+    for m in metrics:
+        for p in phases:
+            all_subjects.update(data_dicts[m][p].keys())
+    n = len(all_subjects)
+    ax.text(0.95, 0.25, f"n = {n} participants", transform=ax.transAxes,
+            ha='right', va='top', fontsize=14)
+
+    plt.tight_layout()
+    plt.show()
+
+    print(f"median of median correlations ({hand}, {metric}):")
+    for m in metrics:
+        tw_vals = np.array(list(data_dicts[m]['TW'].values()))
+        overall_median = np.median(tw_vals)
+        print(f"  {m}: {overall_median:.3f}, IQR = {np.percentile(tw_vals, 75) - np.percentile(tw_vals, 25):.3f}")
+    from scipy.stats import ttest_1samp
+    for idx, (m, p1, p2, orig_p) in enumerate(comparisons):
+        values1 = np.array(list(data_dicts[m][p1].values()))
+        n_values = len(values1)
+        t_stat, _ = ttest_1samp(values1, 0)
+        d = t_stat / np.sqrt(n_values)
+        print(f"Comparison for {m} ({p1} vs {p2}): original p = {orig_p:.3e}, corrected p = {pvals_corrected[idx]}, t = {t_stat:.3f}, d = {d:.3f}")
+
+# Example usage:
+plot_grouped_median_correlations(saved_heatmaps, hand='non_dominant', overlay_points=True, figuresize=(5, 4), metric='LDLJ')
+plot_grouped_median_correlations(saved_heatmaps, hand='dominant', overlay_points=True, figuresize=(5, 4), metric='LDLJ')
+plot_grouped_median_correlations(saved_heatmaps, hand='non_dominant', overlay_points=True, figuresize=(5, 4), metric='sparc')
+plot_grouped_median_correlations(saved_heatmaps, hand='dominant', overlay_points=True, figuresize=(5, 4), metric='sparc')
+
+
 
 
 # -------------------------------------------------------------------------------------------------------------------
@@ -11682,6 +13691,163 @@ plot_grouped_median_correlations(pearson_results, hand='dominant', overlay_point
 plot_grouped_median_correlations(pearson_results, hand='non_dominant', overlay_points=True, figuresize=(8, 4), metric='sparc')
 plot_grouped_median_correlations(pearson_results, hand='dominant', overlay_points=True, figuresize=(8, 4), metric='sparc')
 
+
+# ------------------------
+def plot_grouped_median_correlations(pearson_results, hand='non_dominant', overlay_points=True, figuresize=(10, 5), metric='ldlj'):
+    import numpy as np
+    import matplotlib.pyplot as plt
+    from scipy.stats import ttest_1samp
+    from statsmodels.stats.multitest import multipletests
+    import pandas as pd
+    import seaborn as sns
+
+    axis_labels = dict(
+        duration="Duration (s)",
+        distance="Error (mm)",
+        correlation="Correlation"
+    )
+
+    sig_levels = [(0.001, "***"), (0.01, "**"), (0.05, "*")]  # only annotate if p < 0.05
+
+    prefix = metric
+    # Only plot the 'TW' phase
+    phases = ['TW']
+    # Only plot 'durations' and 'distance'
+    metrics = ['durations', 'distance']
+
+    # Build dictionary of median correlations per subject per key for each metric
+    data_dicts = {}
+    for m in metrics:
+        data_dicts[m] = {}
+        for p in phases:
+            # Key format: TW_ldlj
+            key = (f"{p if p=='TW' else p.lower()}_{prefix}", m)
+            entries = pearson_results.get(key, [])
+            data_dicts[m][p] = {entry["subject"]: entry["correlation"]
+                                  for entry in entries
+                                  if entry["hand"].lower() == hand.lower()}
+
+    # Prepare box plot positions and collect raw data for each metric.
+    categories = ["SPARC vs Duration (s)", "SPARC vs Error (mm)"]
+    x = np.arange(len(categories))
+    width = 0.6
+    colors = ['white']  # one phase only
+
+    fig, ax = plt.subplots(figsize=figuresize)
+
+    # Use this list to collect points for swarmplot overlay
+    overlay_points_list = []
+    plot_positions = {}  # store x positions for each (metric, phase)
+    for j, phase in enumerate(phases):
+        for i, m in enumerate(metrics):
+            pos = x[i]  # center the box at the categorical x value
+            values = list(data_dicts[m][phase].values())
+            bp = ax.boxplot(values, positions=[pos], widths=width * 0.8, patch_artist=True, showfliers=False,
+                              medianprops=dict(color='black'))
+            for box in bp['boxes']:
+                box.set_facecolor(colors[j])
+                box.set_edgecolor('black')
+            plot_positions[(m, phase)] = pos
+            # Collect overlay points data for swarmplot
+            for val in values:
+                overlay_points_list.append({"Category": categories[i], "Value": val})
+
+    # Use seaborn swarmplot to overlay the individual points
+    if overlay_points and overlay_points_list:
+        overlay_df = pd.DataFrame(overlay_points_list)
+        sns.swarmplot(data=overlay_df, x="Category", y="Value", ax=ax, color="black", size=5, alpha=0.5)
+
+    # Statistical tests: one-sample t-tests for each phase vs. zero
+    test_results = []
+    def fisher_z(r):
+        r = np.clip(r, -0.9999, 0.9999)
+        return 0.5 * np.log((1 + r) / (1 - r))
+    
+    for m in metrics:
+        phase_vals = {p: np.array(list(data_dicts[m][p].values())) for p in phases}
+        phase_z = {p: fisher_z(phase_vals[p]) for p in phases}
+        for phase in phases:
+            x_vals = phase_z[phase]
+            n_phase = len(x_vals)
+            if n_phase > 0:
+                median_x = np.median(x_vals)
+                iqr_x = np.percentile(x_vals, 75) - np.percentile(x_vals, 25)
+                t_val, p_val = ttest_1samp(x_vals, 0)
+                df_phase = n_phase - 1
+                cohen_d = t_val / np.sqrt(n_phase) if n_phase > 0 else np.nan
+                test_results.append({
+                    'metric': m,
+                    'test': f'{phase} vs Zero',
+                    'median': median_x,
+                    'IQR': iqr_x,
+                    't': t_val,
+                    'df': df_phase,
+                    'raw_p': p_val,
+                    'cohen_d': cohen_d
+                })
+                
+    # Adjust raw p-values with FDR correction.
+    raw_p_values = [res['raw_p'] for res in test_results]
+    _, pvals_corrected, _, _ = multipletests(raw_p_values, alpha=0.05, method='fdr_bh')
+    for i, res in enumerate(test_results):
+        res['adjusted_p'] = pvals_corrected[i]
+        print(f"Metric: {res['metric']}, Test: {res['test']}")
+        print(f"  Median: {res['median']:.2f}, IQR: {res['IQR']:.2f}")
+        print(f"  t: {res['t']:.4f}, Adjusted p: {res['adjusted_p']:.3f}, Cohen's d: {res['cohen_d']:.2f}")
+
+    # Annotate significance on the plot.
+    y_max = 0.9
+    y_step = 0.1
+    line_positions = {m: y_max for m in metrics}
+    for res in test_results:
+        if res['adjusted_p'] < 0.05:
+            m = res['metric']
+            phase = res['test'].split()[0]  # should be 'TW'
+            x_pos = plot_positions[(m, phase)]
+            y = line_positions[m]
+            star = ""
+            for thresh, s in sig_levels:
+                if res['adjusted_p'] <= thresh:
+                    star = s
+                    break
+            ax.text(x_pos, y - 0.15, star, ha='center', fontsize=20)
+            line_positions[m] += y_step
+
+    # Annotate number of participants.
+    all_subjects = set()
+    for m in metrics:
+        for p in phases:
+            all_subjects.update(data_dicts[m][p].keys())
+    n_participants = len(all_subjects)
+    ax.text(0.91, 0.95, f"n = {n_participants} participants", transform=ax.transAxes,
+            ha='right', va='top', fontsize=14)
+
+    # Final plot adjustments.
+    ax.axhline(0, color='lightgrey', linestyle='-', linewidth=1)
+    ax.set_xticks(x)
+    ax.set_xticklabels(categories, fontsize=14)
+    ax.set_xlabel("")
+    ax.set_ylabel(axis_labels["correlation"], fontsize=14)
+    ax.set_ylim(-1, 1)
+    ax.set_yticks([-1, 0, 1])
+    ax.set_yticklabels([-1, 0, 1], fontsize=12)
+    ax.grid(False)
+    ax.spines["top"].set_visible(False)
+    ax.spines["right"].set_visible(False)
+    from matplotlib.patches import Patch
+    legend_elements = [Patch(facecolor=colors[i], edgecolor='black', label=phases[i]) for i in range(len(phases))]
+    # ax.legend(legend_elements, [patch.get_label() for patch in legend_elements],
+    #           fontsize=14, frameon=False, loc='upper right', bbox_to_anchor=(1, 1.15))
+    plt.tight_layout()
+    plt.show()
+
+plot_grouped_median_correlations(pearson_results, hand='non_dominant', overlay_points=True, figuresize=(4.5, 4), metric='LDLJ')
+plot_grouped_median_correlations(pearson_results, hand='dominant', overlay_points=True, figuresize=(4.5, 4), metric='LDLJ')
+plot_grouped_median_correlations(pearson_results, hand='non_dominant', overlay_points=True, figuresize=(5, 4), metric='sparc')
+plot_grouped_median_correlations(pearson_results, hand='dominant', overlay_points=True, figuresize=(4.5, 4), metric='sparc')
+
+
+# ------------------------
 
 from scipy.stats import wilcoxon
 import seaborn as sns
@@ -12696,7 +14862,8 @@ def plot_phase_combined_multi(subject, hand, trial_seg_list,
         signals = [velocity_full, jerk_full]
         signal_labels = ["v(t)", "j(t)"]
         units = ["mm/s", "mm/s³"]
-        colors_sig = {"full": "dimgray", "ballistic": "#0047ff", "correction": "#ffb800"}
+        # colors_sig = {"full": "dimgray", "ballistic": "#0047ff", "correction": "#ffb800"}
+        colors_sig = {"full": "dimgray", "ballistic": "#ffb800", "correction": "#ffb800"}
 
         # Time axis
         reach_start, reach_end = reach_speed_segments[subject][hand][file_path][seg_index]

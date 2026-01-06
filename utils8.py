@@ -3,6 +3,7 @@ import numpy as np
 from scipy.stats import wilcoxon
 import pingouin as pg
 import seaborn as sns
+import matplotlib.pyplot as plt
 
 def load_and_compute_sbbt_result(csv_filepath="/Users/yilinwu/Desktop/Yilin-Honours/sBBTResult.csv"):
     """
@@ -50,7 +51,6 @@ def swap_and_rename_sbbt_result(sBBTResult):
     return sBBTResult
 
 # Calculate sBBTResult score statistics for dominant and non-dominant columns
-import matplotlib.pyplot as plt
 
 def compute_sbbt_result_stats(sBBTResult):
     # Compute statistics for 'dominant' scores
@@ -149,23 +149,23 @@ def analyze_sbbt_results(sBBTResult):
         'Left': list(sBBTResult['Left']) + list(sBBTResult['Left.1'])
     })
 
-    # Compute ICC for Right hand scores
-    icc_right = pg.intraclass_corr(data=df, targets='Subject', raters='Test', ratings='Right')
-    print("ICC for Right hand:")
-    print(icc_right[['Type', 'ICC', 'F', 'pval', 'CI95%']])
+    # # Compute ICC for Right hand scores
+    # icc_right = pg.intraclass_corr(data=df, targets='Subject', raters='Test', ratings='Right')
+    # print("ICC for Right hand:")
+    # print(icc_right[['Type', 'ICC', 'F', 'pval', 'CI95%']])
 
-    # Compute ICC for Left hand scores
-    icc_left = pg.intraclass_corr(data=df, targets='Subject', raters='Test', ratings='Left')
-    print("ICC for Left hand:")
-    print(icc_left[['Type', 'ICC', 'F', 'pval', 'CI95%']])
+    # # Compute ICC for Left hand scores
+    # icc_left = pg.intraclass_corr(data=df, targets='Subject', raters='Test', ratings='Left')
+    # print("ICC for Left hand:")
+    # print(icc_left[['Type', 'ICC', 'F', 'pval', 'CI95%']])
 
     # Calculate Spearman correlation for the Right hand scores (Test1 vs Test2)
     right_corr, right_p = stats.spearmanr(sBBTResult['Right'], sBBTResult['Right.1'])
-    print("Spearman correlation for Right hand:", right_corr, "p-value:", right_p)
+    print("Spearman correlation for Right hand scores (Test1 vs Test2):\n", right_corr, "p-value:", right_p)
 
     # Calculate Spearman correlation for the Left hand scores (Test1 vs Test2)
     left_corr, left_p = stats.spearmanr(sBBTResult['Left'], sBBTResult['Left.1'])
-    print("Spearman correlation for Left hand:", left_corr, "p-value:", left_p)
+    print("Spearman correlation for Left hand scores (Test1 vs Test2):\n", left_corr, "p-value:", left_p)
 
     # Bland-Altman calculations for Left hand scores
     left1 = pd.Series(sBBTResult['Left'])
@@ -194,8 +194,8 @@ def analyze_sbbt_results(sBBTResult):
 
     # Save all calculations in a dictionary.
     results = {
-        "icc_right": icc_right[['Type', 'ICC', 'F', 'pval', 'CI95%']].to_dict(orient='records'),
-        "icc_left": icc_left[['Type', 'ICC', 'F', 'pval', 'CI95%']].to_dict(orient='records'),
+        # "icc_right": icc_right[['Type', 'ICC', 'F', 'pval', 'CI95%']].to_dict(orient='records'),
+        # "icc_left": icc_left[['Type', 'ICC', 'F', 'pval', 'CI95%']].to_dict(orient='records'),
         "spearman_right": {"correlation": right_corr, "p_value": right_p},
         "spearman_left": {"correlation": left_corr, "p_value": left_p},
         "bland_altman_left": {

@@ -26,7 +26,7 @@ import math
 import numpy as np
 from scipy.stats import zscore
 from scipy.stats import wilcoxon
-from scipy.stats import spearmanr
+from scipy.stats import spearmanr, shapiro
 from scipy.stats import chisquare
 from scipy.stats import circmean, rayleigh
 from scipy.signal import find_peaks, savgol_filter
@@ -46,38 +46,40 @@ from mpl_toolkits.mplot3d import proj3d
 from mpl_toolkits.mplot3d.proj3d import proj_transform
 import matplotlib.patches as patches
 
-import numpy as np
-import pandas as pd
-import seaborn as sns
+
 from matplotlib.patches import Patch
 from matplotlib.offsetbox import OffsetImage, AnnotationBbox
 from matplotlib.colors import LinearSegmentedColormap
 
 
 import matplotlib.pyplot as plt
-import seaborn as sns
-import pandas as pd
-import numpy as np
-from statsmodels.stats.multitest import multipletests
-from scipy.stats import spearmanr
-from scipy.stats import linregress
-import numpy as np
-import pandas as pd
-import seaborn as sns
-import numpy as np
-from scipy.stats import wilcoxon
-from scipy.stats import spearmanr
-from statsmodels.stats.multitest import multipletests
-import matplotlib as mpl
-from scipy.stats import spearmanr, shapiro
 
-from scipy.stats import shapiro, spearmanr
+from statsmodels.stats.multitest import multipletests
+from scipy.stats import linregress
+
+
+import matplotlib as mpl
+
 from scipy.optimize import curve_fit
 from scipy.stats import linregress, shapiro
-from matplotlib.patches import Patch
-from matplotlib.offsetbox import OffsetImage, AnnotationBbox
 from matplotlib.patches import Patch, Rectangle
 from scipy.stats import pearsonr
+
+
+
+from scipy.stats import wilcoxon, ttest_rel, shapiro
+from scipy.stats import shapiro, wilcoxon, ttest_rel
+import math
+from tabulate import tabulate
+from mpl_toolkits.mplot3d.proj3d import proj_transform
+from matplotlib.ticker import ScalarFormatter
+from mpl_toolkits.axes_grid1.inset_locator import inset_axes
+
+from matplotlib.gridspec import GridSpec
+from matplotlib import gridspec
+from statsmodels.stats.anova import anova_lm
+from matplotlib.lines import Line2D
+from matplotlib.patches import Ellipse
 # -------------------------------------------------------------------------------------------------------------------
 
 Traj_folder = "/Users/yilinwu/Desktop/Yilin-Honours/Subject/Traj/2025"
@@ -10499,7 +10501,7 @@ def plot_sbbt_vs_median_metrics(subject_medians, All_dates, sBBTResult, overall_
         ax.set_yticks(y_ticks)
         ax.tick_params(axis='x', labelsize=gen['tick_label_font'], direction=tick_direction)
         ax.tick_params(axis='y', labelsize=gen['tick_label_font'], direction=tick_direction)
-        ax.set_title(hand, fontsize=16)
+        # ax.set_title(hand, fontsize=16)
         
         # Correlation annotation (only annotate if significant)
         if p < 0.05:
@@ -10520,7 +10522,7 @@ def plot_sbbt_vs_median_metrics(subject_medians, All_dates, sBBTResult, overall_
         # Sample size annotation
         n = len(durations)
         ax.text(0.1, 0.1, f"n = {n} participants",
-                transform=ax.transAxes, fontsize=gen['tick_label_font'], verticalalignment='bottom') if hand == "Non-dominant" else None
+                transform=ax.transAxes, fontsize=gen['tick_label_font'], verticalalignment='bottom') 
         
         # Grid and spines configuration
         ax.grid(gen.get('show_grid', False))
@@ -12754,7 +12756,7 @@ def plot_grouped_median_correlations(saved_heatmaps, hand='non_dominant', overla
     all_vals = np.array(all_vals)
     all_errs = np.array(all_errs)
 
-    categories = ["SPARC vs Duration (s)", "SPARC vs Error (mm)"]
+    categories = ["LDLJ vs Duration (s)", "LDLJ vs Error (mm)"]
     x = np.arange(len(categories))
     colors = ['white']  # Only one phase, so one color
 
@@ -13848,21 +13850,6 @@ plot_grouped_median_correlations(pearson_results, hand='dominant', overlay_point
 
 
 # ------------------------
-
-from scipy.stats import wilcoxon
-import seaborn as sns
-import pandas as pd
-import numpy as np
-from scipy.stats import wilcoxon, ttest_rel, shapiro
-from scipy.stats import shapiro, wilcoxon, ttest_rel
-import math
-from matplotlib.offsetbox import OffsetImage, AnnotationBbox
-from statsmodels.stats.multitest import multipletests
-from tabulate import tabulate
-from mpl_toolkits.mplot3d.proj3d import proj_transform
-from matplotlib.offsetbox import AnnotationBbox, OffsetImage
-from matplotlib.ticker import ScalarFormatter
-from mpl_toolkits.axes_grid1.inset_locator import inset_axes
 
 def compare_hands(pearson_results, metrics=['durations', 'distance', 'MotorAcuity'], 
                   phases=['TW', 'Ballistic', 'Correction'], metric_prefix='ldlj'):
@@ -15030,23 +15017,6 @@ plot_phase_combined_multi(
     icon_path="/Users/yilinwu/Desktop/HandHoldBlock1.png", LDLJ_phase=reach_TW_metrics_TW, SPARC_phase=reach_sparc_TW, smoothness_metric='LDLJ')
 
 
-
-
-
-
-from matplotlib.gridspec import GridSpec
-import numpy as np
-from statsmodels.stats.multitest import multipletests
-from matplotlib.offsetbox import OffsetImage, AnnotationBbox
-from scipy.stats import pearsonr
-from matplotlib import gridspec
-import pandas as pd
-from statsmodels.stats.anova import anova_lm
-from matplotlib.lines import Line2D
-from matplotlib.patches import Ellipse
-from scipy.stats import wilcoxon, pearsonr
-import seaborn as sns
-from scipy.stats import wilcoxon
 def plot_phase_combined_multi(subject, hand, trial_seg_list,
                               ballistic_phase, correction_phase, results,
                               reach_speed_segments, placement_location_colors,

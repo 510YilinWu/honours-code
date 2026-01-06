@@ -1243,3 +1243,863 @@ def combined_plot_trajectory_and_errors(results, All_Subject_tBBTs_errors,
     ax.legend()
     plt.tight_layout()
     plt.show()
+
+
+
+
+# # ---SAST 
+# ### Combine data from both hands and plot combined density heatmap with grid markers
+# def plot_combined_xy_density(All_Subject_tBBTs_errors, cmap_choice):
+#     """
+#     Combines x and y data from both hands in the errors dictionary, plots a 2D density heatmap,
+#     and overlays grid markers as black crosses.
+    
+#     Parameters:
+#         All_Subject_tBBTs_errors (dict): Dictionary containing error data.
+#         cmap_choice: A valid matplotlib colormap.
+#     """
+#     import matplotlib.pyplot as plt
+
+#     combined_xs, combined_ys = [], []
+
+#     for h in ['left', 'right']:
+#         xs, ys = [], []
+#         # Loop over all (subject, hand) keys in the errors dictionary
+#         for key in All_Subject_tBBTs_errors:
+#             subject_key, hand_key = key
+#             if hand_key != h:
+#                 continue
+#             # For each trial in the subject-hand entry, extract the p3_block2 data points
+#             for trial in All_Subject_tBBTs_errors[key]:
+#                 trial_data = All_Subject_tBBTs_errors[key][trial]
+#                 # Get the 3D points from p3_block2 (if available)
+#                 p3_data = trial_data.get('p3_block2', None)
+#                 if p3_data is None:
+#                     continue
+#                 p3_data = np.array(p3_data)
+#                 # Ensure data is in (n_points, 3) format
+#                 if p3_data.ndim == 2 and p3_data.shape[0] == 3:
+#                     p3_data = p3_data.T
+#                 elif p3_data.ndim == 1:
+#                     p3_data = p3_data.reshape(-1, 3)
+#                 if p3_data.size == 0:
+#                     continue
+
+#                 # Check for invalid x-values based on hand
+#                 if hand_key == 'left':
+#                     if np.any(p3_data[:, 0] <= -50):
+#                         invalid_idx = np.where(p3_data[:, 0] <= -50)[0]
+#                         print(f"Error: Subject '{subject_key}', hand '{hand_key}', trial '{trial}' has x values <= -50 at indices {invalid_idx} with values {p3_data[invalid_idx, 0]}")
+#                 elif hand_key == 'right':
+#                     if np.any(p3_data[:, 0] >= 0):
+#                         invalid_idx = np.where(p3_data[:, 0] >= 0)[0]
+#                         print(f"Error: Subject '{subject_key}', hand '{hand_key}', trial '{trial}' has non-negative x values at indices {invalid_idx} with values {p3_data[invalid_idx, 0]}")
+#                 xs.extend(p3_data[:, 0])
+#                 ys.extend(p3_data[:, 1])
+        
+#         if len(xs) > 0 and len(ys) > 0:
+#             combined_xs.extend(xs)
+#             combined_ys.extend(ys)
+#         else:
+#             print(f"No data available for {h} hand.")
+
+#     combined_xs = np.array(combined_xs)
+#     combined_ys = np.array(combined_ys)
+#     print(len(combined_xs), len(combined_ys))
+#     print("Combined Data: X max:", np.max(combined_xs), "X min:", np.min(combined_xs),
+#             "Y max:", np.max(combined_ys), "Y min:", np.min(combined_ys))
+
+#     if combined_xs.size == 0 or combined_ys.size == 0:
+#         print("No combined data available.")
+#     else:
+#         fig, ax = plt.subplots(figsize=(12, 5))
+#         hb = ax.hist2d(combined_xs, combined_ys, bins=50, cmap=cmap_choice)
+#         fig.colorbar(hb[3], ax=ax)
+#         ax.set_xlabel("X (mm)")
+#         ax.set_ylabel("Y (mm)")
+#         ax.set_title("Right                                                            Left")
+        
+#         # Define grid markers to overlay as black crosses
+#         grid_xxR = np.array([[ 12.5       ,  66.92857143, 121.35714286, 175.78571429],
+#                                 [ 12.5       ,  66.92857143, 121.35714286, 175.78571429],
+#                                 [ 12.5       ,  66.92857143, 121.35714286, 175.78571429],
+#                                 [ 12.5       ,  66.92857143, 121.35714286, 175.78571429]])
+    
+#         grid_yyR = np.array([[ 12.5       ,  12.5       ,  12.5       ,  12.5       ],
+#                                 [ 66.92857143,  66.92857143,  66.92857143,  66.92857143],
+#                                 [121.35714286, 121.35714286, 121.35714286, 121.35714286],
+#                                 [175.78571429, 175.78571429, 175.78571429, 175.78571429]])
+    
+#         grid_xxL = np.array([[-246.5       , -192.07142857, -137.64285714,  -83.21428571],
+#                                 [-246.5       , -192.07142857, -137.64285714,  -83.21428571],
+#                                 [-246.5       , -192.07142857, -137.64285714,  -83.21428571],
+#                                 [-246.5       , -192.07142857, -137.64285714,  -83.21428571]])
+    
+#         grid_yyL = np.array([[ 12.5       ,  12.5       ,  12.5       ,  12.5       ],
+#                                 [ 66.92857143,  66.92857143,  66.92857143,  66.92857143],
+#                                 [121.35714286, 121.35714286, 121.35714286, 121.35714286],
+#                                 [175.78571429, 175.78571429, 175.78571429, 175.78571429]])
+    
+#         # Overlay grid markers as black crosses with all values subtracted by 12.5
+#         ax.scatter((grid_xxR - 12.5).flatten(), (grid_yyR - 12.5).flatten(),
+#                     marker='x', color='black', s=50, linewidths=2)
+#         ax.scatter((grid_xxL - 12.5).flatten(), (grid_yyL - 12.5).flatten(),
+#                     marker='x', color='black', s=50, linewidths=2)
+
+#         ax.set_xlim(-300, 200)
+#         ax.set_ylim(-20, 200)
+    
+#         plt.tight_layout()
+#         plt.show()
+
+# plot_combined_xy_density(All_Subject_tBBTs_errors, cmap_choice)
+
+# ### Combine data from both hands and plot combined density heatmap with grid markers for a single subject
+# def plot_combined_xy_density_single(All_Subject_tBBTs_errors, cmap_choice, subject):
+#     """
+#     Combines x and y data from both hands for a single subject in the errors dictionary, 
+#     plots a 2D density heatmap, and overlays grid markers as black crosses.
+    
+#     Parameters:
+#         All_Subject_tBBTs_errors (dict): Dictionary containing error data.
+#         cmap_choice: A valid matplotlib colormap.
+#         subject: The subject to analyze (e.g., subject ID).
+#     """
+#     import matplotlib.pyplot as plt
+
+#     combined_xs, combined_ys = [], []
+
+#     for h in ['left', 'right']:
+#         xs, ys = [], []
+#         # Loop over all (subject, hand) keys in the errors dictionary
+#         for key in All_Subject_tBBTs_errors:
+#             subject_key, hand_key = key
+#             if subject_key != subject or hand_key != h:
+#                 continue
+#             # For each trial in the subject-hand entry, extract the p3_block2 data points
+#             for trial in All_Subject_tBBTs_errors[key]:
+#                 trial_data = All_Subject_tBBTs_errors[key][trial]
+#                 # Get the 3D points from p3_block2 (if available)
+#                 p3_data = trial_data.get('p3_block2', None)
+#                 if p3_data is None:
+#                     continue
+#                 p3_data = np.array(p3_data)
+#                 # Ensure data is in (n_points, 3) format
+#                 if p3_data.ndim == 2 and p3_data.shape[0] == 3:
+#                     p3_data = p3_data.T
+#                 elif p3_data.ndim == 1:
+#                     p3_data = p3_data.reshape(-1, 3)
+#                 if p3_data.size == 0:
+#                     continue
+
+#                 # Check for invalid x-values based on hand
+#                 if hand_key == 'left':
+#                     if np.any(p3_data[:, 0] <= -50):
+#                         invalid_idx = np.where(p3_data[:, 0] <= -50)[0]
+#                         print(f"Error: Subject '{subject_key}', hand '{hand_key}', trial '{trial}' has x values <= -50 at indices {invalid_idx} with values {p3_data[invalid_idx, 0]}")
+#                 elif hand_key == 'right':
+#                     if np.any(p3_data[:, 0] >= 0):
+#                         invalid_idx = np.where(p3_data[:, 0] >= 0)[0]
+#                         print(f"Error: Subject '{subject_key}', hand '{hand_key}', trial '{trial}' has non-negative x values at indices {invalid_idx} with values {p3_data[invalid_idx, 0]}")
+#                 xs.extend(p3_data[:, 0])
+#                 ys.extend(p3_data[:, 1])
+        
+#         if len(xs) > 0 and len(ys) > 0:
+#             combined_xs.extend(xs)
+#             combined_ys.extend(ys)
+#         else:
+#             print(f"No data available for {h} hand.")
+
+#     combined_xs = np.array(combined_xs)
+#     combined_ys = np.array(combined_ys)
+#     print(len(combined_xs), len(combined_ys))
+#     print("Combined Data: X max:", np.max(combined_xs), "X min:", np.min(combined_xs),
+#             "Y max:", np.max(combined_ys), "Y min:", np.min(combined_ys))
+
+#     if combined_xs.size == 0 or combined_ys.size == 0:
+#         print("No combined data available.")
+#     else:
+#         fig, ax = plt.subplots(figsize=(12, 5))
+#         hb = ax.hist2d(combined_xs, combined_ys, bins=50, cmap=cmap_choice)
+#         fig.colorbar(hb[3], ax=ax)
+#         ax.set_xlabel("X (mm)")
+#         ax.set_ylabel("Y (mm)")
+#         ax.set_title(f"Right                                                            Left\nSubject: {subject}")
+        
+#         # Define grid markers to overlay as black crosses
+#         grid_xxR = np.array([[ 12.5       ,  66.92857143, 121.35714286, 175.78571429],
+#                                 [ 12.5       ,  66.92857143, 121.35714286, 175.78571429],
+#                                 [ 12.5       ,  66.92857143, 121.35714286, 175.78571429],
+#                                 [ 12.5       ,  66.92857143, 121.35714286, 175.78571429]])
+    
+#         grid_yyR = np.array([[ 12.5       ,  12.5       ,  12.5       ,  12.5       ],
+#                                 [ 66.92857143,  66.92857143,  66.92857143,  66.92857143],
+#                                 [121.35714286, 121.35714286, 121.35714286, 121.35714286],
+#                                 [175.78571429, 175.78571429, 175.78571429, 175.78571429]])
+    
+#         grid_xxL = np.array([[-246.5       , -192.07142857, -137.64285714,  -83.21428571],
+#                                 [-246.5       , -192.07142857, -137.64285714,  -83.21428571],
+#                                 [-246.5       , -192.07142857, -137.64285714,  -83.21428571],
+#                                 [-246.5       , -192.07142857, -137.64285714,  -83.21428571]])
+    
+#         grid_yyL = np.array([[ 12.5       ,  12.5       ,  12.5       ,  12.5       ],
+#                                 [ 66.92857143,  66.92857143,  66.92857143,  66.92857143],
+#                                 [121.35714286, 121.35714286, 121.35714286, 121.35714286],
+#                                 [175.78571429, 175.78571429, 175.78571429, 175.78571429]])
+    
+#         # Overlay grid markers as black crosses with all values subtracted by 12.5
+#         ax.scatter((grid_xxR - 12.5).flatten(), (grid_yyR - 12.5).flatten(),
+#                     marker='x', color='black', s=50, linewidths=2)
+#         ax.scatter((grid_xxL - 12.5).flatten(), (grid_yyL - 12.5).flatten(),
+#                     marker='x', color='black', s=50, linewidths=2)
+
+#         ax.set_xlim(-300, 200)
+#         ax.set_ylim(-20, 200)
+    
+#         plt.tight_layout()
+#         plt.show()
+
+# # Example usage for a single subject
+# plot_combined_xy_density_single(All_Subject_tBBTs_errors, cmap_choice, subject="07/22/HW")
+
+# ### Combine 16 blocks data into one for each subject and hand across all trials
+# def Combine_16_blocks(All_Subject_tBBTs_errors):
+#     """
+#     For each subject and hand in All_Subject_tBBTs_errors, extract the 'p3_block2' data
+#     and 'blocks_without_points' from all trials, and compute new coordinates based on
+#     blockMembership and grid adjustments.
+    
+#     For left-hand entries, grid values from grid_xxR and grid_yyR are used.
+#     For right-hand entries, grid values from grid_xxL and grid_yyL are used.
+    
+#     Returns:
+#         dict: Mapping from (subject, hand) key to a dictionary of trials, where each trial maps to a list of tuples (new_x, new_y, block)
+#     """
+#     # Block membership mapping (order of blocks)
+#     blockMembership = [12, 1, 14, 3, 8, 13, 2, 15, 0, 5, 6, 11, 4, 9, 7, 10]
+
+#     # Define grid markers for right hand (for left-hand data adjustment)
+#     grid_xxR = np.array([[ 12.5      ,  66.92857143, 121.35714286, 175.78571429],
+#                            [ 12.5      ,  66.92857143, 121.35714286, 175.78571429],
+#                            [ 12.5      ,  66.92857143, 121.35714286, 175.78571429],
+#                            [ 12.5      ,  66.92857143, 121.35714286, 175.78571429]])
+#     grid_yyR = np.array([[ 12.5      ,  12.5      ,  12.5      ,  12.5      ],
+#                            [ 66.92857143,  66.92857143,  66.92857143,  66.92857143],
+#                            [121.35714286, 121.35714286, 121.35714286, 121.35714286],
+#                            [175.78571429, 175.78571429, 175.78571429, 175.78571429]])
+    
+#     # Define grid markers for left hand (for right-hand data adjustment)
+#     grid_xxL = np.array([[-246.5      , -192.07142857, -137.64285714,  -83.21428571],
+#                            [-246.5      , -192.07142857, -137.64285714,  -83.21428571],
+#                            [-246.5      , -192.07142857, -137.64285714,  -83.21428571],
+#                            [-246.5      , -192.07142857, -137.64285714,  -83.21428571]])
+    
+#     grid_yyL = np.array([[ 12.5      ,  12.5      ,  12.5      ,  12.5      ],
+#                            [ 66.92857143,  66.92857143,  66.92857143,  66.92857143],
+#                            [121.35714286, 121.35714286, 121.35714286, 121.35714286],
+#                            [175.78571429, 175.78571429, 175.78571429, 175.78571429]])
+    
+#     results = {}
+    
+#     # Iterate over every (subject, hand) key in the dictionary
+#     for key in All_Subject_tBBTs_errors:
+#         subject, hand = key
+#         trial_coords = {}  # Dictionary to store the new coordinates for each trial
+        
+#         # Iterate over all trials for the current subject and hand
+#         for trial_index, trial_entry in All_Subject_tBBTs_errors[key].items():
+#             # Get p3_block2 data and blocks_without_points
+#             p3_data = trial_entry.get('p3_block2', None)
+#             blocks_without_points = trial_entry.get('blocks_without_points', None)
+#             if p3_data is None or blocks_without_points is None:
+#                 continue
+
+#             # Ensure p3_data is a numpy array and in shape (n_points, 3)
+#             p3_data = np.array(p3_data)
+#             if p3_data.ndim == 2 and p3_data.shape[0] == 3:
+#                 p3_data = p3_data.T
+#             elif p3_data.ndim == 1:
+#                 p3_data = p3_data.reshape(-1, 3)
+#             if p3_data.size == 0:
+#                 continue
+
+#             # Choose grid arrays based on hand: 'left' uses grid_xxR/yyR, 'right' uses grid_xxL/yyL
+#             if hand.lower() == 'left':
+#                 grid_x = (grid_xxR - 12.5).flatten()
+#                 grid_y = (grid_yyR - 12.5).flatten()
+#             elif hand.lower() == 'right':
+#                 grid_x = (grid_xxL - 12.5).flatten()
+#                 grid_x = grid_x[::-1]
+#                 grid_y = (grid_yyL - 12.5).flatten()
+#             else:
+#                 continue
+
+#             data_index = 0
+#             trial_data = []  # List to store the new coordinates for this trial
+            
+#             # Loop over each block position (total 16 blocks)
+#             for i in range(16):
+#                 current_block = blockMembership[i]
+#                 # If this block was not marked as missing
+#                 if current_block not in blocks_without_points:
+#                     # Get block_points from the p3_data
+#                     block_points = p3_data[data_index]
+#                     data_index += 1
+#                     # Adjust the coordinates: add 12.5 offset and subtract grid offset for the current block
+#                     new_x = block_points[0] - grid_x.flatten()[current_block]
+#                     new_y = block_points[1] - grid_y.flatten()[current_block]
+#                     trial_data.append((new_x, new_y, blockMembership[i]))
+#             trial_coords[trial_index] = trial_data
+#         results[key] = trial_coords
+
+#     return results
+
+# Combine_blocks = Combine_16_blocks(All_Subject_tBBTs_errors)
+
+# ### Analyze distribution (uniformity, bias, quadrants) and plot polar histograms (rose diagrams)
+# def analyze_and_plot_left_right(Combine_blocks, cmap_choice, num_bins=20):
+#     """
+#     Analyze distribution (uniformity, bias, quadrants) and plot polar histograms (rose diagrams).
+
+#     Performs chi-square tests for uniformity across quadrants, left vs right, top vs bottom.
+#     Computes mean resultant vector direction and Rayleigh test for circular uniformity.
+
+#     Parameters:
+#         Combine_blocks (dict): (subject, hand) -> list of (new_x, new_y, block) or dict of trials
+#         cmap_choice: matplotlib colormap
+#         num_bins: number of bins for polar histogram
+#     """
+
+#     xs_left, ys_left, xs_right, ys_right = [], [], [], []
+
+#     # Collect coordinates
+#     for key, data in Combine_blocks.items():
+#         _, hand = key
+#         hand_lower = hand.lower()
+#         if isinstance(data, dict):
+#             coords_iter = [pt for trial in data.values() for pt in trial]
+#         else:
+#             coords_iter = data
+
+#         for new_x, new_y, _ in coords_iter:
+#             if hand_lower == 'left':
+#                 xs_left.append(new_x)
+#                 ys_left.append(new_y)
+#             elif hand_lower == 'right':
+#                 xs_right.append(new_x)
+#                 ys_right.append(new_y)
+
+#     xs_left, ys_left = np.array(xs_left), np.array(ys_left)
+#     xs_right, ys_right = np.array(xs_right), np.array(ys_right)
+
+#     # Convert to polar
+#     r_left = np.sqrt(xs_left**2 + ys_left**2)
+#     theta_left = np.arctan2(ys_left, xs_left)
+
+#     r_right = np.sqrt(xs_right**2 + ys_right**2)
+#     theta_right = np.arctan2(ys_right, xs_right)
+
+#     # -------------------------
+#     #  Statistical tests
+#     # -------------------------
+#     def circular_chi_tests(xs, ys, theta):
+#         results = {}
+
+#         # Quadrants counts
+#         quad_counts = [
+#             np.sum((xs >= 0) & (ys >= 0)),  # Q1
+#             np.sum((xs < 0) & (ys >= 0)),   # Q2
+#             np.sum((xs < 0) & (ys < 0)),    # Q3
+#             np.sum((xs >= 0) & (ys < 0)),   # Q4
+#         ]
+#         chi_result = chisquare(quad_counts)
+#         results['quadrants_statistic'] = chi_result.statistic
+#         results['quadrants_p'] = chi_result.pvalue
+
+#         # Left vs Right counts
+#         lr_counts = [np.sum(xs < 0), np.sum(xs >= 0)]
+#         chi_result = chisquare(lr_counts)
+#         results['left_vs_right_statistic'] = chi_result.statistic
+#         results['left_vs_right_p'] = chi_result.pvalue
+
+#         # Top vs Bottom counts
+#         tb_counts = [np.sum(ys >= 0), np.sum(ys < 0)]
+#         chi_result = chisquare(tb_counts)
+#         results['top_vs_bottom_statistic'] = chi_result.statistic
+#         results['top_vs_bottom_p'] = chi_result.pvalue
+
+#         # Mean direction (circular mean)
+#         results['mean_direction_rad'] = circmean(theta, high=np.pi, low=-np.pi)
+
+#         # Rayleigh test for circular uniformity (approximation)
+#         n = len(theta)
+#         R = np.sqrt(np.sum(np.cos(theta))**2 + np.sum(np.sin(theta))**2) / n
+#         z = n * R**2
+#         p_rayleigh = np.exp(-z) * (1 + (2*z - z**2)/(4*n) - (24*z - 132*z**2 + 76*z**3 - 9*z**4)/(288*n**2))
+#         results['rayleigh_p'] = p_rayleigh
+
+#         return results
+
+#     stats_left = circular_chi_tests(xs_left, ys_left, theta_left)
+#     stats_right = circular_chi_tests(xs_right, ys_right, theta_right)
+
+#     # -------------------------
+#     #  Plot rose diagrams with mean direction arrow
+#     # -------------------------
+#     fig, axes = plt.subplots(1, 2, subplot_kw=dict(projection='polar'), figsize=(12, 6))
+
+#     # Left hand
+#     counts_left, bin_edges_left = np.histogram(theta_left, bins=num_bins, weights=r_left)
+#     width_left = bin_edges_left[1] - bin_edges_left[0]
+#     max_left = counts_left.max() if counts_left.max() != 0 else 1
+#     norm_left = counts_left / max_left
+
+#     axes[1].bar(bin_edges_left[:-1], counts_left, width=width_left, bottom=0.0,
+#                 color=[cmap_choice(val) for val in norm_left],
+#                 edgecolor='k', alpha=0.75)
+#     axes[1].set_title("Left Hand", y=1.05)
+#     # Draw mean direction arrow
+#     axes[1].arrow(stats_left['mean_direction_rad'], 0, 0, max_left, width=0.05, color='red', alpha=0.8)
+
+#     # Right hand
+#     counts_right, bin_edges_right = np.histogram(theta_right, bins=num_bins, weights=r_right)
+#     width_right = bin_edges_right[1] - bin_edges_right[0]
+#     max_right = counts_right.max() if counts_right.max() != 0 else 1
+#     norm_right = counts_right / max_right
+
+#     axes[0].bar(bin_edges_right[:-1], counts_right, width=width_right, bottom=0.0,
+#                 color=[cmap_choice(val) for val in norm_right],
+#                 edgecolor='k', alpha=0.75)
+#     axes[0].set_title("Right Hand", y=1.05)
+#     # Draw mean direction arrow
+#     axes[0].arrow(stats_right['mean_direction_rad'], 0, 0, max_right, width=0.05, color='red', alpha=0.8)
+
+#     plt.tight_layout()
+#     plt.show()
+
+#     return {"left": stats_left, "right": stats_right}
+
+# stats = analyze_and_plot_left_right(Combine_blocks, cmap_choice)
+
+# ### Analyze distribution (uniformity, bias, quadrants) and plot polar histograms (rose diagrams) for a single subject
+# def analyze_and_plot_left_right_single(Combine_blocks, cmap_choice, subject, num_bins=20):
+#     """
+#     Analyze distribution (uniformity, bias, quadrants) and plot polar histograms (rose diagrams) for a single subject.
+
+#     Performs chi-square tests for uniformity across quadrants, left vs right, top vs bottom.
+#     Computes mean resultant vector direction and Rayleigh test for circular uniformity.
+
+#     Parameters:
+#         Combine_blocks (dict): (subject, hand) -> list of (new_x, new_y, block) or dict of trials
+#         cmap_choice: matplotlib colormap
+#         subject: The subject to analyze (e.g., subject ID).
+#         num_bins: number of bins for polar histogram
+#     """
+
+#     xs_left, ys_left, xs_right, ys_right = [], [], [], []
+
+#     # Collect coordinates for the specified subject
+#     for key, data in Combine_blocks.items():
+#         subject_key, hand = key
+#         if subject_key != subject:
+#             continue
+#         hand_lower = hand.lower()
+#         if isinstance(data, dict):
+#             coords_iter = [pt for trial in data.values() for pt in trial]
+#         else:
+#             coords_iter = data
+
+#         for new_x, new_y, _ in coords_iter:
+#             if hand_lower == 'left':
+#                 xs_left.append(new_x)
+#                 ys_left.append(new_y)
+#             elif hand_lower == 'right':
+#                 xs_right.append(new_x)
+#                 ys_right.append(new_y)
+
+#     xs_left, ys_left = np.array(xs_left), np.array(ys_left)
+#     xs_right, ys_right = np.array(xs_right), np.array(ys_right)
+
+#     # Convert to polar
+#     r_left = np.sqrt(xs_left**2 + ys_left**2)
+#     theta_left = np.arctan2(ys_left, xs_left)
+
+#     r_right = np.sqrt(xs_right**2 + ys_right**2)
+#     theta_right = np.arctan2(ys_right, xs_right)
+
+#     # -------------------------
+#     #  Statistical tests
+#     # -------------------------
+#     def circular_chi_tests(xs, ys, theta):
+#         results = {}
+
+#         # Quadrants counts
+#         quad_counts = [
+#             np.sum((xs >= 0) & (ys >= 0)),  # Q1
+#             np.sum((xs < 0) & (ys >= 0)),   # Q2
+#             np.sum((xs < 0) & (ys < 0)),    # Q3
+#             np.sum((xs >= 0) & (ys < 0)),   # Q4
+#         ]
+#         chi_result = chisquare(quad_counts)
+#         results['quadrants_statistic'] = chi_result.statistic
+#         results['quadrants_p'] = chi_result.pvalue
+
+#         # Left vs Right counts
+#         lr_counts = [np.sum(xs < 0), np.sum(xs >= 0)]
+#         chi_result = chisquare(lr_counts)
+#         results['left_vs_right_statistic'] = chi_result.statistic
+#         results['left_vs_right_p'] = chi_result.pvalue
+
+#         # Top vs Bottom counts
+#         tb_counts = [np.sum(ys >= 0), np.sum(ys < 0)]
+#         chi_result = chisquare(tb_counts)
+#         results['top_vs_bottom_statistic'] = chi_result.statistic
+#         results['top_vs_bottom_p'] = chi_result.pvalue
+
+#         # Mean direction (circular mean)
+#         results['mean_direction_rad'] = circmean(theta, high=np.pi, low=-np.pi)
+
+#         # Rayleigh test for circular uniformity (approximation)
+#         n = len(theta)
+#         R = np.sqrt(np.sum(np.cos(theta))**2 + np.sum(np.sin(theta))**2) / n
+#         z = n * R**2
+#         p_rayleigh = np.exp(-z) * (1 + (2*z - z**2)/(4*n) - (24*z - 132*z**2 + 76*z**3 - 9*z**4)/(288*n**2))
+#         results['rayleigh_p'] = p_rayleigh
+
+#         return results
+
+#     stats_left = circular_chi_tests(xs_left, ys_left, theta_left)
+#     stats_right = circular_chi_tests(xs_right, ys_right, theta_right)
+
+#     # -------------------------
+#     #  Plot rose diagrams with mean direction arrow
+#     # -------------------------
+#     fig, axes = plt.subplots(1, 2, subplot_kw=dict(projection='polar'), figsize=(12, 6))
+
+#     # Left hand
+#     counts_left, bin_edges_left = np.histogram(theta_left, bins=num_bins, weights=r_left)
+#     width_left = bin_edges_left[1] - bin_edges_left[0]
+#     max_left = counts_left.max() if counts_left.max() != 0 else 1
+#     norm_left = counts_left / max_left
+
+#     axes[1].bar(bin_edges_left[:-1], counts_left, width=width_left, bottom=0.0,
+#                 color=[cmap_choice(val) for val in norm_left],
+#                 edgecolor='k', alpha=0.75)
+#     axes[1].set_title(f"Left Hand: {subject}", y=1.05)
+#     # Draw mean direction arrow
+#     axes[1].arrow(stats_left['mean_direction_rad'], 0, 0, max_left, width=0.05, color='red', alpha=0.8)
+
+#     # Right hand
+#     counts_right, bin_edges_right = np.histogram(theta_right, bins=num_bins, weights=r_right)
+#     width_right = bin_edges_right[1] - bin_edges_right[0]
+#     max_right = counts_right.max() if counts_right.max() != 0 else 1
+#     norm_right = counts_right / max_right
+
+#     axes[0].bar(bin_edges_right[:-1], counts_right, width=width_right, bottom=0.0,
+#                 color=[cmap_choice(val) for val in norm_right],
+#                 edgecolor='k', alpha=0.75)
+#     axes[0].set_title(f"Right Hand: {subject}", y=1.05)
+#     # Draw mean direction arrow
+#     axes[0].arrow(stats_right['mean_direction_rad'], 0, 0, max_right, width=0.05, color='red', alpha=0.8)
+
+#     plt.tight_layout()
+#     plt.show()
+
+#     return {"left": stats_left, "right": stats_right}
+
+# # Example usage for a single subject
+# stats_single = analyze_and_plot_left_right_single(Combine_blocks, cmap_choice, subject="07/22/HW")
+
+# ### Analyze distribution for each of the 16 locations and plot polar histograms (rose diagrams)
+# def analyze_and_plot_16_locations(Combine_blocks, cmap_choice, num_bins=20):
+#     """
+#     Analyze distribution for each of the 16 locations and plot polar histograms (rose diagrams).
+
+#     Parameters:
+#         Combine_blocks (dict): (subject, hand) -> list of (new_x, new_y, block) or dict of trials
+#         cmap_choice: matplotlib colormap
+#         num_bins: number of bins for polar histogram
+#     """
+
+#     # Initialize data storage for each location
+#     location_data = {hand: {loc: {'xs': [], 'ys': []} for loc in range(16)} for hand in ['left', 'right']}
+
+#     # Collect coordinates for each location
+#     for key, data in Combine_blocks.items():
+#         _, hand = key
+#         hand_lower = hand.lower()
+#         if isinstance(data, dict):
+#             coords_iter = [pt for trial in data.values() for pt in trial]
+#         else:
+#             coords_iter = data
+
+#         for new_x, new_y, block in coords_iter:
+#             if hand_lower in location_data and block in location_data[hand_lower]:
+#                 location_data[hand_lower][block]['xs'].append(new_x)
+#                 location_data[hand_lower][block]['ys'].append(new_y)
+
+#     # Function to analyze and plot for a single location
+#     def analyze_and_plot_location(xs, ys, ax, title, cmap_choice, num_bins):
+#         xs, ys = np.array(xs), np.array(ys)
+#         r = np.sqrt(xs**2 + ys**2)
+#         theta = np.arctan2(ys, xs)
+
+#         # Plot polar histogram
+#         counts, bin_edges = np.histogram(theta, bins=num_bins, weights=r)
+#         width = bin_edges[1] - bin_edges[0]
+#         max_count = counts.max() if counts.max() != 0 else 1
+#         norm_counts = counts / max_count
+
+#         ax.bar(bin_edges[:-1], counts, width=width, bottom=0.0,
+#                color=[cmap_choice(val) for val in norm_counts],
+#                edgecolor='k', alpha=0.75)
+#         ax.set_title(title, y=1.05)
+
+#     # Plot for each hand and location
+#     for hand in ['left', 'right']:
+#         fig, axes = plt.subplots(4, 4, subplot_kw=dict(projection='polar'), figsize=(16, 16))
+#         fig.suptitle(f"{hand.capitalize()} Hand: Distribution Across 16 Locations", fontsize=16, y=1.02)
+
+#         for loc in range(16):
+#             ax = axes[loc // 4, loc % 4]
+#             xs = location_data[hand][loc]['xs']
+#             ys = location_data[hand][loc]['ys']
+#             if xs and ys:
+#                 analyze_and_plot_location(xs, ys, ax, f"Location {loc + 1}", cmap_choice, num_bins)
+#             else:
+#                 ax.set_title(f"Location {loc + 1} (No Data)", y=1.05)
+
+#         plt.tight_layout()
+#         plt.show()
+
+# analyze_and_plot_16_locations(Combine_blocks, cmap_choice)
+
+# ### Analyze distribution for each of the 16 locations and plot polar histograms (rose diagrams) for a single participant
+# def analyze_and_plot_16_locations_single(Combine_blocks, cmap_choice, participant, num_bins=20):
+#     """
+#     Analyze distribution for each of the 16 locations and plot polar histograms (rose diagrams) for a single participant.
+
+#     Parameters:
+#         Combine_blocks (dict): (subject, hand) -> list of (new_x, new_y, block) or dict of trials
+#         cmap_choice: matplotlib colormap
+#         participant: The participant to analyze (e.g., subject ID).
+#         num_bins: number of bins for polar histogram
+#     """
+
+#     # Initialize data storage for each location
+#     location_data = {hand: {loc: {'xs': [], 'ys': []} for loc in range(16)} for hand in ['left', 'right']}
+
+#     # Collect coordinates for the specified participant
+#     for key, data in Combine_blocks.items():
+#         subject, hand = key
+#         if subject != participant:
+#             continue
+#         hand_lower = hand.lower()
+#         if isinstance(data, dict):
+#             coords_iter = [pt for trial in data.values() for pt in trial]
+#         else:
+#             coords_iter = data
+
+#         for new_x, new_y, block in coords_iter:
+#             if hand_lower in location_data and block in location_data[hand_lower]:
+#                 location_data[hand_lower][block]['xs'].append(new_x)
+#                 location_data[hand_lower][block]['ys'].append(new_y)
+
+#     # Function to analyze and plot for a single location
+#     def analyze_and_plot_location(xs, ys, ax, title, cmap_choice, num_bins):
+#         xs, ys = np.array(xs), np.array(ys)
+#         r = np.sqrt(xs**2 + ys**2)
+#         theta = np.arctan2(ys, xs)
+
+#         # Plot polar histogram
+#         counts, bin_edges = np.histogram(theta, bins=num_bins, weights=r)
+#         width = bin_edges[1] - bin_edges[0]
+#         max_count = counts.max() if counts.max() != 0 else 1
+#         norm_counts = counts / max_count
+
+#         ax.bar(bin_edges[:-1], counts, width=width, bottom=0.0,
+#                color=[cmap_choice(val) for val in norm_counts],
+#                edgecolor='k', alpha=0.75)
+#         ax.set_title(title, y=1.05)
+
+#     # Plot for each hand and location
+#     for hand in ['left', 'right']:
+#         fig, axes = plt.subplots(4, 4, subplot_kw=dict(projection='polar'), figsize=(16, 16))
+#         fig.suptitle(f"{hand.capitalize()} Hand: Distribution Across 16 Locations for Participant {participant}", fontsize=16, y=1.02)
+
+#         for loc in range(16):
+#             ax = axes[loc // 4, loc % 4]
+#             xs = location_data[hand][loc]['xs']
+#             ys = location_data[hand][loc]['ys']
+#             if xs and ys:
+#                 analyze_and_plot_location(xs, ys, ax, f"Location {loc + 1}", cmap_choice, num_bins)
+#             else:
+#                 ax.set_title(f"Location {loc + 1} (No Data)", y=1.05)
+
+#         plt.tight_layout()
+#         plt.show()
+
+# # Example usage for a single participant
+# analyze_and_plot_16_locations_single(Combine_blocks, cmap_choice, participant="07/22/HW")
+
+# def analyze_and_plot_16_locations_xy(Combine_blocks, cmap_choice, participant):
+#     """
+#     Plot real x, y coordinates for each of the 16 locations, calculate mean x, mean y, 
+#     and compute spread (standard deviation x and y), with same XY limits and center at (0,0).
+
+#     Parameters:
+#         Combine_blocks (dict): (subject, hand) -> list of (new_x, new_y, block) or dict of trials
+#         cmap_choice: matplotlib colormap
+#         participant: The participant to analyze (e.g., subject ID).
+#     """
+
+#     # Initialize data storage for each location
+#     location_data = {hand: {loc: {'xs': [], 'ys': [], 'trials': []} for loc in range(16)} for hand in ['left', 'right']}
+#     location_stats = {hand: {} for hand in ['left', 'right']}
+
+#     # Collect coordinates for the specified participant
+#     for key, data in Combine_blocks.items():
+#         subject, hand = key
+#         if subject != participant:
+#             continue
+#         hand_lower = hand.lower()
+#         if isinstance(data, dict):
+#             for trial_idx, trial_data in data.items():
+#                 for new_x, new_y, block in trial_data:
+#                     if hand_lower in location_data and block in location_data[hand_lower]:
+#                         location_data[hand_lower][block]['xs'].append(new_x)
+#                         location_data[hand_lower][block]['ys'].append(new_y)
+#                         location_data[hand_lower][block]['trials'].append(trial_idx)
+#         else:
+#             for new_x, new_y, block in data:
+#                 if hand_lower in location_data and block in location_data[hand_lower]:
+#                     location_data[hand_lower][block]['xs'].append(new_x)
+#                     location_data[hand_lower][block]['ys'].append(new_y)
+
+#     # Determine global x/y limits to center 0,0
+#     all_x = [x for hand in location_data for loc in location_data[hand] for x in location_data[hand][loc]['xs']]
+#     all_y = [y for hand in location_data for loc in location_data[hand] for y in location_data[hand][loc]['ys']]
+#     if all_x and all_y:
+#         xy_max = max(max(np.abs(all_x)), max(np.abs(all_y))) * 1.1  # 10% padding
+#     else:
+#         xy_max = 1  # default if no data
+
+#     # Plot for each hand and location
+#     for hand in ['left', 'right']:
+#         fig, axes = plt.subplots(4, 4, figsize=(16, 16))
+#         fig.suptitle(f"{hand.capitalize()} Hand: Real X/Y Locations for Participant {participant}", fontsize=16, y=1.02)
+
+#         for loc in range(16):
+#             ax = axes[loc // 4, loc % 4]
+#             xs = np.array(location_data[hand][loc]['xs'])
+#             ys = np.array(location_data[hand][loc]['ys'])
+#             trials = np.array(location_data[hand][loc]['trials'])
+
+#             if len(xs) > 0 and len(ys) > 0:
+#                 # Calculate mean x, mean y, std x, and std y
+#                 mean_x = np.mean(xs)
+#                 mean_y = np.mean(ys)
+#                 std_x = np.std(xs)
+#                 std_y = np.std(ys)
+#                 location_stats[hand][loc] = {'mean_x': mean_x, 'mean_y': mean_y, 'std_x': std_x, 'std_y': std_y}
+
+#                 # Scatter plot with color gradient from light yellow to dark orange
+#                 sc = ax.scatter(xs, ys, c=np.linspace(0, 1, len(xs)), cmap="Greys", alpha=0.6, edgecolor='k')
+#                 # Plot mean point
+#                 ax.scatter(mean_x, mean_y, color='red', s=100, marker='X', label='Mean')
+#                 ax.set_title(f"Loc {loc + 1}\nμ=({mean_x:.1f},{mean_y:.1f}) σ=({std_x:.1f},{std_y:.1f})")
+#             else:
+#                 ax.set_title(f"Location {loc + 1} (No Data)")
+
+#             ax.set_xlabel('X')
+#             ax.set_ylabel('Y')
+#             ax.axhline(0, color='gray', linestyle='--', linewidth=0.8)
+#             ax.axvline(0, color='gray', linestyle='--', linewidth=0.8)
+#             ax.set_xlim(-10, 10)
+#             ax.set_ylim(-10, 10)
+
+#             # ax.axis('equal')  # keep aspect ratio square
+
+#         plt.tight_layout()
+#         plt.show()
+
+#     return location_stats
+# stats = analyze_and_plot_16_locations_xy(Combine_blocks, cmap_choice, participant="07/22/HW")
+
+# def analyze_and_plot_16_locations_xy_overlay(Combine_blocks, cmap_choice):
+#     """
+#     Overlay real x, y coordinates for each of the 16 locations across all participants, calculate mean x, mean y, 
+#     and compute spread (standard deviation x and y), with same XY limits and center at (0,0).
+
+#     Parameters:
+#         Combine_blocks (dict): (subject, hand) -> list of (new_x, new_y, block) or dict of trials
+#         cmap_choice: matplotlib colormap
+#     """
+
+#     # Initialize data storage for each location
+#     location_data = {hand: {loc: {'xs': [], 'ys': []} for loc in range(16)} for hand in ['left', 'right']}
+#     location_stats = {hand: {} for hand in ['left', 'right']}
+
+#     # Collect coordinates across all participants
+#     for key, data in Combine_blocks.items():
+#         _, hand = key
+#         hand_lower = hand.lower()
+#         if isinstance(data, dict):
+#             for trial_data in data.values():
+#                 for new_x, new_y, block in trial_data:
+#                     if hand_lower in location_data and block in location_data[hand_lower]:
+#                         location_data[hand_lower][block]['xs'].append(new_x)
+#                         location_data[hand_lower][block]['ys'].append(new_y)
+#         else:
+#             for new_x, new_y, block in data:
+#                 if hand_lower in location_data and block in location_data[hand_lower]:
+#                     location_data[hand_lower][block]['xs'].append(new_x)
+#                     location_data[hand_lower][block]['ys'].append(new_y)
+
+#     # Determine global x/y limits to center 0,0
+#     all_x = [x for hand in location_data for loc in location_data[hand] for x in location_data[hand][loc]['xs']]
+#     all_y = [y for hand in location_data for loc in location_data[hand] for y in location_data[hand][loc]['ys']]
+#     if all_x and all_y:
+#         xy_max = max(max(np.abs(all_x)), max(np.abs(all_y))) * 1.1  # 10% padding
+#     else:
+#         xy_max = 1  # default if no data
+
+#     # Plot for each hand and location
+#     for hand in ['left', 'right']:
+#         fig, axes = plt.subplots(4, 4, figsize=(16, 16))
+#         fig.suptitle(f"{hand.capitalize()} Hand: Real X/Y Locations (Overlayed)", fontsize=16, y=1.02)
+
+#         for loc in range(16):
+#             ax = axes[loc // 4, loc % 4]
+#             xs = np.array(location_data[hand][loc]['xs'])
+#             ys = np.array(location_data[hand][loc]['ys'])
+
+#             if len(xs) > 0 and len(ys) > 0:
+#                 # Calculate mean x, mean y, std x, and std y
+#                 mean_x = np.mean(xs)
+#                 mean_y = np.mean(ys)
+#                 std_x = np.std(xs)
+#                 std_y = np.std(ys)
+#                 location_stats[hand][loc] = {'mean_x': mean_x, 'mean_y': mean_y, 'std_x': std_x, 'std_y': std_y}
+
+#                 # Scatter plot with color gradient from light yellow to dark orange
+#                 sc = ax.scatter(xs, ys, c=np.linspace(0, 1, len(xs)), cmap="Greys", alpha=0.1, edgecolor='k')
+#                 # Plot mean point
+#                 ax.scatter(mean_x, mean_y, color='red', s=100, marker='X', label='Mean')
+#                 ax.set_title(f"Loc {loc + 1}\nμ=({mean_x:.1f},{mean_y:.1f}) σ=({std_x:.1f},{std_y:.1f})")
+#             else:
+#                 ax.set_title(f"Location {loc + 1} (No Data)")
+
+#             ax.set_xlabel('X')
+#             ax.set_ylabel('Y')
+#             ax.axhline(0, color='gray', linestyle='--', linewidth=0.8)
+#             ax.axvline(0, color='gray', linestyle='--', linewidth=0.8)
+#             ax.set_xlim(-10, 10)
+#             ax.set_ylim(-10, 10)
+
+#         plt.tight_layout()
+#         plt.show()
+
+#     return location_stats
+
+# stats_overlay = analyze_and_plot_16_locations_xy_overlay(Combine_blocks, cmap_choice)

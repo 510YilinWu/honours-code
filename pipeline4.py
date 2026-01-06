@@ -347,13 +347,13 @@ def Combine_16_blocks(All_Subject_tBBTs_errors):
                     # Get block_points from the p3_data
                     block_points = p3_data[data_index]
                     data_index += 1
-                    print(f"Subject: {subject}, Hand: {hand}, Trial: {trial}, Block: {current_block}, "
-                          f"Block Points: {block_points}, Grid Point: ({grid_x[current_block]}, {grid_y[current_block]})")
+                    # print(f"Subject: {subject}, Hand: {hand}, Trial: {trial}, Block: {current_block}, "
+                    #       f"Block Points: {block_points}, Grid Point: ({grid_x[current_block]}, {grid_y[current_block]})")
                     new_x = block_points[0] - grid_x[current_block]
                     new_y = block_points[1] - grid_y[current_block]                   
                     new_coords.append((new_x, new_y, blockMembership[i]))
             results[key][trial] = new_coords
-        print(f"Processed key: {key}")
+        # print(f"Processed key: {key}")
     
     return results
 

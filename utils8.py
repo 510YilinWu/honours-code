@@ -18,11 +18,14 @@ def load_and_compute_sbbt_result(csv_filepath="/Users/yilinwu/Desktop/Yilin-Hono
 
     sBBTResult = pd.read_csv(csv_filepath)
 
-    # Compute right hand values using columns 2 and 4 (0-indexed columns 1 and 3)
-    sBBTResult['right_score'] = np.maximum(sBBTResult.iloc[:, 1], sBBTResult.iloc[:, 3])
+    # # Compute right hand values using columns 2 and 4 (0-indexed columns 1 and 3)
+    # sBBTResult['right_score'] = np.maximum(sBBTResult.iloc[:, 1], sBBTResult.iloc[:, 3])
 
-    # Compute left hand values using columns 3 and 5 (0-indexed columns 2 and 4)
-    sBBTResult['left_score'] = np.maximum(sBBTResult.iloc[:, 2], sBBTResult.iloc[:, 4])
+    # # Compute left hand values using columns 3 and 5 (0-indexed columns 2 and 4)
+    # sBBTResult['left_score'] = np.maximum(sBBTResult.iloc[:, 2], sBBTResult.iloc[:, 4])
+
+    sBBTResult['right_score'] = sBBTResult.iloc[:, 1]
+    sBBTResult['left_score'] = sBBTResult.iloc[:, 2]
 
     return sBBTResult
 

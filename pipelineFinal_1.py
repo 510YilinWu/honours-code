@@ -2946,6 +2946,182 @@ plot_trajectory(results, subject='07/22/HW', hand='left', trial=1,
 
 
 
+def plot_trajectory(results, subject='07/22/HW', hand='right', trial=1,
+                    file_path='/Users/yilinwu/Desktop/Yilin-Honours/Subject/Traj/2025/07/22/HW/HW_tBBT53.csv',
+                    overlay_trial=0, velocity_segment_only=False, plot_mode='all'):
+    """
+    Plots the instantaneous velocity and a 3D trajectory for the specified trial.
+    Colors each trajectory point based on the instantaneous velocity.
+    Points outside highlighted segments are colored lightgrey when velocity_segment_only is True.
+    
+    Options:
+      - plot_mode: 'all' to plot the entire trial or 'segment' to plot only from the first to the last highlight.
+    
+    Parameters:
+        results (dict): The results dictionary containing trajectory data.
+        subject (str): Subject key in the results dictionary.
+        hand (str): Hand key ('right' or 'left') in the results dictionary.
+        trial (int): The trial index to use for the main trajectory data.
+        file_path (str): The file key for selecting trajectory data.
+        overlay_trial (int): The trial index used to extract overlay indices for highlighting.
+        velocity_segment_only (bool): If True, apply velocity-coded color only within highlighted segments.
+        plot_mode (str): 'all' to plot the entire trial or 'segment' to plot only from the first to the last highlight.
+    """
+    import matplotlib.pyplot as plt
+    import matplotlib.gridspec as gridspec
+    import matplotlib.colors as mcolors
+
+    # Extract trajectory data for the given trial
+    traj_data = results[subject][hand][trial][file_path]['traj_data']
+    coord_prefix = "RFIN_" if hand == "right" else "LFIN_"
+    coord_x = np.array(traj_data[coord_prefix + "X"])
+    coord_y = np.array(traj_data[coord_prefix + "Y"])
+    coord_z = np.array(traj_data[coord_prefix + "Z"])
+    
+    # Extract overlay index (or indices) from the overlay_trial
+    overlay_index = results[subject][hand][overlay_trial][file_path]
+    highlight_indices = overlay_index if isinstance(overlay_index, (list, np.ndarray)) else [overlay_index]
+    highlight_indices = sorted(highlight_indices)
+    
+    n_points = len(coord_x)
+    marker = "RFIN" if hand == "right" else "LFIN"
+
+    # Extract instantaneous velocity from trajectory space (assume constant sampling rate = 200Hz)
+    vel = results[subject][hand][trial][file_path]['traj_space'][marker][1]
+    
+    # Normalize velocities between 0 and 1
+    v_min = np.min(vel)
+    v_max = np.max(vel)
+    if v_max - v_min > 0:
+        v_norm = (vel - v_min) / (v_max - v_min)
+    else:
+        v_norm = np.ones_like(vel)
+    
+    # Map velocity to colors using the viridis colormap with an exponential scaling for contrast
+    point_colors = [plt.cm.viridis(1 - (v_norm[i]**2)) for i in range(n_points)]
+    
+    # If velocity_segment_only is True, only retain velocity colors within highlighted segments.
+    if velocity_segment_only and highlight_indices:
+        segments = []
+        for i in range(0, len(highlight_indices) - 1, 2):
+            segments.append((highlight_indices[i], highlight_indices[i+1]))
+        for i in range(n_points):
+            in_segment = any(min(seg) <= i <= max(seg) for seg in segments)
+            if not in_segment:
+                point_colors[i] = mcolors.to_rgba('lightgrey')
+    
+    # Determine the indices to plot based on the plot_mode option
+    if plot_mode == 'segment' and highlight_indices:
+        start_idx = min(highlight_indices)
+        end_idx = max(highlight_indices)
+    else:
+        start_idx = 0
+        end_idx = n_points - 1
+
+    print(highlight_indices)
+
+    plot_indices = np.arange(start_idx, end_idx + 1)
+    coord_x_plot = coord_x[plot_indices]
+    coord_y_plot = coord_y[plot_indices]
+    coord_z_plot = coord_z[plot_indices]
+    vel_plot    = np.array(vel)[plot_indices]
+    colors_plot = [point_colors[i] for i in plot_indices]
+    time_points = plot_indices / 200  # Time axis in seconds
+
+    # Create the plot layout: two subplots arranged vertically (one top, one bottom)
+    # Increase the bottom (3D) subplot by adjusting height_ratios and reduce vertical gap.
+    fig = plt.figure(figsize=(12, 10))
+    gs = gridspec.GridSpec(nrows=2, ncols=1, height_ratios=[1, 2.5])
+    # Update subplot margins so both subplots align horizontally
+    plt.subplots_adjust(left=0.1, right=0.9, hspace=0.01)
+    
+    # Top subplot: Plot instantaneous velocity over time.
+    ax_vel = fig.add_subplot(gs[0, 0])
+    ax_vel.scatter(time_points, vel_plot, c=colors_plot, marker='o', s=5)
+    ax_vel.set_xlabel('Time (s)', fontsize=16)
+    ax_vel.set_ylabel('Velocity\nmagnitude\n(mm/s)', fontsize=16)
+    ax_vel.set_ylim([0, 1500])
+    ax_vel.set_yticks([0, 750, 1500])
+    ax_vel.set_yticklabels([0, 750, 1500], fontsize=16)
+    ax_vel.spines['top'].set_visible(False)
+    ax_vel.spines['right'].set_visible(False)
+    ax_vel.grid(False)
+    # Set the velocity axis on top
+    ax_vel.set_zorder(2)
+    ax_vel.patch.set_alpha(0.0)
+    
+    # Overlay markers at the designated highlight indices (if they fall within the plot range).
+    for order, idx in enumerate(highlight_indices, start=1):
+        if start_idx <= idx <= end_idx:
+            t_val = idx / 200
+            color = 'black' if order % 2 == 1 else 'grey'
+            marker_sym = 'o'
+            ax_vel.scatter(t_val, vel[idx], color=color, marker=marker_sym, s=40)
+    
+    # Bottom subplot: Plot the 3D trajectory.
+    ax3d = fig.add_subplot(gs[1, 0], projection='3d')
+    # Move the 3D plot more to the right side.
+    pos = ax3d.get_position()
+    ax3d.set_position([pos.x0 + 0.08, pos.y0, pos.width, pos.height])
+    
+    ax3d.scatter(coord_x_plot, coord_y_plot, coord_z_plot, c=colors_plot, marker='o', s=5)
+    ax3d.set_xlabel("X (mm)", fontsize=16)
+    ax3d.set_ylabel("Y (mm)", fontsize=16)
+    ax3d.set_zlabel("Z (mm)", fontsize=16)
+    ax3d.set_xticks([-250, 0, 250])
+    ax3d.set_xticklabels([-250, 0, 250])
+    ax3d.set_yticks([-50, 50, 150])
+    ax3d.set_yticklabels([200, 100, 0])
+    ax3d.set_zticks([800, 950, 1100])
+    ax3d.set_zticklabels([0, 150, 300])
+    ax3d.set_xlim([-250, 250])
+    ax3d.set_ylim([-50, 150])
+    ax3d.set_zlim([800, 1100])
+    ax3d.set_box_aspect([10, 4, 6])
+    # Set the 3D axis behind the velocity plot
+    ax3d.set_zorder(1)
+    
+    # Overlay markers on the 3D plot corresponding to highlight indices.
+    for order, idx in enumerate(highlight_indices, start=1):
+        if start_idx <= idx <= end_idx:
+            color = 'black' if order % 2 == 1 else 'grey'
+            marker_sym = 'o'
+            ax3d.scatter(coord_x[idx], coord_y[idx], coord_z[idx], color=color, marker=marker_sym, s=30)
+
+    plt.tight_layout()
+    plt.show()
+    
+    # Optional: Create an additional 3D plot for a selected segment if at least 4 highlight indices exist.
+    if len(highlight_indices) >= 4:
+        seg_start = highlight_indices[2]
+        seg_end = highlight_indices[3]
+        seg_indices = np.arange(seg_start, seg_end + 1)
+        seg_coord_x = coord_x[seg_indices]
+        seg_coord_y = coord_y[seg_indices]
+        seg_coord_z = coord_z[seg_indices]
+        seg_colors = [point_colors[i] for i in seg_indices]
+        
+        fig2 = plt.figure(figsize=(10, 8))
+        ax3d_seg = fig2.add_subplot(111, projection='3d')
+        ax3d_seg.scatter(seg_coord_x, seg_coord_y, seg_coord_z, c=seg_colors, marker='o', s=5)
+        ax3d_seg.scatter(coord_x[seg_start], coord_y[seg_start], coord_z[seg_start],
+                         color='green', marker='o', s=50, label='start')
+        ax3d_seg.scatter(coord_x[seg_end], coord_y[seg_end], coord_z[seg_end],
+                         color='blue', marker='X', s=50, label='end')
+        ax3d_seg.set_xlabel(f"{coord_prefix}X (mm)", fontsize=14)
+        ax3d_seg.set_ylabel(f"{coord_prefix}Y (mm)", fontsize=14)
+        ax3d_seg.set_zlabel(f"{coord_prefix}Z (mm)", fontsize=14)
+        ax3d_seg.legend()
+        plt.tight_layout()
+        plt.show()
+
+plot_trajectory(results, subject='07/22/HW', hand='left', trial=1,
+                file_path='/Users/yilinwu/Desktop/Yilin-Honours/Subject/Traj/2025/07/22/HW/HW_tBBT02.csv',
+                overlay_trial=0, velocity_segment_only=True, plot_mode='segment')
+
+
+
+
 
 
 # Hypothesis: Participants will be mmore accuracy when they take longer to complete placements, demonstrating a speed-accuracy trade-off.
@@ -3059,6 +3235,8 @@ def plot_reach_scatter_and_spearman(subject, hand, reach_index, config=plot_conf
         durations.append(duration)
         distances.append(distance)
     
+    print(f"Durations: {durations}")
+    print(f"Distances: {distances}")
     # Perform normality tests
     stat_dur, p_dur = shapiro(durations)
     stat_dist, p_dist = shapiro(distances)
@@ -3201,6 +3379,186 @@ def plot_reach_scatter_and_spearman(subject, hand, reach_index, config=plot_conf
     return corr, pval
 
 corr_value, p_value = plot_reach_scatter_and_spearman("07/22/HW", "non_dominant", 0, config=plot_config_summary)
+
+def plot_reach_scatter_and_spearman(subject, hand, reach_index, config=plot_config_summary):
+    """
+    Plots a scatter plot of durations vs. distances for a given subject, hand, and reach index
+    across trials and calculates the Spearman correlation and p-value.
+    
+    Also performs a Shapiro-Wilk normality test on the x (durations) and y (distances) data before calculating
+    the Spearman correlation. A linear regression line is overlaid on the scatter plot.
+    
+    Parameters:
+        subject (str): Subject identifier (e.g., "07/22/HW")
+        hand (str): Hand identifier (e.g., "non_dominant")
+        reach_index (int): Index of the reach (0-indexed)
+        config (dict): Plot configuration dictionary
+        
+    Returns:
+        tuple: Spearman correlation coefficient and p-value
+    """
+
+    durations = []
+    distances = []
+
+    # Gather duration and distance values
+    for trial, rep_durations in updated_metrics_acorss_phases[subject][hand]['durations'].items():
+        duration = rep_durations[reach_index]
+        distance = updated_metrics_acorss_phases[subject][hand]['distance'][trial][reach_index]
+        durations.append(duration)
+        distances.append(distance)
+    
+    print(f"Durations: {durations}")
+    print(f"Distances: {distances}")
+    # Perform normality tests
+    stat_dur, p_dur = shapiro(durations)
+    stat_dist, p_dist = shapiro(distances)
+    print(f"Normality test for durations: W = {stat_dur:.4f}, p-value = {p_dur:.4f}")
+    print(f"Normality test for distances: W = {stat_dist:.4f}, p-value = {p_dist:.4f}")
+
+    # Calculate Spearman correlation
+    corr, pval = spearmanr(durations, distances)
+    
+    # Determine significance stars based on p-value
+    if pval < 0.001:
+        stars = "***"
+    elif pval < 0.01:
+        stars = "**"
+    elif pval < 0.05:
+        stars = "*"
+    else:
+        stars = "ns"
+
+    # General settings
+    gen = config['general']
+    scatter_cfg = config['scatter']
+    axis_labels = config['axis_labels']
+    axis_colors = config['axis_colors']
+    tick_direction = gen.get('tick_direction', 'out')
+    
+    fig, ax = plt.subplots(figsize=gen['figsize'])
+
+    # Scatter points
+    for i, (duration, distance) in enumerate(zip(durations, distances)):
+        color = "red" if i == 0 else "black"  # Highlight the first data point in red
+        ax.scatter(
+            duration,
+            distance,
+            s=gen['marker_size'],
+            alpha=gen['alpha'],
+            color=color
+        )
+    
+    # Overlay linear regression line based on the original durations (without jitter)
+    durations_arr = np.array(durations)
+    distances_arr = np.array(distances)
+    if len(durations_arr) > 1:
+        slope, intercept = np.polyfit(durations_arr, distances_arr, 1)
+        # Create line values for the regression line
+        x_line = np.linspace(min(durations_arr), max(durations_arr), 100)
+        y_line = slope * x_line + intercept
+        ax.plot(x_line, y_line, color="black", linewidth=2, label="Linear regression")
+        # ax.legend(fontsize=gen['tick_label_font'])
+    
+    # Axis labels
+    ax.set_xlabel(axis_labels['duration'], fontsize=gen['axis_label_font'])
+    ax.set_ylabel(axis_labels['distance'], fontsize=gen['axis_label_font'])
+    
+    # Axis ticks
+    if gen['x_ticks']:
+        ax.tick_params(axis='x', labelsize=gen['tick_label_font'], direction=tick_direction)
+    else:
+        ax.set_xticks([])
+    if gen['y_ticks']:
+        ax.tick_params(axis='y', labelsize=gen['tick_label_font'], direction=tick_direction)
+    else:
+        ax.set_yticks([])
+    
+    # Annotate Spearman correlation along with significance stars
+    if scatter_cfg.get('annotate_corr', True):
+        ax.text(
+            0.55, 0.95,
+            f"ρ = {corr:.2f} {stars}",
+            transform=ax.transAxes,
+            fontsize=gen['tick_label_font'],
+            verticalalignment='top'
+        )
+        
+    # Sample size annotation with unit as placements
+    n = len(durations)
+    ax.text(
+        0.55, 0.75,
+        f"n = {n} placements",
+        transform=ax.transAxes,
+        fontsize=gen['tick_label_font'],
+        verticalalignment='bottom'
+    )
+    
+    # Grid
+    ax.grid(gen['show_grid'])
+    
+    # Always hide top and right spines
+    if gen.get('hide_spines', True):
+        ax.spines["top"].set_visible(False)
+        ax.spines["right"].set_visible(False)
+    
+    # Apply axis color ramps
+    if scatter_cfg.get('use_axis_colors', True):
+        # X-axis color bar
+        x_colors = axis_colors['x'].get(axis_labels['duration'], None)
+        if x_colors:
+            ax.annotate(
+                x_colors['start'],
+                xy=(0, -gen['label_offset']),
+                xycoords=('axes fraction', 'axes fraction'),
+                fontsize=gen['tick_label_font'],
+                ha='left',
+                va='top',
+                color=x_colors['colors'][0]
+            )
+            ax.annotate(
+                x_colors['end'],
+                xy=(1, -gen['label_offset']),
+                xycoords=('axes fraction', 'axes fraction'),
+                fontsize=gen['tick_label_font'],
+                ha='right',
+                va='top',
+                color=x_colors['colors'][-1]
+            )
+        
+        # Y-axis color bar
+        y_colors = axis_colors['y'].get(axis_labels['distance'], None)
+        if y_colors:
+            ax.annotate(
+                y_colors['start'],
+                xy=(-gen['label_offset'], 0),
+                xycoords=('axes fraction', 'axes fraction'),
+                fontsize=gen['tick_label_font'],
+                ha='right',
+                va='bottom',
+                color=y_colors['colors'][0]
+            )
+            ax.annotate(
+                y_colors['end'],
+                xy=(-gen['label_offset'], 1),
+                xycoords=('axes fraction', 'axes fraction'),
+                fontsize=gen['tick_label_font'],
+                ha='right',
+                va='top',
+                color=y_colors['colors'][-1]
+            )
+    
+    plt.tight_layout()
+    plt.show()
+    
+    return corr, pval
+
+corr_value, p_value = plot_reach_scatter_and_spearman("07/22/HW", "non_dominant", 0, config=plot_config_summary)
+
+
+
+
+updated_metrics_acorss_phases["07/22/HW"]["non_dominant"]['durations']
 
 # Calculate and return Spearman correlation, p-value, data points, and hyperbolic fit parameters (a, b) for durations vs distances for each subject, hand, and reach index
 def calculate_duration_distance_reach_indices(updated_metrics):

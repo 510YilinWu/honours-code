@@ -14,6 +14,7 @@ from scipy.spatial.distance import mahalanobis
 from scipy.stats import f_oneway, ttest_ind
 from itertools import combinations
 from scipy.stats import ttest_1samp
+from pingouin import intraclass_corr
 
 
 import utils1 # Importing utils1 for data Pre-processing
@@ -45,37 +46,127 @@ sBBTResult = utils8.load_and_compute_sbbt_result()
 # Swap and rename sBBTResult scores for specific subjects
 sBBTResult = utils8.swap_and_rename_sbbt_result(sBBTResult)
 
+# Intraclass correlations between the scores between first and second sBBT tests for each hand
+
+
 # # Calculate sBBTResult score statistics for dominant and non-dominant columns
 # sBBTResult_stats = utils8.compute_sbbt_result_stats(sBBTResult)
 
 # # Analyze correlations in two repeated measures of sBBT
 # sBBT_combine_stat = utils8.analyze_sbbt_results(sBBTResult)
 
+
+
+# Apply Pearson correlation for dominant and non-dominant scores between Test1 and Test2
+# Adjust for subjects with left-hand dominance (PY and MC)
+import numpy as np
+from scipy.stats import pearsonr
+
+# Subjects that are left-handed
+left_handed = ['PY', 'MC']
+
+# Ensure Subject is a column
+df = sBBTResult.copy()
+
+# Create dominant hand column
+df['dominant_hand'] = np.where(df['Subject'].isin(left_handed), 'left', 'right')
+# Dominant hand scores
+df['dom_test1'] = np.where(df['dominant_hand'] == 'left', df['Left'],  df['Right'])
+df['dom_test2'] = np.where(df['dominant_hand'] == 'left', df['Left.1'], df['Right.1'])
+
+# Non-dominant hand scores
+df['nondom_test1'] = np.where(df['dominant_hand'] == 'left', df['Right'],  df['Left'])
+df['nondom_test2'] = np.where(df['dominant_hand'] == 'left', df['Right.1'], df['Left.1'])
+
+dominant_corr, dominant_p = pearsonr(df['dom_test1'], df['dom_test2'])
+print("Pearson correlation for dominant hand:", dominant_corr, "p-value:", dominant_p)
+
+nondom_corr, nondom_p = pearsonr(df['nondom_test1'], df['nondom_test2'])
+print("Pearson correlation for non-dominant hand:", nondom_corr, "p-value:", nondom_p)
+
+
+
 ## ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 # iBBT data
 # --- iBBT - PROCESS ALL DATE AND SAVE ALL MOVEMENT DATA AS pickle file ---
-def process_ibbt_data(all_dates, traj_folder, box_traj_folder, figure_folder, data_process_folder):
-    # Process all dates with default prominence thresholds
-    prominence_threshold_speed = 2.9
-    prominence_threshold_position = 2.9
-    iBBT_utils.process_all_dates_separate(all_dates, traj_folder, box_traj_folder, figure_folder, data_process_folder, 
-                                          prominence_threshold_speed, prominence_threshold_position)
+# def process_ibbt_data(all_dates, traj_folder, box_traj_folder, figure_folder, data_process_folder):
+#     # Process all dates with default prominence thresholds
+#     prominence_threshold_speed = 2.9
+#     prominence_threshold_position = 2.9
+#     iBBT_utils.process_all_dates_separate(all_dates, traj_folder, box_traj_folder, figure_folder, data_process_folder, 
+#                                           prominence_threshold_speed, prominence_threshold_position)
 
-    # Process specific indices with zero prominence thresholds
-    prominence_threshold_speed = 0
-    prominence_threshold_position = 0
-    indices_to_process = [14, 22, 25, 27]
-    for index in indices_to_process:
-        iBBT_utils.process_all_dates_separate(all_dates[index:index+1], traj_folder, box_traj_folder, figure_folder, data_process_folder, 
-                                              prominence_threshold_speed, prominence_threshold_position)
+#     # Process specific indices with zero prominence thresholds
+#     prominence_threshold_speed = 0
+#     prominence_threshold_position = 0
+#     indices_to_process = [14, 22, 25, 27]
+#     for index in indices_to_process:
+#         iBBT_utils.process_all_dates_separate(all_dates[index:index+1], traj_folder, box_traj_folder, figure_folder, data_process_folder, 
+#                                               prominence_threshold_speed, prominence_threshold_position)
 
-process_ibbt_data(All_dates, Traj_folder, Box_Traj_folder, Figure_folder, DataProcess_folder)
+# process_ibbt_data(All_dates, Traj_folder, Box_Traj_folder, Figure_folder, DataProcess_folder)
 
 # --- LOAD ALL SUBJECTS' tBBT ERROR FROM IMAGE, SAVE AS pickle file---
 iBBT_results = iBBT_utils.load_selected_subject_results(All_dates, DataProcess_folder)
 iBBT_reach_speed_segments = utils2.get_reach_speed_segments(iBBT_results)
 iBBT_reach_metrics = utils2.calculate_reach_metrics(iBBT_reach_speed_segments, iBBT_results, fs=200)
 iBBT_test_windows_7 = utils9.compute_test_window_7(iBBT_results, iBBT_reach_speed_segments, iBBT_reach_metrics)
+
+# Count the number of data points in iBBT_reach_speed_segments
+def count_data_points(reach_speed_segments):
+    """
+    Count the total number of data points in the reach speed segments.
+
+    Args:
+        reach_speed_segments (dict): Dictionary containing reach speed segments for each subject and trial.
+
+    Returns:
+        int: Total number of data points.
+    """
+    total_count = 0
+    for subject, hands in reach_speed_segments.items():
+        for hand, trials in hands.items():
+            for trial, segments in (trials.items() if isinstance(trials, dict) else enumerate(trials)):
+                total_count += len(segments)
+    return total_count
+
+# Count the data points in iBBT_reach_speed_segments
+total_data_points = count_data_points(iBBT_reach_speed_segments)
+print(f"Total number of data points in iBBT_reach_speed_segments: {total_data_points}")
+
+def find_missing_data(reach_speed_segments, expected_trials=4, expected_hands=2, expected_blocks=16):
+    """
+    Identify subjects with missing data based on the expected number of trials, hands, and blocks.
+
+    Args:
+        reach_speed_segments (dict): Dictionary containing reach speed segments for each subject and trial.
+        expected_trials (int): Expected number of trials per hand.
+        expected_hands (int): Expected number of hands per subject.
+        expected_blocks (int): Expected number of blocks per trial.
+
+    Returns:
+        list: List of subjects with missing data.
+    """
+    missing_data_subjects = []
+
+    for subject, hands in reach_speed_segments.items():
+        total_trials = 0
+        for hand, trials in hands.items():
+            total_trials += len(trials)
+            for trial, segments in trials.items():
+                if len(segments) != expected_blocks:
+                    print(f"Subject {subject}, Hand {hand}, Trial {trial} has {len(segments)} blocks instead of {expected_blocks}.")
+        
+        if total_trials != expected_trials * expected_hands:
+            print(f"Subject {subject} has {total_trials} trials instead of {expected_trials * expected_hands}.")
+            missing_data_subjects.append(subject)
+
+    return missing_data_subjects
+
+# Find subjects with missing data
+missing_subjects = find_missing_data(iBBT_reach_speed_segments)
+print(f"Subjects with missing data: {missing_subjects}")
+
 
 
 def calculate_and_swap_total_time_per_trial(iBBT_reach_speed_segments, all_dates):
@@ -154,8 +245,8 @@ iBBT_average_total_time_results = calculate_average_total_time(iBBT_total_time_r
 # --- tBBT - PROCESS ALL DATE AND SAVE ALL MOVEMENT DATA AS pickle file ---
 prominence_threshold_speed = 400
 prominence_threshold_position = 80
-utils1.process_all_dates_separate(All_dates, Traj_folder, Box_Traj_folder, Figure_folder, DataProcess_folder, 
-                      prominence_threshold_speed, prominence_threshold_position)
+# utils1.process_all_dates_separate(All_dates, Traj_folder, Box_Traj_folder, Figure_folder, DataProcess_folder, 
+#                       prominence_threshold_speed, prominence_threshold_position)
 
 tBBT_results = utils1.load_selected_subject_results(All_dates, DataProcess_folder)
 tBBT_reach_speed_segments = utils2.get_reach_speed_segments(tBBT_results)
@@ -169,6 +260,94 @@ tBBT_average_total_time_results = calculate_average_total_time(tBBT_total_time_r
 
 # Total number of valid (non-NaN) datapoints in Block_Distance: 29809
 Block_Distance = utils4.load_selected_subject_errors(All_dates, DataProcess_folder)
+
+
+
+
+# Count the total and valid (non-NaN) data points in tBBT_reach_metrics['reach_durations']
+def count_total_and_valid_data_points(reach_metrics):
+    """
+    Count the total and valid (non-NaN) data points in reach_metrics['reach_durations'].
+
+    Args:
+        reach_metrics (dict): Dictionary containing reach metrics data.
+
+    Returns:
+        tuple: Total data points, valid data points.
+    """
+    total_count = 0
+    valid_count = 0
+
+    for subject, hands in reach_metrics['reach_durations'].items():
+        for hand, trials in hands.items():
+            for trial, durations in trials.items():
+                total_count += len(durations)
+                valid_count += sum(1 for d in durations if not np.isnan(d))
+
+    return total_count, valid_count
+
+# Call the function to count total and valid data points in tBBT_reach_metrics['reach_durations']
+total_data_points, valid_data_points = count_total_and_valid_data_points(tBBT_reach_metrics)
+print(f"Total data points in tBBT_reach_metrics['reach_durations']: {total_data_points}")
+print(f"Valid data points in tBBT_reach_metrics['reach_durations']: {valid_data_points}")
+
+# Find None values in Block_Distance and analyze their distribution
+def find_none_in_block_distance(Block_Distance):
+    """
+    Find None values in Block_Distance and analyze their distribution.
+
+    Args:
+        Block_Distance (dict): Dictionary containing block distance data.
+
+    Returns:
+        dict: Summary of None values for each subject and hand.
+    """
+    none_summary = {}
+    total_none_count = 0
+
+    for subject, hands in Block_Distance.items():
+        none_summary[subject] = {}
+        for hand, trials in hands.items():
+            none_count = 0
+            for trial, blocks in trials.items():
+                none_count += sum(1 for block in blocks if block is None)
+            if none_count > 0:
+                none_summary[subject][hand] = none_count
+                total_none_count += none_count
+
+    return none_summary, total_none_count
+
+# Analyze None values in Block_Distance
+none_summary, total_none_count = find_none_in_block_distance(Block_Distance)
+
+# Print the results
+print(f"Total None values in Block_Distance: {total_none_count}")
+for subject, hands in none_summary.items():
+    for hand, count in hands.items():
+        print(f"Subject {subject}, Hand {hand}: {count} None values")
+
+
+
+# Check if each subject, each hand, and each trial in tBBT_reach_metrics['reach_durations'] has 16 valid (non-NaN) data points
+def check_reach_durations_data_points(reach_metrics):
+    """
+    Check if each subject, each hand, and each trial in reach_metrics['reach_durations'] has 16 valid (non-NaN) data points.
+
+    Args:
+        reach_metrics (dict): Dictionary containing reach metrics data.
+
+    Returns:
+        None
+    """
+    for subject, hands in reach_metrics['reach_durations'].items():
+        for hand, trials in hands.items():
+            for trial, durations in trials.items():
+                valid_durations = [d for d in durations if not np.isnan(d)]
+                if len(valid_durations) != 16:
+                    print(f"Subject {subject}, Hand {hand}, Trial {trial} has {len(valid_durations)} valid data points instead of 16.")
+
+# Call the function to check tBBT_reach_metrics['reach_durations']
+check_reach_durations_data_points(tBBT_reach_metrics)
 
 # Update and swap Block_Distance
 def update_and_swap_block_distance(Block_Distance, reach_metrics, all_dates):
@@ -715,7 +894,8 @@ def plot_correlation(data_x, data_y, x_label, y_label, title, plot=True, x_range
         # Plot mean points as black
         mean_x = np.mean(data_x)
         mean_y = np.mean(data_y)
-        plt.scatter(mean_x, mean_y, color='black', s=100, label='Mean Point', zorder=5)
+        # plt.scatter(mean_x, mean_y, color='black', s=100, label='Mean Point', zorder=5)
+        plt.scatter(mean_x, mean_y, color='red',edgecolors='black', s=150, marker='s', label='Mean Point', zorder=5)
 
         # # Plot line of unity
         # min_val = min(min(data_x), min(data_y))
@@ -725,8 +905,10 @@ def plot_correlation(data_x, data_y, x_label, y_label, title, plot=True, x_range
         sns.despine()
 
         # Annotate correlation and p-value at the top left corner
-        plt.annotate(f'r = {corr:.2f}, p = {p_value:.3f} \n n = {len(data_x)}', xy=(0.05, 0.95), xycoords='axes fraction', fontsize=18, ha='left', va='top')
+        # plt.annotate(f'r = {corr:.2f}, p = {p_value:.3f} \n n = {len(data_x)}', xy=(0.05, 0.95), xycoords='axes fraction', fontsize=18, ha='left', va='top')
         # plt.annotate(f'r = {corr:.2f}, p = {p_value:.3e} \n n = {len(data_x)}', xy=(0.05, 0.95), xycoords='axes fraction', fontsize=18, ha='left', va='top')
+        plt.annotate(f'r = {corr:.2f}\n n = {len(data_x)}', xy=(0.05, 0.95), xycoords='axes fraction', fontsize=18, ha='left', va='top')
+
         plt.show()
 
     return corr, p_value
@@ -738,8 +920,8 @@ plot_correlation(
     'Dominant hand \n sBBT scores (no. of blocks)',   
     'Non-dominant hand \n sBBT scores (no. of blocks)', 
     'sBBT Dominant vs Non-dominant',
-    x_range=(50, 90),  # Example x-axis range
-    y_range=(50, 90)   # Example y-axis range
+    x_range=(40, 90),  # Example x-axis range
+    y_range=(40, 90)   # Example y-axis range
 )
 
 # iBBT dominant vs non-dominant average total times
@@ -749,8 +931,8 @@ plot_correlation(
     'Dominant hand \n iBBT average total time (s)',
     'Non-dominant hand \n iBBT average total time (s)',
     'iBBT Dominant vs Non-dominant',
-    x_range=(20, 45),  # Example x-axis range
-    y_range=(20, 45)   # Example y-axis range
+    x_range=(20, 40),  # Example x-axis range
+    y_range=(20, 40)   # Example y-axis range
 )
 
 # tBBT dominant vs non-dominant average total times
@@ -763,6 +945,60 @@ plot_correlation(
     x_range=(15, 35),  # Example x-axis range
     y_range=(15, 35)   # Example y-axis range
 )
+
+
+
+
+
+
+
+
+def assess_significance_between_hands(sBBTResult, iBBT_average_total_time_results, tBBT_average_total_time_results):
+    """
+    Assess whether the differences between dominant and non-dominant hand metrics are significant for sBBT, iBBT, and tBBT tasks.
+
+    Args:
+        sBBTResult (pd.DataFrame): DataFrame containing sBBT scores for dominant and non-dominant hands.
+        iBBT_average_total_time_results (dict): Dictionary containing iBBT average total time for dominant and non-dominant hands.
+        tBBT_average_total_time_results (dict): Dictionary containing tBBT average total time for dominant and non-dominant hands.
+
+    Returns:
+        dict: A dictionary containing t-statistics and p-values for each task.
+    """
+
+    results = {}
+
+    # sBBT task
+    sBBT_dominant = sBBTResult['dominant']
+    sBBT_nondominant = sBBTResult['non_dominant']
+    t_stat, p_value = ttest_rel(sBBT_dominant, sBBT_nondominant)
+    results['sBBT'] = {'t_stat': t_stat, 'p_value': p_value}
+
+    # iBBT task
+    iBBT_dominant = [hands['dominant'] for hands in iBBT_average_total_time_results.values() if 'dominant' in hands]
+    iBBT_nondominant = [hands['non_dominant'] for hands in iBBT_average_total_time_results.values() if 'non_dominant' in hands]
+    t_stat, p_value = ttest_rel(iBBT_dominant, iBBT_nondominant)
+    results['iBBT'] = {'t_stat': t_stat, 'p_value': p_value}
+
+    # tBBT task
+    tBBT_dominant = [hands['dominant'] for hands in tBBT_average_total_time_results.values() if 'dominant' in hands]
+    tBBT_nondominant = [hands['non_dominant'] for hands in tBBT_average_total_time_results.values() if 'non_dominant' in hands]
+    t_stat, p_value = ttest_rel(tBBT_dominant, tBBT_nondominant)
+    results['tBBT'] = {'t_stat': t_stat, 'p_value': p_value}
+
+    return results
+
+
+# Example usage
+significance_results = assess_significance_between_hands(sBBTResult, iBBT_average_total_time_results, tBBT_average_total_time_results)
+for task, result in significance_results.items():
+    print(f"{task}: t-statistic = {result['t_stat']:.2f}, p-value = {result['p_value']:.3f}")
+
+
+
+
+
+
 
 # Figure 2 - Correlation analysis between sBBT scores, iBBT total time, and tBBT total time
 def perform_correlation_analysis(sBBT_dominant, sBBT_non_dominant, iBBT_dominant, iBBT_non_dominant, tBBT_dominant, tBBT_non_dominant):
@@ -852,15 +1088,18 @@ def plot_correlation(data_x, data_y, x_label, y_label, title, plot=True, x_range
 
         # Plot mean point
         mean_x, mean_y = np.mean(data_x), np.mean(data_y)
-        plt.scatter(mean_x, mean_y, color='black', s=100, label='Mean Point', zorder=5)
+        # plt.scatter(mean_x, mean_y, color='black', s=100, label='Mean Point', zorder=5)
+        plt.scatter(mean_x, mean_y, color='red',edgecolors='black', s=150, marker='s', label='Mean Point', zorder=5)
 
-        # Line of unity
-        min_val = min(min(data_x), min(data_y))
-        max_val = max(max(data_x), max(data_y))
-        plt.plot([min_val, max_val], [min_val, max_val], color='blue', linestyle='--', label='Line of Unity')
+        # # Line of unity
+        # min_val = min(min(data_x), min(data_y))
+        # max_val = max(max(data_x), max(data_y))
+        # plt.plot([min_val, max_val], [min_val, max_val], color='blue', linestyle='--', label='Line of Unity')
 
         sns.despine()
-        plt.annotate(f'r = {corr:.2f}, p = {p_value:.3e} \n n = {len(data_x)}', 
+        # plt.annotate(f'r = {corr:.2f}, p = {p_value:.3e} \n n = {len(data_x)}', 
+        #              xy=(0.05, 0.95), xycoords='axes fraction', fontsize=18, ha='left', va='top')
+        plt.annotate(f'r = {corr:.2f} \n n = {len(data_x)}', 
                      xy=(0.05, 0.95), xycoords='axes fraction', fontsize=18, ha='left', va='top')
 
         plt.show()
@@ -871,8 +1110,8 @@ def plot_correlation(data_x, data_y, x_label, y_label, title, plot=True, x_range
 plot_correlation(
     [hands['dominant'] for hands in tBBT_average_block_distance.values() if 'dominant' in hands],
     [hands['non_dominant'] for hands in tBBT_average_block_distance.values() if 'non_dominant' in hands],
-    'Dominant hand \n tBBT average block distance (mm)',
-    'Non-dominant hand \n tBBT average block distance (mm)',
+    'Dominant hand \n tBBT average error (mm)',
+    'Non-dominant hand \n tBBT average error (mm)',
     'tBBT Dominant vs Non-dominant Block Distance'
 )
 
@@ -881,7 +1120,7 @@ for hand in ['dominant', 'non_dominant']:
     plot_correlation(
         [tBBT_average_block_distance[participant][hand] for participant in tBBT_average_block_distance if hand in tBBT_average_block_distance[participant]],
         [tBBT_average_total_time_results[participant][hand] for participant in tBBT_average_total_time_results if hand in tBBT_average_total_time_results[participant]],
-        f'{hand.capitalize().replace("Non_dominant", "Non-dominant")} hand \n tBBT average block distance (mm)',
+        f'{hand.capitalize().replace("Non_dominant", "Non-dominant")} hand \n tBBT average error (mm)',
         f'{hand.capitalize().replace("Non_dominant", "Non-dominant")} hand \n tBBT average total time (s)',
         f'{hand.capitalize().replace("Non_dominant", "Non-dominant")} hand: Block Distance vs Total Time'
     )
@@ -979,19 +1218,113 @@ def Combine_16_blocks(All_Subject_tBBTs_errors):
 Combine_blocks = Combine_16_blocks(All_Subject_tBBTs_errors)
 
 
-def analyze_and_plot_16_locations_xy(Combine_blocks, cmap_choice, participant):
+# def analyze_and_plot_16_locations_xy(Combine_blocks, cmap_choice, participant):
+#     """
+#     Plot real x, y coordinates for each of the 16 locations, calculate mean x, mean y, 
+#     and compute spread (standard deviation x and y), with same XY limits and center at (0,0).
+
+#     Parameters:
+#         Combine_blocks (dict): (subject, hand) -> list of (new_x, new_y, block) or dict of trials
+#         cmap_choice: matplotlib colormap
+#         participant: The participant to analyze (e.g., subject ID).
+#     """
+
+#     # Initialize data storage for each location
+#     location_data = {hand: {loc: {'xs': [], 'ys': [], 'trials': []} for loc in range(16)} for hand in ['non_dominant', 'dominant']}
+#     location_stats = {hand: {} for hand in ['non_dominant', 'dominant']}
+
+#     # Collect coordinates for the specified participant
+#     for key, data in Combine_blocks.items():
+#         subject, hand = key
+#         if subject != participant:
+#             continue
+#         hand_lower = hand.lower()
+#         if isinstance(data, dict):
+#             for trial_idx, trial_data in data.items():
+#                 for new_x, new_y, block in trial_data:
+#                     if hand_lower in location_data and block in location_data[hand_lower]:
+#                         location_data[hand_lower][block]['xs'].append(new_x)
+#                         location_data[hand_lower][block]['ys'].append(new_y)
+#                         location_data[hand_lower][block]['trials'].append(trial_idx)
+#         else:
+#             for new_x, new_y, block in data:
+#                 if hand_lower in location_data and block in location_data[hand_lower]:
+#                     location_data[hand_lower][block]['xs'].append(new_x)
+#                     location_data[hand_lower][block]['ys'].append(new_y)
+
+#     # Define custom layout mappings
+#     left_layout = [
+#         [12, 13, 14, 15],  # top row
+#         [8, 9, 10, 11],
+#         [4, 5, 6, 7],
+#         [0, 1, 2, 3]       # bottom row
+#     ]
+    
+#     right_layout = [
+#         [15, 14, 13, 12],      # mirrored top row
+#         [11, 10, 9, 8],
+#         [7, 6, 5, 4],
+#         [3, 2, 1, 0]   # mirrored bottom row
+#     ]
+
+#     # Plot for each hand and location
+#     for hand in ['non_dominant', 'dominant']:
+#         fig, axes = plt.subplots(4, 4, figsize=(8, 8))
+#         plt.subplots_adjust(wspace=0.1, hspace=0.1)
+
+#         layout = left_layout if hand == 'non_dominant' else right_layout
+
+#         for row in range(4):
+#             for col in range(4):
+#                 loc = layout[row][col]
+#                 ax = axes[row, col]
+#                 xs = np.array(location_data[hand][loc]['xs'])
+#                 ys = np.array(location_data[hand][loc]['ys'])
+
+#                 if len(xs) > 0 and len(ys) > 0:
+#                     # Calculate mean x, mean y, std x, and std y
+#                     mean_x = np.mean(xs)
+#                     mean_y = np.mean(ys)
+#                     std_x = np.std(xs)
+#                     std_y = np.std(ys)
+#                     location_stats[hand][loc] = {'mean_x': mean_x, 'mean_y': mean_y, 'std_x': std_x, 'std_y': std_y}
+
+#                     # Scatter plot with grey color
+#                     ax.scatter(xs, ys, color="grey", alpha=0.5, edgecolor='k')
+#                     # Plot mean point
+#                     ax.scatter(mean_x, mean_y, color='red', s=50, marker='X')
+
+#                 ax.set_xlim(-8, 8)
+#                 ax.set_ylim(-8, 8)
+#                 ax.axhline(0, color='gray', linestyle='--', linewidth=0.8)
+#                 ax.axvline(0, color='gray', linestyle='--', linewidth=0.8)
+#                 ax.axis('off')  # Remove axis ticks and labels
+#                 # ax.set_title(f'{hand} . Loc {loc}', fontsize=10)
+
+#         plt.tight_layout()
+#         plt.show()
+
+#     return location_stats
+
+# # Figure 2B - one participant 
+# stats = analyze_and_plot_16_locations_xy(Combine_blocks, cmap_choice, participant="07/22/HW")
+
+# # Figure 2B - one participant one location
+
+def analyze_and_plot_selected_locations_xy(Combine_blocks, cmap_choice, participant, selected_indices):
     """
-    Plot real x, y coordinates for each of the 16 locations, calculate mean x, mean y, 
+    Plot real x, y coordinates for selected locations, calculate mean x, mean y, 
     and compute spread (standard deviation x and y), with same XY limits and center at (0,0).
 
     Parameters:
         Combine_blocks (dict): (subject, hand) -> list of (new_x, new_y, block) or dict of trials
         cmap_choice: matplotlib colormap
         participant: The participant to analyze (e.g., subject ID).
+        selected_indices: List of selected location indices to plot.
     """
 
     # Initialize data storage for each location
-    location_data = {hand: {loc: {'xs': [], 'ys': [], 'trials': []} for loc in range(16)} for hand in ['non_dominant', 'dominant']}
+    location_data = {hand: {loc: {'xs': [], 'ys': [], 'trials': []} for loc in selected_indices} for hand in ['non_dominant', 'dominant']}
     location_stats = {hand: {} for hand in ['non_dominant', 'dominant']}
 
     # Collect coordinates for the specified participant
@@ -1028,47 +1361,62 @@ def analyze_and_plot_16_locations_xy(Combine_blocks, cmap_choice, participant):
         [3, 2, 1, 0]   # mirrored bottom row
     ]
 
-    # Plot for each hand and location
+    # Plot for each hand and selected locations
     for hand in ['non_dominant', 'dominant']:
-        fig, axes = plt.subplots(4, 4, figsize=(8, 8))
+        fig, axes = plt.subplots(1, len(selected_indices), figsize=(4 * len(selected_indices), 4))
         plt.subplots_adjust(wspace=0.1, hspace=0.1)
 
         layout = left_layout if hand == 'non_dominant' else right_layout
 
-        for row in range(4):
-            for col in range(4):
-                loc = layout[row][col]
-                ax = axes[row, col]
-                xs = np.array(location_data[hand][loc]['xs'])
-                ys = np.array(location_data[hand][loc]['ys'])
+        for i, loc in enumerate(selected_indices):
+            ax = axes[i] if len(selected_indices) > 1 else axes
+            xs = np.array(location_data[hand][loc]['xs'])
+            ys = np.array(location_data[hand][loc]['ys'])
 
-                if len(xs) > 0 and len(ys) > 0:
-                    # Calculate mean x, mean y, std x, and std y
-                    mean_x = np.mean(xs)
-                    mean_y = np.mean(ys)
-                    std_x = np.std(xs)
-                    std_y = np.std(ys)
-                    location_stats[hand][loc] = {'mean_x': mean_x, 'mean_y': mean_y, 'std_x': std_x, 'std_y': std_y}
+            if len(xs) > 0 and len(ys) > 0:
+                # Calculate mean x, mean y, std x, and std y
+                mean_x = np.mean(xs)
+                mean_y = np.mean(ys)
+                std_x = np.std(xs)
+                std_y = np.std(ys)
+                location_stats[hand][loc] = {'mean_x': mean_x, 'mean_y': mean_y, 'std_x': std_x, 'std_y': std_y}
 
-                    # Scatter plot with grey color
-                    ax.scatter(xs, ys, color="grey", alpha=0.5, edgecolor='k')
-                    # Plot mean point
-                    ax.scatter(mean_x, mean_y, color='red', s=50, marker='X')
+                # Scatter plot with grey color
+                ax.scatter(xs, ys, color="grey", alpha=0.5, s=100, edgecolor='k')
+                print(len(xs), len(ys))
+                # Plot mean point
+                ax.scatter(mean_x, mean_y, color='red', s=50, marker='X')
 
-                ax.set_xlim(-8, 8)
-                ax.set_ylim(-8, 8)
-                ax.axhline(0, color='gray', linestyle='--', linewidth=0.8)
-                ax.axvline(0, color='gray', linestyle='--', linewidth=0.8)
-                ax.axis('off')  # Remove axis ticks and labels
-                # ax.set_title(f'{hand} . Loc {loc}', fontsize=10)
+            ax.set_xlim(-8, 8)
+            ax.set_xticks([-8, -4, 0, 4, 8])
+            ax.set_ylim(-8, 8)
+            ax.set_yticks([-8, -4, 0, 4, 8])
+
+            ax.axhline(0, color='gray', linestyle='--', linewidth=0.8)
+            ax.axvline(0, color='gray', linestyle='--', linewidth=0.8)
+            # ax.axis('off')  # Remove axis ticks and labels\
+            ax.set_xlabel('X (mm)', fontsize=14)
+            ax.set_ylabel('Y (mm)', fontsize=14)
+            if hand == 'dominant':
+                ax.set_title(f'Leftward placement', fontsize=16)
+            else:
+                ax.set_title(f'Rightward placement', fontsize=16)
+
+            sns.despine()
 
         plt.tight_layout()
         plt.show()
 
     return location_stats
 
-# Figure 2B - one participant 
-stats = analyze_and_plot_16_locations_xy(Combine_blocks, cmap_choice, participant="07/22/HW")
+# Example usage - plot only selected indices
+selected_indices = [11]
+stats = analyze_and_plot_selected_locations_xy(Combine_blocks, cmap_choice, participant="07/22/HW", selected_indices=selected_indices)
+
+
+
+
+
 
 # def analyze_and_plot_16_locations_xy_overlay(Combine_blocks, cmap_choice):
 #     """
@@ -1387,6 +1735,389 @@ stats_all = analyze_and_plot_left_right(Combine_blocks, cmap_choice, bin_width=n
 
 # Figure 2C - one participant density heatmap overlay across 16 locations
 stats_single = analyze_and_plot_left_right(Combine_blocks, cmap_choice, subject="07/22/HW", bin_width=np.pi/12)
+
+
+
+
+
+
+### Analyze distribution (uniformity, bias, quadrants) and plot polar histograms (rose diagrams)
+# Figure 2E - All participants density heatmap overlay across 16 locations
+def analyze_and_plot_left_right(Combine_blocks, cmap_choice, subject=None, bin_width=np.pi/10):
+    """
+    Analyze distribution and plot polar histograms (rose diagrams)
+    with shared radial scaling across hands. Also return circular error
+    directions of dominant vs non-dominant hands for each subject.
+    """
+
+    subject_means = {"non_dominant": [], "dominant": []}
+    overall_means = {}
+    circular_error_directions = {}
+
+    # -------------------------
+    # Collect subject mean directions
+    # -------------------------
+    for (subject_key, hand), data in Combine_blocks.items():
+        if subject is not None and subject_key != subject:
+            continue
+
+        hand = hand.lower()
+        xs, ys = [], []
+
+        if isinstance(data, dict):
+            coords_iter = [pt for trial in data.values() for pt in trial]
+        else:
+            coords_iter = data
+
+        for new_x, new_y, _ in coords_iter:
+            xs.append(new_x)
+            ys.append(new_y)
+
+        if len(xs) > 0:
+            theta = np.arctan2(ys, xs)
+            mean_dir = circmean(theta, high=np.pi, low=-np.pi)
+            subject_means[hand].append(mean_dir)
+
+            # Store circular error directions for each subject
+            if subject_key not in circular_error_directions:
+                circular_error_directions[subject_key] = {}
+            if hand not in circular_error_directions[subject_key]:
+                circular_error_directions[subject_key][hand] = []
+            circular_error_directions[subject_key][hand].append(mean_dir)
+
+    # -------------------------
+    # Compute overall means
+    # -------------------------
+    for hand in ["dominant", "non_dominant"]:
+        if len(subject_means[hand]) > 0:
+            overall_means[hand] = circmean(
+                subject_means[hand], high=np.pi, low=-np.pi
+            )
+        else:
+            overall_means[hand] = np.nan
+
+    # -------------------------
+    # Shared binning and scaling
+    # -------------------------
+    bin_edges = np.linspace(
+        -np.pi, np.pi, int(2 * np.pi / bin_width) + 1
+    )
+
+    counts_all = []
+    for hand in ["dominant", "non_dominant"]:
+        counts, _ = np.histogram(subject_means[hand], bins=bin_edges)
+        counts_all.append(counts)
+
+    global_max = max([c.max() for c in counts_all if c.size > 0])
+    global_max = max(global_max, 1)  # safety
+
+    # -------------------------
+    # Plot
+    # -------------------------
+    fig, axes = plt.subplots(
+        1, 2, subplot_kw=dict(projection="polar"), figsize=(12, 6)
+    )
+
+    for ax, hand, counts in zip(
+        axes, ["dominant", "non_dominant"], counts_all
+    ):
+        norm_counts = counts / global_max
+
+        ax.bar(
+            bin_edges[:-1],
+            counts,
+            width=bin_width,
+            bottom=0.0,
+            color=[cmap_choice(v) for v in norm_counts],
+            edgecolor="k",
+            alpha=0.75,
+        )
+
+        # Subject mean arrows
+        for mean_dir in subject_means[hand]:
+            ax.arrow(
+                mean_dir,
+                0,
+                0,
+                global_max * 0.5,
+                width=0.01,
+                color="black",
+                alpha=0.7,
+            )
+
+        # Overall mean arrow
+        if not np.isnan(overall_means[hand]):
+            ax.arrow(
+                overall_means[hand],
+                0,
+                0,
+                global_max,
+                width=0.05,
+                color="red",
+                alpha=0.9,
+                label="Overall Mean",
+            )
+
+        ax.set_ylim(0, global_max)
+        # ax.set_title(f"{hand.replace('_', ' ').title()} Hand", y=1.08, fontsize=16)
+        ax.tick_params(labelsize=14)
+        # ax.legend(loc="upper right", fontsize=12)
+        ax.annotate(f"n = {len(subject_means[hand])}", xy=(1, 1), xycoords="axes fraction",
+                    fontsize=18, ha="right", va="top")
+
+    plt.tight_layout()
+    plt.show()
+
+    return {
+        "overall_means": overall_means,
+        "circular_error_directions": circular_error_directions,
+    }
+
+stats_all = analyze_and_plot_left_right(Combine_blocks, cmap_choice, bin_width=np.pi/12)
+
+
+import numpy as np
+from scipy.stats import circmean
+from scipy.stats import ttest_rel
+
+# Example: extract circular error directions per subject
+dominant_errors = [stats_all['circular_error_directions'][subj]['dominant'] 
+                   for subj in stats_all['circular_error_directions'] if 'dominant' in stats_all['circular_error_directions'][subj]]
+
+non_dominant_errors = [stats_all['circular_error_directions'][subj]['non_dominant'] 
+                       for subj in stats_all['circular_error_directions'] if 'non_dominant' in stats_all['circular_error_directions'][subj]]
+
+# Compute circular mean per subject
+dominant_mean = np.array([circmean(trials, high=np.pi, low=-np.pi) for trials in dominant_errors])
+non_dominant_mean = np.array([circmean(trials, high=np.pi, low=-np.pi) for trials in non_dominant_errors])
+
+
+def circular_correlation(alpha, beta):
+    alpha = np.array(alpha)
+    beta = np.array(beta)
+    alpha_bar = circmean(alpha, high=np.pi, low=-np.pi)
+    beta_bar = circmean(beta, high=np.pi, low=-np.pi)
+    num = np.sum(np.sin(alpha - alpha_bar) * np.sin(beta - beta_bar))
+    den = np.sqrt(np.sum(np.sin(alpha - alpha_bar)**2) * np.sum(np.sin(beta - beta_bar)**2))
+    return num / den
+
+def circular_correlation_pvalue(alpha, beta, n_perm=10000, seed=42):
+    np.random.seed(seed)
+    r_obs = circular_correlation(alpha, beta)
+    count = 0
+    for _ in range(n_perm):
+        beta_shuffled = np.random.permutation(beta)
+        r_perm = circular_correlation(alpha, beta_shuffled)
+        if abs(r_perm) >= abs(r_obs):
+            count += 1
+    p_value = count / n_perm
+    return r_obs, p_value
+
+# Example usage
+r, p = circular_correlation_pvalue(dominant_mean, non_dominant_mean)
+print("Circular correlation r =", r, "p-value =", p)
+
+
+def plot_correlation(data_x, data_y, x_label, y_label, title, plot=True, x_range=None, y_range=None):
+    """
+    Calculate correlation and plot the relationship between two datasets.
+
+    Args:
+        data_x (list or array): Data for the x-axis.
+        data_y (list or array): Data for the y-axis.
+        x_label (str): Label for the x-axis.
+        y_label (str): Label for the y-axis.
+        title (str): Title of the plot.
+        plot (bool): Whether to display the plot. Default is True.
+        x_range (tuple): Tuple specifying the x-axis range as (min, max). Default is None.
+        y_range (tuple): Tuple specifying the y-axis range as (min, max). Default is None.
+
+    Returns:
+        tuple: Correlation coefficient and p-value.
+    """
+    # Calculate correlation and p-value
+    r, p = circular_correlation_pvalue(dominant_mean, non_dominant_mean)
+
+    if plot:
+        # Plot correlation
+        plt.figure(figsize=(6, 6))
+        plt.scatter(data_x, data_y, s=50, alpha=0.7)
+
+        plt.xlabel(x_label, fontsize=18)
+        plt.ylabel(y_label, fontsize=18)
+
+        plt.xticks(fontsize=16)
+
+        # Determine x-axis integer ticks
+        if x_range:
+            plt.xlim(x_range)
+            x_min, x_max = int(np.floor(x_range[0])), int(np.ceil(x_range[1]))
+        else:
+            x_min, x_max = int(np.floor(min(data_x))), int(np.ceil(max(data_x)))
+        ax = plt.gca()  # Get the current axis
+        ax.set_xticks(range(x_min, x_max + 1))  # only integer ticks
+
+        plt.yticks(fontsize=16)
+        plt.gca().xaxis.set_major_formatter(plt.FuncFormatter(lambda x, _: f'{int(x)}'))
+        plt.gca().yaxis.set_major_formatter(plt.FuncFormatter(lambda y, _: f'{int(y)}'))
+
+        # Set x and y axis ranges if provided
+        if x_range:
+            plt.xlim(x_range)
+        if y_range:
+            plt.ylim(y_range)
+
+        # Plot mean points as black
+        mean_x = np.mean(data_x)
+        mean_y = np.mean(data_y)
+        plt.scatter(mean_x, mean_y, color='red', edgecolors='black', s=150, marker='s', label='Mean Point', zorder=5)
+
+        # Plot line of unity
+        min_val = min(min(data_x), min(data_y))
+        max_val = max(max(data_x), max(data_y))
+        plt.plot([min_val, max_val], [min_val, max_val], color='blue', linestyle='--', label='Line of Unity')
+
+        sns.despine()
+
+        # Annotate correlation and p-value at the top left corner
+        plt.annotate(f'circular correlation = {r:.2f}\n n = {len(data_x)}', xy=(0.05, 0.95), xycoords='axes fraction', fontsize=18, ha='left', va='top')
+
+        plt.show()
+    return r, p
+
+plot_correlation(
+    dominant_mean,
+    non_dominant_mean,
+    'Dominant hand \n tBBT error direction (radians)',
+    'Non-dominant hand \n tBBT error direction (radians)',
+    'tBBT Dominant vs Non-dominant Hand Circular Error Direction Correlation',
+)
+
+
+
+
+
+#degree
+# Example: extract circular error directions per subject
+dominant_errors = [stats_all['circular_error_directions'][subj]['dominant'] 
+                   for subj in stats_all['circular_error_directions'] if 'dominant' in stats_all['circular_error_directions'][subj]]
+
+non_dominant_errors = [stats_all['circular_error_directions'][subj]['non_dominant'] 
+                       for subj in stats_all['circular_error_directions'] if 'non_dominant' in stats_all['circular_error_directions'][subj]]
+
+# Compute circular mean per subject
+dominant_mean = np.array([circmean(trials, high=np.pi, low=-np.pi) for trials in dominant_errors])
+non_dominant_mean = np.array([circmean(trials, high=np.pi, low=-np.pi) for trials in non_dominant_errors])
+
+
+def circular_correlation(alpha, beta):
+    alpha = np.array(alpha)
+    beta = np.array(beta)
+    alpha_bar = circmean(alpha, high=np.pi, low=-np.pi)
+    beta_bar = circmean(beta, high=np.pi, low=-np.pi)
+    num = np.sum(np.sin(alpha - alpha_bar) * np.sin(beta - beta_bar))
+    den = np.sqrt(np.sum(np.sin(alpha - alpha_bar)**2) * np.sum(np.sin(beta - beta_bar)**2))
+    return num / den
+
+def circular_correlation_pvalue(alpha, beta, n_perm=10000, seed=42):
+    np.random.seed(seed)
+    r_obs = circular_correlation(alpha, beta)
+    count = 0
+    for _ in range(n_perm):
+        beta_shuffled = np.random.permutation(beta)
+        r_perm = circular_correlation(alpha, beta_shuffled)
+        if abs(r_perm) >= abs(r_obs):
+            count += 1
+    p_value = count / n_perm
+    return r_obs, p_value
+
+# Example usage
+r, p = circular_correlation_pvalue(dominant_mean, non_dominant_mean)
+print("Circular correlation r =", r, "p-value =", p)
+
+
+def plot_correlation(data_x, data_y, x_label, y_label, title, plot=True, x_range=None, y_range=None):
+    """
+    Calculate correlation and plot the relationship between two datasets.
+
+    Args:
+        data_x (list or array): Data for the x-axis (in radians).
+        data_y (list or array): Data for the y-axis (in radians).
+        x_label (str): Label for the x-axis.
+        y_label (str): Label for the y-axis.
+        title (str): Title of the plot.
+        plot (bool): Whether to display the plot. Default is True.
+        x_range (tuple): Tuple specifying the x-axis range as (min, max) in degrees. Default is None.
+        y_range (tuple): Tuple specifying the y-axis range as (min, max) in degrees. Default is None.
+
+    Returns:
+        tuple: Correlation coefficient and p-value.
+    """
+    # Convert radians to degrees (0 to 360)
+    data_x_deg = np.degrees(data_x) % 360
+    data_y_deg = np.degrees(data_y) % 360
+
+    # Calculate correlation and p-value
+    r, p = circular_correlation_pvalue(data_x, data_y)
+
+    if plot:
+        # Plot correlation
+        plt.figure(figsize=(6, 6))
+        plt.scatter(data_x_deg, data_y_deg, s=50, alpha=0.7)
+
+        plt.xlabel(x_label, fontsize=18)
+        plt.ylabel(y_label, fontsize=18)
+
+        plt.xticks(fontsize=16)
+        plt.yticks(fontsize=16)
+
+        # Determine x-axis integer ticks
+        if x_range:
+            plt.xlim(x_range)
+            x_min, x_max = int(np.floor(x_range[0])), int(np.ceil(x_range[1]))
+        else:
+            x_min, x_max = 0, 360
+        ax = plt.gca()  # Get the current axis
+        ax.set_xticks(range(x_min, x_max + 1, 90))  # Tick every 60 degrees
+        ax.set_yticks(range(x_min, x_max + 1, 90))  # Tick every 60 degrees
+
+        plt.gca().xaxis.set_major_formatter(plt.FuncFormatter(lambda x, _: f'{int(x)}°'))
+        plt.gca().yaxis.set_major_formatter(plt.FuncFormatter(lambda y, _: f'{int(y)}°'))
+
+        # Set x and y axis ranges if provided
+        if x_range:
+            plt.xlim(x_range)
+        if y_range:
+            plt.ylim(y_range)
+
+        # Plot mean points as a red square
+        mean_x = np.degrees(circmean(data_x, high=np.pi, low=-np.pi)) % 360
+        mean_y = np.degrees(circmean(data_y, high=np.pi, low=-np.pi)) % 360
+        print("Mean X (degrees):", mean_x, "Mean Y (degrees):", mean_y)
+        plt.scatter(mean_x, mean_y, color='red', edgecolors='black', s=150, marker='s', label='Circmean', zorder=5)
+
+        # Plot line of unity
+        plt.plot([0, 360], [0, 360], color='blue', linestyle='--', label='Line of Unity')
+
+        sns.despine()
+
+        # Annotate correlation and p-value at the top left corner
+        plt.annotate(f'circular correlation = {r:.2f}\n n = {len(data_x)}', xy=(0.05, 1), xycoords='axes fraction', fontsize=18, ha='left', va='top')
+
+        plt.show()
+    return r, p
+
+plot_correlation(
+    dominant_mean,
+    non_dominant_mean,
+    'Dominant hand \n tBBT error direction (degrees)',
+    'Non-dominant hand \n tBBT error direction (degrees)',
+    'tBBT Dominant vs Non-dominant Hand Circular Error Direction Correlation',
+    x_range=(0, 360),
+    y_range=(0, 360),
+)
+
+
 
 ###----------------------------------------------------------
 def generate_placement_colors(show_plot=True):

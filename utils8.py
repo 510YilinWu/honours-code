@@ -152,15 +152,15 @@ def analyze_sbbt_results(sBBTResult):
         'Left': list(sBBTResult['Left']) + list(sBBTResult['Left.1'])
     })
 
-    # # Compute ICC for Right hand scores
-    # icc_right = pg.intraclass_corr(data=df, targets='Subject', raters='Test', ratings='Right')
-    # print("ICC for Right hand:")
-    # print(icc_right[['Type', 'ICC', 'F', 'pval', 'CI95%']])
+    # Compute ICC for Right hand scores
+    icc_right = pg.intraclass_corr(data=df, targets='Subject', raters='Test', ratings='Right')
+    print("ICC for Right hand:")
+    print(icc_right[['Type', 'ICC', 'F', 'pval', 'CI95%']])
 
-    # # Compute ICC for Left hand scores
-    # icc_left = pg.intraclass_corr(data=df, targets='Subject', raters='Test', ratings='Left')
-    # print("ICC for Left hand:")
-    # print(icc_left[['Type', 'ICC', 'F', 'pval', 'CI95%']])
+    # Compute ICC for Left hand scores
+    icc_left = pg.intraclass_corr(data=df, targets='Subject', raters='Test', ratings='Left')
+    print("ICC for Left hand:")
+    print(icc_left[['Type', 'ICC', 'F', 'pval', 'CI95%']])
 
     # Calculate Spearman correlation for the Right hand scores (Test1 vs Test2)
     right_corr, right_p = stats.spearmanr(sBBTResult['Right'], sBBTResult['Right.1'])
@@ -169,6 +169,14 @@ def analyze_sbbt_results(sBBTResult):
     # Calculate Spearman correlation for the Left hand scores (Test1 vs Test2)
     left_corr, left_p = stats.spearmanr(sBBTResult['Left'], sBBTResult['Left.1'])
     print("Spearman correlation for Left hand scores (Test1 vs Test2):\n", left_corr, "p-value:", left_p)
+
+    # Calculate Pearson correlation for the Right hand scores (Test1 vs Test2)
+    right_corr, right_p = stats.pearsonr(sBBTResult['Right'], sBBTResult['Right.1'])
+    print("Pearson correlation for Right hand scores (Test1 vs Test2):\n", right_corr, "p-value:", right_p)
+
+    # Calculate Pearson correlation for the Left hand scores (Test1 vs Test2)
+    left_corr, left_p = stats.pearsonr(sBBTResult['Left'], sBBTResult['Left.1'])
+    print("Pearson correlation for Left hand scores (Test1 vs Test2):\n", left_corr, "p-value:", left_p)
 
     # Bland-Altman calculations for Left hand scores
     left1 = pd.Series(sBBTResult['Left'])

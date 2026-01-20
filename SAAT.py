@@ -50,7 +50,7 @@ sBBTResult = utils8.swap_and_rename_sbbt_result(sBBTResult)
 
 
 # # Calculate sBBTResult score statistics for dominant and non-dominant columns
-# sBBTResult_stats = utils8.compute_sbbt_result_stats(sBBTResult)
+sBBTResult_stats = utils8.compute_sbbt_result_stats(sBBTResult)
 
 # # Analyze correlations in two repeated measures of sBBT
 # sBBT_combine_stat = utils8.analyze_sbbt_results(sBBTResult)
@@ -83,6 +83,59 @@ print("Pearson correlation for dominant hand:", dominant_corr, "p-value:", domin
 
 nondom_corr, nondom_p = pearsonr(df['nondom_test1'], df['nondom_test2'])
 print("Pearson correlation for non-dominant hand:", nondom_corr, "p-value:", nondom_p)
+
+
+import numpy as np
+import pandas as pd
+import pingouin as pg
+
+# Subjects that are left-handed
+left_handed = ['PY', 'MC']
+
+# Ensure Subject is a column
+df = sBBTResult.copy()
+
+# Create dominant hand column
+df['dominant_hand'] = np.where(df['Subject'].isin(left_handed), 'left', 'right')
+
+# Dominant hand scores
+df['dom_test1'] = np.where(df['dominant_hand'] == 'left', df['Left'], df['Right'])
+df['dom_test2'] = np.where(df['dominant_hand'] == 'left', df['Left.1'], df['Right.1'])
+
+# Non-dominant hand scores
+df['nondom_test1'] = np.where(df['dominant_hand'] == 'left', df['Right'], df['Left'])
+df['nondom_test2'] = np.where(df['dominant_hand'] == 'left', df['Right.1'], df['Left.1'])
+
+# Prepare data for ICC (long format)
+dominant_long = df.melt(
+    id_vars=['Subject'],
+    value_vars=['dom_test1', 'dom_test2'],
+    var_name='rater',
+    value_name='score'
+)
+
+nondom_long = df.melt(
+    id_vars=['Subject'],
+    value_vars=['nondom_test1', 'nondom_test2'],
+    var_name='rater',
+    value_name='score'
+)
+
+# Compute ICC(3,1) for dominant hand
+icc_dom = pg.intraclass_corr(data=dominant_long, targets='Subject', raters='rater', ratings='score')
+icc_dom3_1 = icc_dom[icc_dom['Type'] == 'ICC3']
+icc_dom3_1_value = icc_dom3_1['ICC'].values[0]
+icc_dom3_1_ci = icc_dom3_1['CI95%'].values[0]
+print(f"ICC(3,1) for dominant hand: {icc_dom3_1_value:.3f}, 95% CI: {icc_dom3_1_ci}")
+
+# Compute ICC(3,1) for non-dominant hand
+icc_nondom = pg.intraclass_corr(data=nondom_long, targets='Subject', raters='rater', ratings='score')
+icc_nondom3_1 = icc_nondom[icc_nondom['Type'] == 'ICC3']
+icc_nondom3_1_value = icc_nondom3_1['ICC'].values[0]
+icc_nondom3_1_ci = icc_nondom3_1['CI95%'].values[0]
+print(f"ICC(3,1) for non-dominant hand: {icc_nondom3_1_value:.3f}, 95% CI: {icc_nondom3_1_ci}")
+
+
 
 
 
@@ -240,6 +293,211 @@ def calculate_average_total_time(total_time_results):
 # Calculate average total time for iBBT
 iBBT_average_total_time_results = calculate_average_total_time(iBBT_total_time_results)
 
+
+
+def calculate_icc_for_hands(total_time_results):
+    """
+    Calculate ICC(3,1) for each hand (dominant and non-dominant) across 4 repeat tests.
+
+    Args:
+        total_time_results (dict): Dictionary containing total time results for each participant and hand.
+
+    Returns:
+        dict: Dictionary with ICC results for each hand.
+    """
+    icc_results = {}
+
+    for hand in ['dominant', 'non_dominant']:
+        # Prepare data for ICC calculation
+        data = []
+        for participant, hands in total_time_results.items():
+            if hand in hands:
+                for trial_idx, (trial, value) in enumerate(hands[hand].items(), start=1):
+                    data.append({'Participant': participant, 'Trial': trial_idx, 'Value': value})
+
+        # Convert to DataFrame
+        df = pd.DataFrame(data)
+        print(df)
+        # Calculate ICC(3,1)
+        icc = intraclass_corr(data=df, targets='Participant', raters='Trial', ratings='Value')
+        icc_results[hand] = icc[icc['Type'] == 'ICC3'].iloc[0]['ICC']
+
+    return icc_results
+
+# Calculate ICC for iBBT total time results
+icc_results = calculate_icc_for_hands(iBBT_total_time_results)
+print("ICC results for iBBT total time results:", icc_results)
+
+
+import pandas as pd
+from pingouin import intraclass_corr
+
+
+def calculate_icc_and_pairwise_correlations(total_time_results):
+    """
+    Calculate ICC(3,1) and pairwise Pearson correlations across 4 repeated tests
+    for dominant and non-dominant hands.
+
+    Args:
+        total_time_results (dict): Dictionary containing total time results
+                                   for each participant and hand.
+
+    Returns:
+        dict: ICC and pairwise correlation results for each hand.
+    """
+
+    results = {}
+
+    for hand in ['dominant', 'non_dominant']:
+
+        # -------------------------------
+        # Prepare long-format data
+        # -------------------------------
+        data = []
+
+        for participant, hands in total_time_results.items():
+            if hand in hands:
+                # Ensure trials are ordered
+                for trial_idx, trial in enumerate(sorted(hands[hand]), start=1):
+                    data.append({
+                        'Participant': participant,
+                        'Trial': trial_idx,
+                        'Value': hands[hand][trial]
+                    })
+
+        df_long = pd.DataFrame(data)
+
+        # -------------------------------
+        # Calculate ICC(3,1)
+        # -------------------------------
+        icc_table = intraclass_corr(
+            data=df_long,
+            targets='Participant',
+            raters='Trial',
+            ratings='Value'
+        )
+
+        icc_row = icc_table[icc_table['Type'] == 'ICC3'].iloc[0]
+
+        icc_value = icc_row['ICC']
+        icc_ci_low, icc_ci_high = icc_row['CI95%']
+
+        # -------------------------------
+        # Pairwise Pearson correlations
+        # -------------------------------
+        df_wide = df_long.pivot(
+            index='Participant',
+            columns='Trial',
+            values='Value'
+        )
+
+        pairwise_corr = df_wide.corr(method='pearson')
+
+        # -------------------------------
+        # Store results
+        # -------------------------------
+        results[hand] = {
+            'ICC_3_1': icc_value,
+            'ICC_95CI': (icc_ci_low, icc_ci_high),
+            'Pairwise_Correlations': pairwise_corr
+        }
+
+    return results
+
+
+# -----------------------------------
+# Run analysis
+# -----------------------------------
+icc_results = calculate_icc_and_pairwise_correlations(iBBT_total_time_results)
+
+# Print results
+for hand, res in icc_results.items():
+    print(f"\n{hand.upper()} HAND")
+    print(f"ICC(3,1): {res['ICC_3_1']:.3f}")
+    print(f"95% CI: [{res['ICC_95CI'][0]:.3f}, {res['ICC_95CI'][1]:.3f}]")
+    print("Pairwise correlations:")
+    print(res['Pairwise_Correlations'])
+
+
+# Calculate the mean of pairwise correlations for each hand, excluding self-correlations
+mean_pairwise_correlations = {
+    hand: res['Pairwise_Correlations'].where(~np.eye(res['Pairwise_Correlations'].shape[0], dtype=bool)).mean().mean()
+    for hand, res in icc_results.items()
+}
+
+# Print the mean pairwise correlations
+for hand, mean_corr in mean_pairwise_correlations.items():
+    print(f"Mean pairwise correlation for {hand} hand (excluding self-correlations): {mean_corr:.3f}")
+
+# 0.811761+0.678525+0.592318+0.778856+0.783951+0.92261 = 4.567021 /6 = 0.7611701666666667
+# 0.849556+0.787001+0.803959+0.922532+0.914835+0.935707 = 5.21359 /6 = 0.8689316666666667
+
+
+
+# Extract first test and second test values for each participant and each hand
+def extract_first_second_test_values(total_time_results):
+    """
+    Extract the first test and second test values for each participant and each hand.
+
+    Args:
+        total_time_results (dict): Dictionary containing total time results for each participant and hand.
+
+    Returns:
+        dict: Dictionary with first and second test values for each participant and hand.
+    """
+    first_second_test_values = {}
+
+    for participant, hands in total_time_results.items():
+        first_second_test_values[participant] = {}
+        for hand, trials in hands.items():
+            sorted_trials = sorted(trials.items())  # Ensure trials are sorted by trial number
+            if len(sorted_trials) >= 2:  # Ensure there are at least two trials
+                first_test = sorted_trials[0][1]
+                second_test = sorted_trials[1][1]
+                first_second_test_values[participant][hand] = {
+                    'first_test': first_test,
+                    'second_test': second_test
+                }
+
+    return first_second_test_values
+
+# Extract first and second test values for iBBT
+iBBT_first_second_test_values = extract_first_second_test_values(iBBT_total_time_results)
+
+# Apply ICC(3,1) on iBBT_first_second_test_values
+def calculate_icc_for_iBBT_first_second_test(iBBT_first_second_test_values):
+    """
+    Calculate ICC(3,1) for the first and second test values for each hand.
+
+    Args:
+        iBBT_first_second_test_values (dict): Dictionary containing first and second test values for each participant and hand.
+
+    Returns:
+        dict: Dictionary with ICC results for each hand.
+    """
+    icc_results = {}
+
+    for hand in ['dominant', 'non_dominant']:
+        # Prepare data for ICC calculation
+        data = []
+        for participant, hands in iBBT_first_second_test_values.items():
+            if hand in hands:
+                data.append({'Participant': participant, 'Test': 1, 'Value': hands[hand]['first_test']})
+                data.append({'Participant': participant, 'Test': 2, 'Value': hands[hand]['second_test']})
+
+        # Convert to DataFrame
+        df = pd.DataFrame(data)
+
+        # Calculate ICC(3,1)
+        icc = intraclass_corr(data=df, targets='Participant', raters='Test', ratings='Value')
+        icc_results[hand] = icc[icc['Type'] == 'ICC3'].iloc[0]['ICC']
+
+    return icc_results
+
+# Calculate ICC for iBBT first and second test values
+icc_iBBT_results = calculate_icc_for_iBBT_first_second_test(iBBT_first_second_test_values)
+print("ICC results for iBBT first and second test values:", icc_iBBT_results)
+
 ## ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 ## tBBT data
 # --- tBBT - PROCESS ALL DATE AND SAVE ALL MOVEMENT DATA AS pickle file ---
@@ -255,14 +513,83 @@ tBBT_test_windows_7 = utils9.compute_test_window_7(tBBT_results, tBBT_reach_spee
 
 tBBT_total_time_results = calculate_and_swap_total_time_per_trial(tBBT_reach_speed_segments, All_dates)
 
+
+
+
+
+
+# Extract first test and second test values for each participant and each hand
+def extract_first_second_test_values(total_time_results):
+    """
+    Extract the first test and second test values for each participant and each hand.
+
+    Args:
+        total_time_results (dict): Dictionary containing total time results for each participant and hand.
+
+    Returns:
+        dict: Dictionary with first and second test values for each participant and hand.
+    """
+    first_second_test_values = {}
+
+    for participant, hands in total_time_results.items():
+        first_second_test_values[participant] = {}
+        for hand, trials in hands.items():
+            sorted_trials = sorted(trials.items())  # Ensure trials are sorted by trial number
+            if len(sorted_trials) >= 2:  # Ensure there are at least two trials
+                first_test = sorted_trials[0][1]
+                second_test = sorted_trials[1][1]
+                first_second_test_values[participant][hand] = {
+                    'first_test': first_test,
+                    'second_test': second_test
+                }
+
+    return first_second_test_values
+
+# Extract first and second test values for tBBT
+tBBT_first_second_test_values = extract_first_second_test_values(tBBT_total_time_results)
+
+# Apply ICC(3,1) on tBBT_first_second_test_values
+def calculate_icc_for_tBBT_first_second_test(tBBT_first_second_test_values):
+    """
+    Calculate ICC(3,1) for the first and second test values for each hand.
+
+    Args:
+        tBBT_first_second_test_values (dict): Dictionary containing first and second test values for each participant and hand.
+
+    Returns:
+        dict: Dictionary with ICC results for each hand.
+    """
+    icc_results = {}
+
+    for hand in ['dominant', 'non_dominant']:
+        # Prepare data for ICC calculation
+        data = []
+        for participant, hands in tBBT_first_second_test_values.items():
+            if hand in hands:
+                data.append({'Participant': participant, 'Test': 1, 'Value': hands[hand]['first_test']})
+                data.append({'Participant': participant, 'Test': 2, 'Value': hands[hand]['second_test']})
+
+        # Convert to DataFrame
+        df = pd.DataFrame(data)
+
+        # Calculate ICC(3,1)
+        icc = intraclass_corr(data=df, targets='Participant', raters='Test', ratings='Value')
+        icc_results[hand] = icc[icc['Type'] == 'ICC3'].iloc[0]['ICC']
+
+    return icc_results
+
+# Calculate ICC for tBBT first and second test values
+icc_tBBT_results = calculate_icc_for_tBBT_first_second_test(tBBT_first_second_test_values)
+print("ICC results for tBBT first and second test values:", icc_tBBT_results)
+
+
+
+
 # Calculate average total time across all trials for dominant and non-dominant hands
 tBBT_average_total_time_results = calculate_average_total_time(tBBT_total_time_results)
 
 # Total number of valid (non-NaN) datapoints in Block_Distance: 29809
 Block_Distance = utils4.load_selected_subject_errors(All_dates, DataProcess_folder)
-
-
-
 
 # Count the total and valid (non-NaN) data points in tBBT_reach_metrics['reach_durations']
 def count_total_and_valid_data_points(reach_metrics):
@@ -841,6 +1168,11 @@ plot_points_for_trial(All_Subject_tBBTs_errors, '07/22/HW', 'non_dominant', 1)
 
 
 
+
+
+
+
+
 ## ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 # Figure 1 - Correlation between dominant and non-dominant hand performance for sBBT, iBBT, and tBBT
 def plot_correlation(data_x, data_y, x_label, y_label, title, plot=True, x_range=None, y_range=None):
@@ -949,50 +1281,12 @@ plot_correlation(
 
 
 
+# sBBT: t-statistic = 1.33, p-value = 0.194
+# iBBT: t-statistic = -7.36, p-value = 0.000
+# tBBT: t-statistic = -8.28, p-value = 0.000
 
 
 
-
-def assess_significance_between_hands(sBBTResult, iBBT_average_total_time_results, tBBT_average_total_time_results):
-    """
-    Assess whether the differences between dominant and non-dominant hand metrics are significant for sBBT, iBBT, and tBBT tasks.
-
-    Args:
-        sBBTResult (pd.DataFrame): DataFrame containing sBBT scores for dominant and non-dominant hands.
-        iBBT_average_total_time_results (dict): Dictionary containing iBBT average total time for dominant and non-dominant hands.
-        tBBT_average_total_time_results (dict): Dictionary containing tBBT average total time for dominant and non-dominant hands.
-
-    Returns:
-        dict: A dictionary containing t-statistics and p-values for each task.
-    """
-
-    results = {}
-
-    # sBBT task
-    sBBT_dominant = sBBTResult['dominant']
-    sBBT_nondominant = sBBTResult['non_dominant']
-    t_stat, p_value = ttest_rel(sBBT_dominant, sBBT_nondominant)
-    results['sBBT'] = {'t_stat': t_stat, 'p_value': p_value}
-
-    # iBBT task
-    iBBT_dominant = [hands['dominant'] for hands in iBBT_average_total_time_results.values() if 'dominant' in hands]
-    iBBT_nondominant = [hands['non_dominant'] for hands in iBBT_average_total_time_results.values() if 'non_dominant' in hands]
-    t_stat, p_value = ttest_rel(iBBT_dominant, iBBT_nondominant)
-    results['iBBT'] = {'t_stat': t_stat, 'p_value': p_value}
-
-    # tBBT task
-    tBBT_dominant = [hands['dominant'] for hands in tBBT_average_total_time_results.values() if 'dominant' in hands]
-    tBBT_nondominant = [hands['non_dominant'] for hands in tBBT_average_total_time_results.values() if 'non_dominant' in hands]
-    t_stat, p_value = ttest_rel(tBBT_dominant, tBBT_nondominant)
-    results['tBBT'] = {'t_stat': t_stat, 'p_value': p_value}
-
-    return results
-
-
-# Example usage
-significance_results = assess_significance_between_hands(sBBTResult, iBBT_average_total_time_results, tBBT_average_total_time_results)
-for task, result in significance_results.items():
-    print(f"{task}: t-statistic = {result['t_stat']:.2f}, p-value = {result['p_value']:.3f}")
 
 
 
@@ -1879,6 +2173,8 @@ stats_all = analyze_and_plot_left_right(Combine_blocks, cmap_choice, bin_width=n
 import numpy as np
 from scipy.stats import circmean
 from scipy.stats import ttest_rel
+from pingouin import intraclass_corr
+import pandas as pd
 
 # Example: extract circular error directions per subject
 dominant_errors = [stats_all['circular_error_directions'][subj]['dominant'] 
@@ -2509,3 +2805,67 @@ plot_boxplot_all_subjects_results(
 
 
 
+def assess_significance_between_hands(sBBTResult, iBBT_average_total_time_results, tBBT_average_total_time_results, tBBT_average_block_distance, dominant_mean, non_dominant_mean):
+    """
+    Assess whether the differences between dominant and non-dominant hand metrics are significant for sBBT, iBBT, tBBT tasks, 
+    tBBT average block distance, and tBBT error direction.
+
+    Args:
+        sBBTResult (pd.DataFrame): DataFrame containing sBBT scores for dominant and non-dominant hands.
+        iBBT_average_total_time_results (dict): Dictionary containing iBBT average total time for dominant and non-dominant hands.
+        tBBT_average_total_time_results (dict): Dictionary containing tBBT average total time for dominant and non-dominant hands.
+        tBBT_average_block_distance (dict): Dictionary containing tBBT average block distance for dominant and non-dominant hands.
+        dominant_mean (array): Array of circular mean directions for the dominant hand (in radians).
+        non_dominant_mean (array): Array of circular mean directions for the non-dominant hand (in radians).
+
+    Returns:
+        dict: A dictionary containing t-statistics and p-values for each task.
+    """
+
+    results = {}
+
+    # sBBT task
+    sBBT_dominant = sBBTResult['dominant']
+    sBBT_nondominant = sBBTResult['non_dominant']
+    t_stat, p_value = ttest_rel(sBBT_dominant, sBBT_nondominant)
+    results['sBBT'] = {'t_stat': t_stat, 'p_value': p_value}
+
+    # iBBT task
+    iBBT_dominant = [hands['dominant'] for hands in iBBT_average_total_time_results.values() if 'dominant' in hands]
+    iBBT_nondominant = [hands['non_dominant'] for hands in iBBT_average_total_time_results.values() if 'non_dominant' in hands]
+    t_stat, p_value = ttest_rel(iBBT_dominant, iBBT_nondominant)
+    results['iBBT'] = {'t_stat': t_stat, 'p_value': p_value}
+
+    # tBBT task
+    tBBT_dominant = [hands['dominant'] for hands in tBBT_average_total_time_results.values() if 'dominant' in hands]
+    tBBT_nondominant = [hands['non_dominant'] for hands in tBBT_average_total_time_results.values() if 'non_dominant' in hands]
+    t_stat, p_value = ttest_rel(tBBT_dominant, tBBT_nondominant)
+    results['tBBT'] = {'t_stat': t_stat, 'p_value': p_value}
+
+    # tBBT average block distance
+    tBBT_block_distance_dominant = [hands['dominant'] for hands in tBBT_average_block_distance.values() if 'dominant' in hands]
+    tBBT_block_distance_nondominant = [hands['non_dominant'] for hands in tBBT_average_block_distance.values() if 'non_dominant' in hands]
+    t_stat, p_value = ttest_rel(tBBT_block_distance_dominant, tBBT_block_distance_nondominant)
+    results['tBBT_block_distance'] = {'t_stat': t_stat, 'p_value': p_value}
+
+    # tBBT error direction (convert radians to degrees before t-test)
+    dominant_mean_deg = np.degrees(dominant_mean) % 360
+    non_dominant_mean_deg = np.degrees(non_dominant_mean) % 360
+    t_stat, p_value = ttest_rel(dominant_mean_deg, non_dominant_mean_deg)
+    results['tBBT_error_direction'] = {'t_stat': t_stat, 'p_value': p_value}
+
+    return results
+
+
+# Example usage
+significance_results = assess_significance_between_hands(
+    sBBTResult, 
+    iBBT_average_total_time_results, 
+    tBBT_average_total_time_results, 
+    tBBT_average_block_distance, 
+    dominant_mean, 
+    non_dominant_mean
+)
+
+for task, result in significance_results.items():
+    print(f"{task}: t-statistic = {result['t_stat']:.2f}, p-value = {result['p_value']:.3f}")

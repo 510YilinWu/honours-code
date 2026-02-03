@@ -473,7 +473,7 @@ def calculate_icc_for_iBBT_first_second_test(iBBT_first_second_test_values):
         iBBT_first_second_test_values (dict): Dictionary containing first and second test values for each participant and hand.
 
     Returns:
-        dict: Dictionary with ICC results for each hand.
+        dict: Dictionary with ICC results for each hand, including 95% confidence intervals.
     """
     icc_results = {}
 
@@ -490,7 +490,13 @@ def calculate_icc_for_iBBT_first_second_test(iBBT_first_second_test_values):
 
         # Calculate ICC(3,1)
         icc = intraclass_corr(data=df, targets='Participant', raters='Test', ratings='Value')
-        icc_results[hand] = icc[icc['Type'] == 'ICC3'].iloc[0]['ICC']
+        icc_row = icc[icc['Type'] == 'ICC3'].iloc[0]
+        icc_results[hand] = {
+            'ICC': icc_row['ICC'],
+            # 'CI95%': icc_row['CI95%']
+            'CI95%': f"[{icc_row['CI95%'][0]:.3f}, {icc_row['CI95%'][1]:.3f}]"
+
+        }
 
     return icc_results
 
@@ -557,7 +563,7 @@ def calculate_icc_for_tBBT_first_second_test(tBBT_first_second_test_values):
         tBBT_first_second_test_values (dict): Dictionary containing first and second test values for each participant and hand.
 
     Returns:
-        dict: Dictionary with ICC results for each hand.
+        dict: Dictionary with ICC results for each hand, including 95% confidence intervals.
     """
     icc_results = {}
 
@@ -574,7 +580,11 @@ def calculate_icc_for_tBBT_first_second_test(tBBT_first_second_test_values):
 
         # Calculate ICC(3,1)
         icc = intraclass_corr(data=df, targets='Participant', raters='Test', ratings='Value')
-        icc_results[hand] = icc[icc['Type'] == 'ICC3'].iloc[0]['ICC']
+        icc_row = icc[icc['Type'] == 'ICC3'].iloc[0]
+        icc_results[hand] = {
+            'ICC': icc_row['ICC'],
+            'CI95%': icc_row['CI95%']
+        }
 
     return icc_results
 
